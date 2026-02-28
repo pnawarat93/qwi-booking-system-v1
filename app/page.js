@@ -1,14 +1,20 @@
 import TypeBox from "./components/TypeBox";
-
+import Header from "./components/Header";
+import { Sparkles } from "lucide-react";
+import Link from "next/link";
 
 export default function Home() {
   return ( 
-  <div className="flex flex-col justify-center items-center w-[80%] gap-3">
-    <h1>Booking System</h1>
-    <h2>Select your massage type</h2>
-      <TypeBox title="Traditional Thai Massage"/>
-      <TypeBox title="Aroma Oil"/>
-  </div>
-
+    <>
+      <Header />
+      <section id="shopdetail">
+        <div className="w-full min-h-60 font-serif text-[#6b9161] flex justify-center items-center flex-col gap-3">
+          <h1 className="text-5xl">Shop Name</h1>
+          <h2 className="text-2xl">Shop Address</h2>
+        </div>
+      </section>
+      <Link href="/booking">Book Now</Link>
+      
+     </>
   );
 }
