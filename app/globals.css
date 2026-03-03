@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
-
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #C7EABB;
+
+  background:
+    radial-gradient(900px circle at 15% 10%, rgba(52, 211, 153, 0.18), transparent 60%),
+    radial-gradient(900px circle at 85% 0%, rgba(221, 214, 254, 0.22), transparent 55%),
+    radial-gradient(900px circle at 75% 85%, rgba(186, 230, 253, 0.18), transparent 60%),
+    #F8FAFC;
 }

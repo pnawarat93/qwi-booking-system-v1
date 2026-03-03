@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { use, useEffect, useState } from "react";
 import TypeBox from "../components/TypeBox";
-import Header from "../components/Header";
 import { Sparkles, ArrowLeft, ArrowRight } from "lucide-react";
 
 export default function BookingPage() {
   const [currentStep, setCurrentStep] = useState(1);
+  // get services from backend
+  const [services, setServices] = useState([]);
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await fetch("/api/services");
+        const data = await response.json();
+        setServices(data);
+      } catch (error) {
+        console.error("Error fetching services:", error);
+      }
+    };
+    fetchServices();
+  }, []);
 
   const nextStep = () => {
     if (currentStep < 4) setCurrentStep(currentStep + 1);
@@ -18,9 +31,9 @@ export default function BookingPage() {
 
   return ( 
     <>
-      <Header />
+      
       <section id="shopdetail">
-        <div className="w-full min-h-60 font-serif text-[#6b9161] flex justify-center items-center flex-col gap-3">
+        <div className="w-full min-h-60 flex justify-center items-center flex-col gap-3">
           <h1 className="text-5xl">Shop Name</h1>
           <h2 className="text-2xl">Shop Address</h2>
         </div>
@@ -55,14 +68,23 @@ export default function BookingPage() {
                 <Sparkles /> <p className="font-semibold">Step 1: Select your service</p>
               </div>
               <div className="p-4 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <TypeBox type="service" title="Thai Massage" servtime="30mins" price="59" />
+                {/* <TypeBox type="service" title="Thai Massage" servtime="30mins" price="59" />
                 <TypeBox type="service" title="Aroma Oil" servtime="30mins" price="59" />
                 <TypeBox type="service" title="Foot Massage" servtime="30mins" price="59" />
                 <TypeBox type="service" title="Deep Tissue" servtime="30mins" price="59" />
                 <TypeBox type="service" title="Thai Massage" servtime="45mins" price="65" />
                 <TypeBox type="service" title="Aroma Oil" servtime="45mins" price="69" />
                 <TypeBox type="service" title="Foot Massage" servtime="45mins" price="65" />
-                <TypeBox type="service" title="Deep Tissue" servtime="45mins" price="79" />
+                <TypeBox type="service" title="Deep Tissue" servtime="45mins" price="79" /> */}
+                {services.map((service) => (
+                  <TypeBox
+                    key={service.id}
+                    type="service"
+                    title={service.name}
+                    servtime={`${service.duration} mins`}
+                    price={service.price}
+                  />
+                ))}
               </div>
             </div>
           )}
