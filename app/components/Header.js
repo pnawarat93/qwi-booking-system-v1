@@ -1,20 +1,23 @@
-import { CheckCircle2 } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export default function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/70 backdrop-blur">
-      <div className="mx-auto w-[92%] max-w-5xl py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <CheckCircle2 className="text-emerald-500" size={22} />
-          <span className="font-semibold text-slate-800">FLOW</span>
-          <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-            Booking made easy!
-          </span>
-        </div>
+    <header className="sticky top-0 z-50 border-b border-[#E8D8CC]/80 bg-[#FFF9F6]/80 backdrop-blur-xl">
+      <div className="mx-auto flex w-[92%] max-w-5xl items-center justify-between py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F0C4CB]/45 border border-[#E5BCA9]/50 shadow-sm">
+            <Sparkles className="h-5 w-5 text-[#C87D87]" />
+          </div>
 
-        <button className="rounded-xl bg-emerald-500 px-4 py-2 text-white font-medium shadow-sm hover:bg-emerald-600 transition">
-          Join Now
-        </button>
+          <div className="flex flex-col leading-tight">
+            <span className="text-lg font-semibold tracking-[0.18em] text-[#4A3A34]">
+              JONG
+            </span>
+            <span className="text-xs text-[#7A675F]">
+              Elegant booking experience
+            </span>
+          </div>
+        </div>
       </div>
     </header>
   );

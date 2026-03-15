@@ -1,12 +1,36 @@
 @import "tailwindcss";
 
+:root {
+  --jong-blush: #F0C4CB;
+  --jong-rose: #C87D87;
+  --jong-champagne: #FBEAD6;
+  --jong-thyme: #6B7556;
+  --jong-bisque: #E5BCA9;
+  --jong-cream: #FFF9F6;
+  --jong-text: #4A3A34;
+  --jong-text-soft: #7A675F;
+  --jong-border: #E8D8CC;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-
+  color: var(--jong-text);
   background:
-    radial-gradient(900px circle at 15% 10%, rgba(52, 211, 153, 0.18), transparent 60%),
-    radial-gradient(900px circle at 85% 0%, rgba(221, 214, 254, 0.22), transparent 55%),
-    radial-gradient(900px circle at 75% 85%, rgba(186, 230, 253, 0.18), transparent 60%),
-    #F8FAFC;
+    radial-gradient(700px circle at 12% 10%, rgba(240, 196, 203, 0.26), transparent 58%),
+    radial-gradient(850px circle at 88% 8%, rgba(229, 188, 169, 0.18), transparent 60%),
+    radial-gradient(900px circle at 50% 100%, rgba(251, 234, 214, 0.45), transparent 65%),
+    linear-gradient(180deg, #FFF9F6 0%, #FCF5EF 100%);
+}
+
+button {
+  cursor: pointer;
 }
