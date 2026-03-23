@@ -34,7 +34,7 @@ export default function ScheduleGrid({ selectedDate = new Date().toISOString().s
       setLoading(true);
       try {
         const [staffRes, bookingsRes] = await Promise.all([
-          fetch("/api/staff"),
+          fetch("/api/staffs"),
           fetch(`/api/booking?date=${selectedDate}`)
         ]);
 

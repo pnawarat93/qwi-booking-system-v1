@@ -12,7 +12,7 @@ export async function GET(request) {
   // Fetch bookings for the date, joining with services to get duration
   const { data, error } = await supabase
     .from('jobs')
-    .select('time, services(duration)')
+    .select('time, staff_id, services(duration)')
     .eq('date', date)
     .neq('status', 'cancelled');
 
