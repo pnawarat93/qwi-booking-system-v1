@@ -7,15 +7,28 @@ import { useRouter } from "next/navigation";
 import StoreInfoBar from "../components/StoreInfoBar";
 import ScheduleToolbar from "../components/ScheduleToolbar";
 import ScheduleGrid from "../components/ScheduleGrid";
-import { useAuthStore } from "../store/useAuthStore";
+import BottomDayTray from "../components/BottomDayTray";
 import EndDayReport from "../components/EndDayReport";
+import AddWalkInModal from "../components/AddWalkInModal";
+import InactiveBookingsModal from "../components/InactiveBookingsModal";
+import { useAuthStore } from "../store/useAuthStore";
 
 export default function AdminPage() {
-  const [showEndDayReport, setShowEndDayReport] = useState(false);
-  const [todayBooking, setTodayBooking] = useState([]);
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split("T")[0]
   );
+
+  const [trayData, setTrayData] = useState({
+    bookings: [],
+    activeBookings: [],
+    inactiveBookings: [],
+  });
+
+  const [showEndDayReport, setShowEndDayReport] = useState(false);
+  const [showWalkInModal, setShowWalkInModal] = useState(false);
+  const [showInactiveBookingsModal, setShowInactiveBookingsModal] =
+    useState(false);
+  const [gridRefreshToken, setGridRefreshToken] = useState(0);
 
   const { user } = useAuthStore();
   const router = useRouter();
@@ -27,22 +40,7 @@ export default function AdminPage() {
   }, [user, router]);
 
   return (
-    <main className="flex h-full flex-col">
-      <p className="p-4 text-sm text-gray-500">
-        Logged in as <strong>{user?.name}</strong>
-      </p>
-      <button
-        onClick={() => {
-          setShowEndDayReport(true);
-          fetch(`/api/booking?date=${selectedDate}`)
-            .then((res) => res.json())
-            .then((data) => setTodayBooking(data))
-            .catch(() => setTodayBooking([]));
-        }}
-        className="mx-4 mb-4 self-start rounded-xl bg-[#C87D87] py-2 px-4 text-sm font-semibold text-white"
-      >
-        End Day Report
-      </button>
+    <main className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b bg-white">
         <StoreInfoBar
           shopName="Wellness Thai Massage"
@@ -56,21 +54,77 @@ export default function AdminPage() {
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           dateLabel={format(new Date(selectedDate), "EEEE, d MMMM yyyy")}
+          onOpenWalkIn={() => setShowWalkInModal(true)}
+          onOpenNewBooking={() => {
+            console.log("Open new booking modal later");
+          }}
         />
       </div>
 
       <section className="min-h-0 flex-1 overflow-hidden">
-        <div className="h-full overflow-auto">
-          <ScheduleGrid selectedDate={selectedDate} />
-        </div>
-        {showEndDayReport && (
-          <EndDayReport
-            bookings={todayBooking}
-            onClose={() => setShowEndDayReport(false)}
-            onFinish={() => setShowEndDayReport(false)}
-          />
-        )}
+        <ScheduleGrid
+          selectedDate={selectedDate}
+          onDataChange={setTrayData}
+          refreshToken={gridRefreshToken}
+        />
       </section>
+
+      <BottomDayTray
+        selectedDate={selectedDate}
+        bookings={trayData.bookings}
+        activeBookings={trayData.activeBookings}
+        inactiveBookings={trayData.inactiveBookings}
+        onOpenEndDay={() => setShowEndDayReport(true)}
+        onOpenStaffControls={() => {
+          console.log("Open staff controls later");
+        }}
+        onOpenInactiveBookings={() => {
+          setShowInactiveBookingsModal(true);
+        }}
+      />
+
+      {showEndDayReport && (
+        <EndDayReport
+          bookings={trayData.bookings}
+          onClose={() => setShowEndDayReport(false)}
+          onFinish={() => setShowEndDayReport(false)}
+        />
+      )}
+
+      <AddWalkInModal
+        open={showWalkInModal}
+        selectedDate={selectedDate}
+        onClose={() => setShowWalkInModal(false)}
+        onCreated={() => {
+          setGridRefreshToken((prev) => prev + 1);
+        }}
+      />
+
+      <InactiveBookingsModal
+        open={showInactiveBookingsModal}
+        bookings={trayData.inactiveBookings}
+        onClose={() => setShowInactiveBookingsModal(false)}
+        onRecover={async (booking) => {
+          try {
+            const res = await fetch(`/api/booking/${booking.id}`, {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ status: "pending" }),
+            });
+
+            if (!res.ok) {
+              throw new Error("Failed to recover booking");
+            }
+
+            setGridRefreshToken((prev) => prev + 1);
+          } catch (error) {
+            console.error(error);
+            alert("Could not recover booking.");
+          }
+        }}
+      />
     </main>
   );
 }

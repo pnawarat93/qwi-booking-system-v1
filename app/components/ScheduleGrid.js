@@ -61,6 +61,8 @@ function getHeightPx(durationMinutes) {
 
 export default function ScheduleGrid({
   selectedDate = new Date().toISOString().split("T")[0],
+  onDataChange,
+  refreshToken = 0,
 }) {
   const [staffList, setStaffList] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -94,7 +96,7 @@ export default function ScheduleGrid({
 
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [selectedDate, refreshKey]);
+  }, [selectedDate, refreshKey, refreshToken]);
 
   const timeSlots = useMemo(() => generateTimeSlots(startHour, endHour), []);
 
@@ -110,6 +112,14 @@ export default function ScheduleGrid({
     );
   }, [bookings]);
 
+  useEffect(() => {
+    onDataChange?.({
+      bookings,
+      activeBookings,
+      inactiveBookings: inactiveDayBookings,
+    });
+  }, [bookings, activeBookings, inactiveDayBookings, onDataChange]);
+
   const totalRows = timeSlots.length;
   const gridHeight = totalRows * SLOT_HEIGHT;
   const totalGridWidth =
@@ -123,24 +133,26 @@ export default function ScheduleGrid({
     setSelectedBooking(null);
   }
 
-  function handleSaveBooking(updatedBooking) {
-    setBookings((prev) =>
-      prev.map((booking) =>
-        String(booking.id) === String(updatedBooking.id)
-          ? {
-              ...booking,
-              ...updatedBooking,
-              services: {
-                ...booking.services,
-                name:
-                  updatedBooking.service_name ??
-                  booking.services?.name ??
-                  booking.service_name,
-              },
-            }
-          : booking
-      )
-    );
+  async function handleSaveBooking(updatedBooking) {
+    const previousBookings = bookings;
+    const previousSelectedBooking = selectedBooking;
+
+    const optimisticBooking = (booking) =>
+      String(booking.id) === String(updatedBooking.id)
+        ? {
+            ...booking,
+            ...updatedBooking,
+            services: {
+              ...booking.services,
+              name:
+                updatedBooking.service_name ??
+                booking.services?.name ??
+                booking.service_name,
+            },
+          }
+        : booking;
+
+    setBookings((prev) => prev.map(optimisticBooking));
 
     setSelectedBooking((prev) =>
       prev && String(prev.id) === String(updatedBooking.id)
@@ -158,15 +170,49 @@ export default function ScheduleGrid({
         : prev
     );
 
-    // Later:
-    // await fetch(`/api/booking/${updatedBooking.id}`, {
-    //   method: "PATCH",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify(updatedBooking),
-    // });
+    try {
+      const res = await fetch(`/api/booking/${updatedBooking.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customer_name: updatedBooking.customer_name,
+          customer_phone: updatedBooking.customer_phone,
+          service_id: updatedBooking.service_id,
+          staff_id: updatedBooking.staff_id,
+          date: updatedBooking.date,
+          time: updatedBooking.time,
+          party_size: updatedBooking.party_size,
+          status: updatedBooking.status,
+          is_walk_in: updatedBooking.is_walk_in,
+        }),
+      });
 
-    if (INACTIVE_DAY_STATUSES.includes(updatedBooking.status?.toLowerCase())) {
-      setSelectedBooking(null);
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(result?.error || "Failed to update booking");
+      }
+
+      const savedBooking = result;
+
+      setBookings((prev) =>
+        prev.map((booking) =>
+          String(booking.id) === String(savedBooking.id) ? savedBooking : booking
+        )
+      );
+
+      if (INACTIVE_DAY_STATUSES.includes(savedBooking.status?.toLowerCase())) {
+        setSelectedBooking(null);
+      } else {
+        setSelectedBooking(savedBooking);
+      }
+    } catch (error) {
+      console.error(error);
+      setBookings(previousBookings);
+      setSelectedBooking(previousSelectedBooking);
+      alert(error.message || "Could not save booking changes.");
     }
   }
 
@@ -307,11 +353,6 @@ export default function ScheduleGrid({
         onClose={closeBookingDetails}
         onSave={handleSaveBooking}
       />
-
-      <div className="border-t bg-white px-4 py-2 text-xs text-gray-500">
-        Total bookings: {bookings.length} | Active on grid: {activeBookings.length} |
-        Cancelled / No-show: {inactiveDayBookings.length}
-      </div>
     </div>
   );
 }
