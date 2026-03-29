@@ -8,20 +8,44 @@ const useBookingStore = create((set, get) => ({
   selectedPeople: null,
   selectedDate: "",
   selectedTime: null,
-  selectedStaff: null,
+  selectedStaffs: [],
   bookings: [],
   loading: false,
 
   setServices: (services) => set({ services }),
   setStaffs: (staffs) => set({ staffs }),
-  setSelectedStaff: (staff) => set({ selectedStaff: staff, selectedTime: null }), // Reset time when staff changes
+  toggleSelectedStaff: (staff) => {
+    const { selectedStaffs, selectedPeople } = get();
+    const exists = selectedStaffs.some((s) => s.id === staff.id);
 
-  setSelectedService: (service) => set({ 
+    if (exists) {
+      set({
+        selectedStaffs: selectedStaffs.filter((s) => s.id !== staff.id),
+        selectedTime: null,
+      });
+      return true;
+    }
+
+    const maxSelectable = selectedPeople || 0;
+    if (maxSelectable === 0 || selectedStaffs.length >= maxSelectable) {
+      return false;
+    }
+
+    set({
+      selectedStaffs: [...selectedStaffs, staff],
+      selectedTime: null,
+    });
+    return true;
+  },
+
+  clearSelectedStaffs: () => set({ selectedStaffs: [], selectedTime: null }),
+
+  setSelectedService: (service) => set({
     selectedService: service,
     selectedTime: null // Reset time when service changes as duration might differ
   }),
 
-  setSelectedPeople: (num) => set({ selectedPeople: num }),
+  setSelectedPeople: (num) => set({ selectedPeople: num, selectedTime: null, selectedStaffs: [] }), // Reset time and staff when people count changes
 
   setSelectedDate: async (date) => {
     set({ selectedDate: date, selectedTime: null, loading: true });
@@ -68,7 +92,7 @@ const useBookingStore = create((set, get) => ({
   },
 
   getAvailableSlots: () => {
-    const { selectedService, selectedDate, bookings, staffs, selectedStaff, selectedPeople } = get();
+    const { selectedService, selectedDate, bookings, staffs, selectedStaffs, selectedPeople } = get();
     if (!selectedService || !selectedDate || staffs.length === 0) return [];
 
     const slots = [];
@@ -81,10 +105,7 @@ const useBookingStore = create((set, get) => ({
       const slotStartTimeStr = format(current, "HH:mm");
       const slotEndTime = addMinutes(current, duration);
       let availableStaffIds = staffs.map(s => s.id);
-      if(selectedStaff) {
-        availableStaffIds = [selectedStaff.id];
-      }
-      
+
       bookings.forEach(booking => {
         const bStart = parse(booking.time.substring(0, 5), "HH:mm", new Date());
         const bDuration = booking.services?.duration || 60; // Fallback or join data
@@ -96,14 +117,15 @@ const useBookingStore = create((set, get) => ({
         }
       });
       let isAvailable = false;
-      if(selectedStaff) {
-        if(availableStaffIds.includes(selectedStaff.id)) {
-          if(selectedPeople >= selectedPeople) {
-            isAvailable = true;
-          }
+      const requiredStaffCount = selectedPeople || 1;
+      if (selectedStaffs.length > 0) {
+        const requiredStaffIds = selectedStaffs.map(s => s.id);
+        const hasRequiredStaff = requiredStaffIds.every(id => availableStaffIds.includes(id));
+        if (hasRequiredStaff && availableStaffIds.length >= requiredStaffCount) {
+          isAvailable = true;
         }
       } else {
-        if(availableStaffIds.length >= selectedPeople) {
+        if (availableStaffIds.length >= requiredStaffCount) {
           isAvailable = true;
         }
       }
@@ -120,7 +142,7 @@ const useBookingStore = create((set, get) => ({
 
   resetBooking: () => set({
     selectedService: null,
-    selectedStaff: null,
+    selectedStaffs: [],
     selectedPeople: null,
     selectedDate: "",
     selectedTime: null,

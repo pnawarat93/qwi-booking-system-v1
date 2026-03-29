@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import TypeBox from "../components/TypeBox";
-import useBookingStore from "../store/useBookingStore";
+import TypeBox from "../../components/TypeBox";
+import useBookingStore from "../../store/useBookingStore";
 import {
   Sparkles,
   ArrowLeft,
@@ -21,7 +21,7 @@ export default function BookingPage() {
     selectedPeople,
     selectedDate,
     selectedTime,
-    selectedStaff,
+    selectedStaffs,
     bookings,
     loading,
     fetchServices,
@@ -30,7 +30,8 @@ export default function BookingPage() {
     setSelectedPeople,
     setSelectedDate,
     setSelectedTime,
-    setSelectedStaff,
+    toggleSelectedStaff,
+    clearSelectedStaffs,
     getAvailableSlots,
     resetBooking
   } = useBookingStore();
@@ -71,12 +72,12 @@ export default function BookingPage() {
   const availableSlots = useMemo(() => getAvailableSlots(), [
     selectedService,
     selectedPeople,
-    selectedStaff,
-    selectedDate, 
-    bookings, 
+    selectedStaffs,
+    selectedDate,
+    bookings,
     staffs,
     getAvailableSlots
-    ]);
+  ]);
 
   const groupedSlots = useMemo(() => {
     const groups = {
@@ -151,12 +152,12 @@ export default function BookingPage() {
       customer_name: customerName,
       customer_phone: customerPhone,
       service_id: selectedService.id,
-      staff_id: selectedStaff ? selectedStaff.id : null,
+      staff_ids: selectedStaffs.map((staff) => staff.id),
       is_walk_in: false,
       date: selectedDate,
       time: selectedTime,
       party_size: selectedPeople,
-      status: "booked",
+      status: "pending",
     };
 
     try {
@@ -291,35 +292,68 @@ export default function BookingPage() {
                       />
                     </div>
                   ))}
-                  <div className="pt-2 text-right">
-                     <button 
-                       onClick={() => setIsStaffModalOpen(true)}
-                       className="text-xs text-[#7A675F] underline hover:text-[#C87D87]"
-                     >
-                        {selectedStaff ? `Specific Staff: ${selectedStaff.name}` : "Pick specific staff (Optional)"}
-                     </button>
-                     {selectedStaff && (
-                       <button onClick={() => setSelectedStaff(null)} className="ml-2 text-xs text-[#C87D87] hover:text-[#4A3A34]">Clear</button>
-                     )}
-                  </div>
+
                 </div>
               )}
 
-              {currentStep === 2 && (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-                  {[1, 2, 3, 4].map((num) => (
-                    <div
-                      key={num}
-                      onClick={() => setSelectedPeople(num)}
-                      className="cursor-pointer"
-                    >
-                      <TypeBox
-                        type="numberppl"
-                        pplnum={num}
-                        selected={selectedPeople === num}
-                      />
+{currentStep === 2 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                    {[1, 2, 3, 4].map((num) => (
+                      <div
+                        key={num}
+                        onClick={() => setSelectedPeople(num)}
+                        className="cursor-pointer"
+                      >
+                        <TypeBox
+                          type="numberppl"
+                          pplnum={num}
+                          selected={selectedPeople === num}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-[#E8D8CC] bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#4A3A34]">
+                          Select Staff (Optional)
+                        </p>
+                        <p className="text-xs text-[#7A675F]">
+                          {selectedPeople
+                            ? `Choose up to ${selectedPeople} specific staff`
+                            : "Select people number first"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setIsStaffModalOpen(true)}
+                        disabled={!selectedPeople}
+                        className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+                          selectedPeople
+                            ? "bg-[#FBEAD6] text-[#4A3A34] hover:bg-[#F5DCC6]"
+                            : "cursor-not-allowed bg-[#F2ECE8] text-[#B7AAA3]"
+                        }`}
+                      >
+                        Pick Staff
+                      </button>
                     </div>
-                  ))}
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedStaffs.length > 0 ? (
+                        selectedStaffs.map((staff) => (
+                          <span
+                            key={staff.id}
+                            className="rounded-full bg-[#FDF1F3] px-3 py-1 text-xs font-medium text-[#7A675F]"
+                          >
+                            {staff.name}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-[#9A8A82]">Any available staff</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -424,10 +458,10 @@ export default function BookingPage() {
                       <strong className="text-[#4A3A34]">Price:</strong> $
                       {selectedService?.price}
                     </p>
-                    {selectedStaff && (
+                    {selectedStaffs.length > 0 && (
                       <p>
                         <strong className="text-[#4A3A34]">Staff:</strong>{" "}
-                        {selectedStaff.name}
+                        {selectedStaffs.map((staff) => staff.name).join(", ")}
                       </p>
                     )}
                     <p>
@@ -740,6 +774,11 @@ export default function BookingPage() {
                 <h3 className="text-xl font-semibold text-[#4A3A34]">
                   Pick Specific Staff
                 </h3>
+                <p className="text-sm text-[#7A675F]">
+                  {selectedPeople
+                    ? `You can select up to ${selectedPeople} staff members`
+                    : "Select number of people first"}
+                </p>
               </div>
               <button
                 onClick={() => setIsStaffModalOpen(false)}
@@ -752,12 +791,12 @@ export default function BookingPage() {
             <div className="space-y-2">
               <button
                 onClick={() => {
-                  setSelectedStaff(null);
+                  clearSelectedStaffs();
                   setIsStaffModalOpen(false);
                 }}
-                className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaff === null
-                    ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
-                    : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
+                className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaffs.length === 0
+                  ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
+                  : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
                   }`}
               >
                 Any Available Staff
@@ -766,17 +805,24 @@ export default function BookingPage() {
                 <button
                   key={staff.id}
                   onClick={() => {
-                    setSelectedStaff(staff);
-                    setIsStaffModalOpen(false);
+                    toggleSelectedStaff(staff);
+                    
                   }}
-                  className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaff?.id === staff.id
-                      ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
-                      : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
+                  disabled={!selectedPeople}
+                  className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaffs.some(s => s.id === staff.id)
+                    ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
+                    : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
                     }`}
                 >
                   {staff.name}
                 </button>
               ))}
+              <button
+                onClick={() => setIsStaffModalOpen(false)}
+                className="mt-3 w-full rounded-xl bg-[#C87D87] py-3 text-sm font-semibold text-white"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

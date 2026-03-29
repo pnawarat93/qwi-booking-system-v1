@@ -1,24 +1,43 @@
-export default function ScheduleToolbar({ dateLabel = "Sunday, 15 March 2026" }) {
+export default function ScheduleToolbar({ dateLabel = "Sunday, 15 March 2026", onDateChange }) {
+  const shiftDate = (days) => {
+    const d = new Date(dateLabel);
+    d.setDate(d.getDate() + days);
+    const newDate = d.toISOString().split("T")[0];
+    onDateChange(newDate)
+  }
+  const setToday = () => {
+    onDateChange(new Date().toISOString().split("T")[0])
+  }
+    
   return (
-    <div className="w-full border-b bg-white px-6 py-4 sticky top-0 z-20">
+    <div className="w-full bg-white px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <button className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            onClick={() => shiftDate(-1)}
+          >
             ←
           </button>
 
-          <button className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <button className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            onClick={setToday}
+          >
             Today
           </button>
 
-          <button className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <button className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            onClick={() => shiftDate(1)}
+          >
             →
           </button>
 
           <div className="ml-2">
-            <h3 className="text-base font-semibold text-gray-800">
-              {dateLabel}
-            </h3>
+        <input
+              type="date"
+              value={dateLabel}
+              onChange={(e) => onDateChange(e.target.value)}
+              className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            />
           </div>
         </div>
 

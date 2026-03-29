@@ -3,8 +3,17 @@ import { NextResponse } from "next/server";
 
 export async function POST(request) {
   const body = await request.json();
-  
+
   const partySize = body.party_size || 1;
+  const requiredStaffIds = Array.from(
+    new Set(
+      Array.isArray(body.staff_ids)
+        ? body.staff_ids
+        : body.staff_id
+          ? [body.staff_id]
+          : []
+    )
+  );
 
   // 1. Fetch service duration
   const { data: service } = await supabase.from('services').select('duration').eq('id', body.service_id).single();
@@ -44,32 +53,29 @@ export async function POST(request) {
     });
   }
 
-  // Verify the specific requested staff is available
-  if (body.staff_id && !availableStaffIds.includes(body.staff_id)) {
-    return NextResponse.json({ error: "Selected staff is not available at this time" }, { status: 400 });
+  const allRequiredStaffAvailable = requiredStaffIds.every(id => availableStaffIds.includes(id));
+  if (!allRequiredStaffAvailable) {
+    return NextResponse.json({ error: "One or more required staff members are not available at the requested time" }, { status: 400 });
   }
-
   if (availableStaffIds.length < partySize) {
-    return NextResponse.json({ error: "Not enough staff available at this time" }, { status: 400 });
+    return NextResponse.json({ error: "Not enough staff available for the requested time" }, { status: 400 });
   }
-
   // 5. Select the required number of staff
-  let selectedStaffIds = [];
-  
-  if (body.staff_id) {
-    selectedStaffIds.push(body.staff_id);
-    availableStaffIds = availableStaffIds.filter(id => id !== body.staff_id);
-  }
+  let selectedStaffIds = [...requiredStaffIds];
+  availableStaffIds = availableStaffIds.filter(id => !selectedStaffIds.includes(id));
+
+
 
   while (selectedStaffIds.length < partySize) {
     const randomIndex = Math.floor(Math.random() * availableStaffIds.length);
     selectedStaffIds.push(availableStaffIds[randomIndex]);
-    availableStaffIds.splice(randomIndex, 1); 
+    availableStaffIds.splice(randomIndex, 1);
   }
 
   // 6. Create jobs for each staff member
+  const { staff_ids, staff_id, ...jobPayload } = body; // Remove staff_ids and staff_id from body
   const jobsToInsert = selectedStaffIds.map(staffId => ({
-    ...body,
+    ...jobPayload,
     staff_id: staffId,
     party_size: partySize // Keeping original party_size so shop knows it was a group
   }));
