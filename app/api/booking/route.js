@@ -182,6 +182,23 @@ export async function POST(request) {
 
     // 6) Create jobs
     const { staff_ids, staff_id, ...jobPayload } = body;
+    let jobgroup_id = null;
+    if (partySize > 1) {
+      const { data: groupData, error: groupError } = await supabase
+        .from("job_groups")
+        .insert({ created_at: new Date().toISOString() })
+        .select("id")
+        .single();
+
+      if (groupError || !groupData) {
+        return NextResponse.json(
+          { error: "Failed to create job group" },
+          { status: 500 }
+        );
+      }
+
+      jobgroup_id = groupData.id;
+    }
 
     const jobsToInsert = selectedStaffIds.map((selectedStaffId) => ({
       ...jobPayload,
@@ -194,6 +211,7 @@ export async function POST(request) {
       party_size: partySize,
       status,
       staff_id: selectedStaffId,
+      job_group_id: jobgroup_id,
     }));
 
     const { data, error } = await supabase

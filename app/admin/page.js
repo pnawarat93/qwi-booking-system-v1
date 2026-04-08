@@ -11,6 +11,7 @@ import BottomDayTray from "../components/BottomDayTray";
 import EndDayReport from "../components/EndDayReport";
 import AddWalkInModal from "../components/AddWalkInModal";
 import InactiveBookingsModal from "../components/InactiveBookingsModal";
+import UnassignedBookingsModal from "../components/UnassignedBookingsModal";
 import { useAuthStore } from "../store/useAuthStore";
 
 export default function AdminPage() {
@@ -22,13 +23,18 @@ export default function AdminPage() {
     bookings: [],
     activeBookings: [],
     inactiveBookings: [],
+    unassignedBookings: [],
   });
 
   const [showEndDayReport, setShowEndDayReport] = useState(false);
   const [showWalkInModal, setShowWalkInModal] = useState(false);
   const [showInactiveBookingsModal, setShowInactiveBookingsModal] =
     useState(false);
+  const [showUnassignedBookingsModal, setShowUnassignedBookingsModal] =
+    useState(false);
   const [gridRefreshToken, setGridRefreshToken] = useState(0);
+  const [bookingToOpenFromUnassigned, setBookingToOpenFromUnassigned] =
+    useState(null);
 
   const { user } = useAuthStore();
   const router = useRouter();
@@ -38,6 +44,8 @@ export default function AdminPage() {
       router.push("/login");
     }
   }, [user, router]);
+
+  const unassignedCount = trayData.unassignedBookings?.length || 0;
 
   return (
     <main className="flex h-full min-h-0 flex-col">
@@ -61,11 +69,37 @@ export default function AdminPage() {
         />
       </div>
 
+      {unassignedCount > 0 && (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-amber-800">
+              <span className="font-semibold">
+                {unassignedCount} booking
+                {unassignedCount > 1 ? "s" : ""} need reassignment
+              </span>
+              <span className="ml-2 text-amber-700">
+                These bookings belong to staff who are not on today’s shift.
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowUnassignedBookingsModal(true)}
+              className="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+            >
+              Review unassigned
+            </button>
+          </div>
+        </div>
+      )}
+
       <section className="min-h-0 flex-1 overflow-hidden">
         <ScheduleGrid
           selectedDate={selectedDate}
           onDataChange={setTrayData}
           refreshToken={gridRefreshToken}
+          externalSelectedBooking={bookingToOpenFromUnassigned}
+          onExternalBookingHandled={() => setBookingToOpenFromUnassigned(null)}
         />
       </section>
 
@@ -123,6 +157,16 @@ export default function AdminPage() {
             console.error(error);
             alert("Could not recover booking.");
           }
+        }}
+      />
+
+      <UnassignedBookingsModal
+        open={showUnassignedBookingsModal}
+        bookings={trayData.unassignedBookings}
+        onClose={() => setShowUnassignedBookingsModal(false)}
+        onOpenBooking={(booking) => {
+          setShowUnassignedBookingsModal(false);
+          setBookingToOpenFromUnassigned(booking);
         }}
       />
     </main>

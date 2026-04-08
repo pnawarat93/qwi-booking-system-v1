@@ -10,6 +10,7 @@ const SLOT_MINUTES = 5;
 const SLOT_HEIGHT = 32;
 const TIME_COLUMN_WIDTH = 80;
 const STAFF_COLUMN_WIDTH = 280;
+const UNASSIGNED_COLUMN_WIDTH = 180;
 
 const ACTIVE_GRID_STATUSES = ["pending", "paid"];
 const INACTIVE_DAY_STATUSES = ["cancelled", "no_show"];
@@ -63,6 +64,8 @@ export default function ScheduleGrid({
   selectedDate = new Date().toISOString().split("T")[0],
   onDataChange,
   refreshToken = 0,
+  externalSelectedBooking = null,
+  onExternalBookingHandled,
 }) {
   const [staffList, setStaffList] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -76,15 +79,37 @@ export default function ScheduleGrid({
 
       try {
         const [staffRes, bookingsRes] = await Promise.all([
-          fetch("/api/staffs"),
+          fetch(`/api/staff-shifts?date=${selectedDate}`),
           fetch(`/api/booking?date=${selectedDate}`),
         ]);
 
         const staffData = await staffRes.json();
         const bookingsData = await bookingsRes.json();
 
-        if (Array.isArray(staffData)) setStaffList(staffData);
-        if (Array.isArray(bookingsData)) setBookings(bookingsData);
+        if (Array.isArray(staffData)) {
+          const normalizedStaff = staffData
+            .filter((shift) => shift.users)
+            .map((shift) => ({
+              id: shift.users.id,
+              name: shift.users.name_display || shift.users.name,
+              staff_code: shift.users.staff_code || null,
+              shift_id: shift.id,
+              start_time: shift.start_time,
+              end_time: shift.end_time,
+              display_order: shift.display_order,
+              notes: shift.notes || "",
+            }));
+
+          setStaffList(normalizedStaff);
+        } else {
+          setStaffList([]);
+        }
+
+        if (Array.isArray(bookingsData)) {
+          setBookings(bookingsData);
+        } else {
+          setBookings([]);
+        }
       } catch (error) {
         console.error("Error fetching admin data:", error);
       } finally {
@@ -97,6 +122,13 @@ export default function ScheduleGrid({
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [selectedDate, refreshKey, refreshToken]);
+
+  useEffect(() => {
+    if (externalSelectedBooking) {
+      setSelectedBooking(externalSelectedBooking);
+      onExternalBookingHandled?.();
+    }
+  }, [externalSelectedBooking, onExternalBookingHandled]);
 
   const timeSlots = useMemo(() => generateTimeSlots(startHour, endHour), []);
 
@@ -112,18 +144,38 @@ export default function ScheduleGrid({
     );
   }, [bookings]);
 
+  const workingStaffIds = useMemo(() => {
+    return new Set(staffList.map((staff) => String(staff.id)));
+  }, [staffList]);
+
+  const unassignedBookings = useMemo(() => {
+    return activeBookings.filter((booking) => {
+      if (!booking.staff_id) return true;
+      return !workingStaffIds.has(String(booking.staff_id));
+    });
+  }, [activeBookings, workingStaffIds]);
+
   useEffect(() => {
     onDataChange?.({
       bookings,
       activeBookings,
       inactiveBookings: inactiveDayBookings,
+      unassignedBookings,
     });
-  }, [bookings, activeBookings, inactiveDayBookings, onDataChange]);
+  }, [
+    bookings,
+    activeBookings,
+    inactiveDayBookings,
+    unassignedBookings,
+    onDataChange,
+  ]);
 
   const totalRows = timeSlots.length;
   const gridHeight = totalRows * SLOT_HEIGHT;
   const totalGridWidth =
-    TIME_COLUMN_WIDTH + staffList.length * STAFF_COLUMN_WIDTH;
+    TIME_COLUMN_WIDTH +
+    staffList.length * STAFF_COLUMN_WIDTH +
+    UNASSIGNED_COLUMN_WIDTH;
 
   function openBookingDetails(booking) {
     setSelectedBooking(booking);
@@ -237,7 +289,7 @@ export default function ScheduleGrid({
           <div
             className="sticky top-0 z-20 grid bg-gray-50"
             style={{
-              gridTemplateColumns: `${TIME_COLUMN_WIDTH}px repeat(${staffList.length}, ${STAFF_COLUMN_WIDTH}px)`,
+              gridTemplateColumns: `${TIME_COLUMN_WIDTH}px repeat(${staffList.length}, ${STAFF_COLUMN_WIDTH}px) ${UNASSIGNED_COLUMN_WIDTH}px`,
             }}
           >
             <div className="border-b px-3 py-3 text-sm font-semibold text-gray-600">
@@ -257,13 +309,17 @@ export default function ScheduleGrid({
                 {staff.name}
               </div>
             ))}
+
+            <div className="border-b border-l border-amber-200 bg-amber-50 px-2 py-3 text-center text-sm font-semibold text-amber-700">
+              Unassigned
+            </div>
           </div>
 
           <div className="relative">
             <div
               className="grid"
               style={{
-                gridTemplateColumns: `${TIME_COLUMN_WIDTH}px repeat(${staffList.length}, ${STAFF_COLUMN_WIDTH}px)`,
+                gridTemplateColumns: `${TIME_COLUMN_WIDTH}px repeat(${staffList.length}, ${STAFF_COLUMN_WIDTH}px) ${UNASSIGNED_COLUMN_WIDTH}px`,
               }}
             >
               {timeSlots.map((slot) => (
@@ -290,13 +346,24 @@ export default function ScheduleGrid({
                       style={{ height: SLOT_HEIGHT }}
                     />
                   ))}
+
+                  <div
+                    className={`border-l border-amber-100 bg-amber-50/30 ${
+                      slot.isMajor
+                        ? "border-t border-gray-300"
+                        : "border-t border-gray-100"
+                    }`}
+                    style={{ height: SLOT_HEIGHT }}
+                  />
                 </React.Fragment>
               ))}
             </div>
 
             {staffList.map((staff, staffIndex) => {
               const staffBookings = activeBookings.filter(
-                (booking) => String(booking.staff_id) === String(staff.id)
+                (booking) =>
+                  String(booking.staff_id) === String(staff.id) &&
+                  workingStaffIds.has(String(booking.staff_id))
               );
 
               return (
@@ -343,6 +410,48 @@ export default function ScheduleGrid({
                 </div>
               );
             })}
+
+            <div
+              className="absolute top-0"
+              style={{
+                left: TIME_COLUMN_WIDTH + staffList.length * STAFF_COLUMN_WIDTH,
+                width: UNASSIGNED_COLUMN_WIDTH,
+                height: gridHeight,
+              }}
+            >
+              {unassignedBookings.map((booking) => {
+                const top = getTopOffsetPx(booking.time);
+                const height = getHeightPx(
+                  booking.duration ?? booking.services?.duration
+                );
+
+                return (
+                  <button
+                    key={booking.id}
+                    type="button"
+                    onClick={() => openBookingDetails(booking)}
+                    className="absolute left-1.5 right-1.5 z-10 text-left"
+                    style={{
+                      top: top + 2,
+                      height: Math.max(height - 4, 28),
+                    }}
+                  >
+                    <div className="h-full rounded-lg ring-1 ring-amber-300">
+                      <BookingCard
+                        customer_name={booking.customer_name}
+                        service_name={
+                          booking.services?.name || booking.service_name
+                        }
+                        time={booking.time?.substring(0, 5)}
+                        duration={booking.duration ?? booking.services?.duration}
+                        status={booking.status?.toLowerCase()}
+                        compact
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
