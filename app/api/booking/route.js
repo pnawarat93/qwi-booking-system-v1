@@ -5,253 +5,274 @@ function normalizeStatus(status) {
   return String(status || "pending").toLowerCase();
 }
 
-function timeStringToMinutes(timeValue) {
-  if (!timeValue) return null;
+function timeToMinutes(timeString) {
+  if (!timeString) return null;
 
-  const safeTime = String(timeValue).slice(0, 5);
-  const [h, m] = safeTime.split(":").map(Number);
+  const safeTime = String(timeString).substring(0, 5);
+  const [hours, minutes] = safeTime.split(":").map(Number);
 
-  if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  return h * 60 + m;
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function bookingsOverlap(aStart, aDuration, bStart, bDuration) {
+  const aEnd = aStart + aDuration;
+  const bEnd = bStart + bDuration;
+  return aStart < bEnd && aEnd > bStart;
+}
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get("date");
+
+    if (!date) {
+      return NextResponse.json({ error: "Date is required" }, { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from("jobs")
+      .select(`
+        *,
+        services (
+          id,
+          name,
+          duration,
+          price
+        ),
+        assigned_staff:users!jobs_staff_id_fkey (
+          id,
+          name,
+          name_display,
+          staff_code
+        ),
+        requested_staff:users!jobs_requested_staff_id_fkey (
+          id,
+          name,
+          name_display,
+          staff_code
+        )
+      `)
+      .eq("date", date)
+      .order("time", { ascending: true });
+
+    if (error) {
+      console.error("GET /api/booking error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data || []);
+  } catch (error) {
+    console.error("GET /api/booking server error:", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
 }
 
 export async function POST(request) {
   try {
     const body = await request.json();
 
-    const isWalkIn = Boolean(body.is_walk_in);
-    const partySize = Number(body.party_size || 1);
-    const status = normalizeStatus(body.status);
+    const customer_name = body.customer_name || "Walk-in";
+    const customer_phone = body.customer_phone || "";
+    const notes = body.notes || "";
+    const service_id = Number(body.service_id);
+    const is_walk_in = Boolean(body.is_walk_in);
+    const date = body.date;
+    const time = body.time;
+    const party_size = Number(body.party_size || 1);
+    const status = normalizeStatus(body.status || "pending");
 
-    if (!body.service_id || !body.date || !body.time) {
+    const selectedStaffIds = Array.isArray(body.staff_ids)
+      ? body.staff_ids
+          .map((id) => Number(id))
+          .filter((id) => !Number.isNaN(id))
+      : [];
+
+    if (!service_id || !date || !time || !party_size) {
       return NextResponse.json(
-        { error: "service_id, date, and time are required" },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // 1) Fetch service duration
-    const { data: service, error: serviceError } = await supabase
+    // 1) Get service duration
+    const { data: serviceRow, error: serviceError } = await supabase
       .from("services")
-      .select("id, name, duration, price")
-      .eq("id", body.service_id)
+      .select("id, duration")
+      .eq("id", service_id)
       .single();
 
-    if (serviceError || !service) {
+    if (serviceError || !serviceRow) {
       return NextResponse.json(
-        { error: "Invalid service_id" },
+        { error: "Service not found" },
         { status: 400 }
       );
     }
 
-    const duration = service.duration;
+    const serviceDuration = Number(serviceRow.duration || 30);
+    const targetStart = timeToMinutes(time);
 
-    // WALK-IN FLOW
-    // Front desk already chooses staff for speed.
-    if (isWalkIn) {
-      if (!body.staff_id) {
-        return NextResponse.json(
-          { error: "staff_id is required for walk-in" },
-          { status: 400 }
-        );
-      }
+    // 2) Get today's working staff from staff_shifts
+    const { data: shiftRows, error: shiftError } = await supabase
+      .from("staff_shifts")
+      .select(`
+        staff_id,
+        is_working,
+        users (
+          id,
+          name,
+          name_display,
+          staff_code
+        )
+      `)
+      .eq("shift_date", date)
+      .eq("is_working", true)
+      .order("display_order", { ascending: true });
 
-      const walkInPayload = {
-        customer_name: body.customer_name || "Walk-in",
-        customer_phone: body.customer_phone || "",
-        service_id: Number(body.service_id),
-        is_walk_in: true,
-        date: body.date,
-        time: body.time,
-        party_size: partySize,
-        status,
-        staff_id: Number(body.staff_id),
-      };
+    if (shiftError) {
+      console.error("POST /api/booking staff_shifts error:", shiftError);
+      return NextResponse.json({ error: shiftError.message }, { status: 500 });
+    }
 
-      const { data, error } = await supabase
-        .from("jobs")
-        .insert([walkInPayload])
-        .select("*, services(name, duration), users(name)")
-        .single();
+    const workingStaff = (shiftRows || [])
+      .filter((row) => row.users)
+      .map((row) => ({
+        id: row.users.id,
+        name: row.users.name_display || row.users.name,
+      }));
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
+    if (workingStaff.length === 0) {
       return NextResponse.json(
-        { message: "Walk-in created successfully", data },
-        { status: 201 }
+        { error: "No staff available for this date" },
+        { status: 400 }
       );
     }
 
-    // ONLINE / NORMAL BOOKING FLOW
-    const requiredStaffIds = Array.from(
-      new Set(
-        Array.isArray(body.staff_ids)
-          ? body.staff_ids.map(Number)
-          : body.staff_id
-            ? [Number(body.staff_id)]
-            : []
-      )
-    );
-
-    // 2) Fetch all staff
-    const { data: staffs, error: staffError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("role", "Staff");
-
-    if (staffError || !staffs || staffs.length === 0) {
-      return NextResponse.json(
-        { error: "No staff available" },
-        { status: 500 }
-      );
-    }
-
-    // 3) Fetch all active bookings for this date
-    const { data: bookings, error: bookingsError } = await supabase
+    // 3) Get existing active bookings for the same date
+    const { data: existingBookings, error: existingError } = await supabase
       .from("jobs")
-      .select("staff_id, time, status, services(duration)")
-      .eq("date", body.date)
+      .select(`
+        id,
+        staff_id,
+        time,
+        status,
+        services (
+          duration
+        )
+      `)
+      .eq("date", date)
       .in("status", ["pending", "paid"]);
 
-    if (bookingsError) {
-      return NextResponse.json(
-        { error: bookingsError.message },
-        { status: 500 }
-      );
+    if (existingError) {
+      console.error("POST /api/booking existing bookings error:", existingError);
+      return NextResponse.json({ error: existingError.message }, { status: 500 });
     }
 
-    // 4) Calculate available staff
-    const requestedStart = timeStringToMinutes(body.time);
-    const requestedEnd = requestedStart + duration;
+    function isStaffFree(staffId) {
+      return !(existingBookings || []).some((booking) => {
+        if (String(booking.staff_id) !== String(staffId)) return false;
 
-    let availableStaffIds = staffs.map((s) => s.id);
+        const existingStart = timeToMinutes(booking.time);
+        const existingDuration = Number(booking.services?.duration || 30);
 
-    if (bookings && bookings.length > 0) {
-      bookings.forEach((booking) => {
-        if (!booking.time || !booking.staff_id) return;
+        if (existingStart === null || targetStart === null) return false;
 
-        const bookingStart = timeStringToMinutes(booking.time);
-        const bookingDuration = booking.services?.duration || 60;
-        const bookingEnd = bookingStart + bookingDuration;
-
-        const overlaps =
-          requestedStart < bookingEnd && requestedEnd > bookingStart;
-
-        if (overlaps) {
-          availableStaffIds = availableStaffIds.filter(
-            (id) => id !== booking.staff_id
-          );
-        }
+        return bookingsOverlap(
+          targetStart,
+          serviceDuration,
+          existingStart,
+          existingDuration
+        );
       });
     }
 
-    const allRequiredStaffAvailable = requiredStaffIds.every((id) =>
-      availableStaffIds.includes(id)
+    // 4) Validate selected staff (if any)
+    const selectedWorkingStaffIds = selectedStaffIds.filter((staffId) =>
+      workingStaff.some((staff) => String(staff.id) === String(staffId))
     );
 
-    if (!allRequiredStaffAvailable) {
+    const selectedFreeStaffIds = selectedWorkingStaffIds.filter((staffId) =>
+      isStaffFree(staffId)
+    );
+
+    if (selectedStaffIds.length > 0 && selectedFreeStaffIds.length !== selectedStaffIds.length) {
       return NextResponse.json(
-        {
-          error:
-            "One or more required staff members are not available at the requested time",
-        },
+        { error: "One or more selected staff are not available" },
         { status: 400 }
       );
     }
 
-    if (availableStaffIds.length < partySize) {
+    // 5) Fill remaining slots automatically
+    const assignedStaffIds = [...selectedFreeStaffIds];
+
+    const autoCandidates = workingStaff
+      .filter((staff) => !assignedStaffIds.includes(staff.id))
+      .filter((staff) => isStaffFree(staff.id))
+      .map((staff) => staff.id);
+
+    while (assignedStaffIds.length < party_size && autoCandidates.length > 0) {
+      assignedStaffIds.push(autoCandidates.shift());
+    }
+
+    if (assignedStaffIds.length < party_size) {
       return NextResponse.json(
-        { error: "Not enough staff available for the requested time" },
+        { error: "Not enough available staff for this booking" },
         { status: 400 }
       );
     }
 
-    // 5) Select required number of staff
-    let selectedStaffIds = [...requiredStaffIds];
-    availableStaffIds = availableStaffIds.filter(
-      (id) => !selectedStaffIds.includes(id)
-    );
+    // 6) Create job group if needed
+    let job_group_id = null;
 
-    while (selectedStaffIds.length < partySize) {
-      const randomIndex = Math.floor(Math.random() * availableStaffIds.length);
-      selectedStaffIds.push(availableStaffIds[randomIndex]);
-      availableStaffIds.splice(randomIndex, 1);
-    }
-
-    // 6) Create jobs
-    const { staff_ids, staff_id, ...jobPayload } = body;
-    let jobgroup_id = null;
-    if (partySize > 1) {
-      const { data: groupData, error: groupError } = await supabase
+    if (party_size > 1) {
+      const { data: groupRow, error: groupError } = await supabase
         .from("job_groups")
-        .insert({ created_at: new Date().toISOString() })
-        .select("id")
+        .insert({})
+        .select()
         .single();
 
-      if (groupError || !groupData) {
-        return NextResponse.json(
-          { error: "Failed to create job group" },
-          { status: 500 }
-        );
+      if (groupError) {
+        console.error("POST /api/booking job_groups insert error:", groupError);
+        return NextResponse.json({ error: groupError.message }, { status: 500 });
       }
 
-      jobgroup_id = groupData.id;
+      job_group_id = groupRow.id;
     }
 
-    const jobsToInsert = selectedStaffIds.map((selectedStaffId) => ({
-      ...jobPayload,
-      customer_name: body.customer_name || "Walk-in",
-      customer_phone: body.customer_phone || "",
-      service_id: Number(body.service_id),
-      is_walk_in: Boolean(body.is_walk_in),
-      date: body.date,
-      time: body.time,
-      party_size: partySize,
-      status,
-      staff_id: selectedStaffId,
-      job_group_id: jobgroup_id,
-    }));
+    // 7) Build rows
+    const rowsToInsert = assignedStaffIds.map((staffId, index) => {
+      const wasRequested = selectedFreeStaffIds.includes(staffId);
 
-    const { data, error } = await supabase
+      return {
+        customer_name,
+        customer_phone,
+        notes,
+        service_id,
+        is_walk_in,
+        date,
+        time,
+        party_size,
+        status,
+        staff_id: staffId,
+        job_group_id,
+        requested_staff_id: wasRequested ? staffId : null,
+        is_staff_requested: wasRequested,
+      };
+    });
+
+    const { data: insertedRows, error: insertError } = await supabase
       .from("jobs")
-      .insert(jobsToInsert)
-      .select("*, services(name, duration), users(name)");
+      .insert(rowsToInsert)
+      .select();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (insertError) {
+      console.error("POST /api/booking jobs insert error:", insertError);
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    return NextResponse.json(
-      { message: "Booking created successfully", data },
-      { status: 201 }
-    );
+    return NextResponse.json(insertedRows || [], { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Server error" },
-      { status: 500 }
-    );
+    console.error("POST /api/booking server error:", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
-}
-
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const date = searchParams.get("date");
-
-  if (!date) {
-    return NextResponse.json({ error: "Date is required" }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
-    .from("jobs")
-    .select("*, services(name, duration, price), users(name)")
-    .eq("date", date)
-    .order("time", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }

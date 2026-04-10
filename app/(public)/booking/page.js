@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   ArrowRight,
   X,
-  ChevronUp,
   Phone,
   CircleCheckBig,
 } from "lucide-react";
@@ -16,7 +15,6 @@ import {
 export default function BookingPage() {
   const {
     services,
-    staffs,
     selectedService,
     selectedPeople,
     selectedDate,
@@ -25,7 +23,6 @@ export default function BookingPage() {
     bookings,
     loading,
     fetchServices,
-    fetchStaffs,
     setSelectedService,
     setSelectedPeople,
     setSelectedDate,
@@ -33,12 +30,16 @@ export default function BookingPage() {
     toggleSelectedStaff,
     clearSelectedStaffs,
     getAvailableSlots,
-    resetBooking
+    resetBooking,
+    setAvailableStaffsForDate,
   } = useBookingStore();
+
+  const [availableStaffsForDate, setLocalAvailableStaffsForDate] = useState([]);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [customerNotes, setCustomerNotes] = useState("");
 
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
@@ -46,16 +47,14 @@ export default function BookingPage() {
 
   const [isTimeModalOpen, setIsTimeModalOpen] = useState(false);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
-  const [selectedTimeRange, setSelectedTimeRange] = useState(null); // 'Morning', 'Afternoon', 'Evening'
+  const [selectedTimeRange, setSelectedTimeRange] = useState(null);
 
-  // mock data for now
   const shopName = "Wellness Thai Massage";
   const shopPhone = "02 1234 5678";
 
   useEffect(() => {
     fetchServices();
-    fetchStaffs();
-  }, [fetchServices, fetchStaffs]);
+  }, [fetchServices]);
 
   useEffect(() => {
     if (isSummaryOpen || isSuccessOpen) {
@@ -69,15 +68,87 @@ export default function BookingPage() {
     };
   }, [isSummaryOpen, isSuccessOpen]);
 
-  const availableSlots = useMemo(() => getAvailableSlots(), [
-    selectedService,
+  useEffect(() => {
+    async function fetchStaffShiftsForDate() {
+      if (!selectedDate) {
+        setLocalAvailableStaffsForDate([]);
+        setAvailableStaffsForDate([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/staff-shifts?date=${selectedDate}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to load staff");
+        }
+
+        const normalized = Array.isArray(data)
+          ? data
+              .filter((shift) => shift.users && shift.is_working)
+              .map((shift) => ({
+                id: shift.users.id,
+                name: shift.users.name_display || shift.users.name,
+                staff_code: shift.users.staff_code || "",
+              }))
+          : [];
+
+        setLocalAvailableStaffsForDate(normalized);
+        setAvailableStaffsForDate(normalized);
+      } catch (error) {
+        console.error("Error loading staff shifts:", error);
+        setLocalAvailableStaffsForDate([]);
+        setAvailableStaffsForDate([]);
+      }
+    }
+
+    fetchStaffShiftsForDate();
+  }, [selectedDate, setAvailableStaffsForDate]);
+
+  useEffect(() => {
+    clearSelectedStaffs();
+  }, [selectedDate, clearSelectedStaffs]);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+
+    const maxPeople = availableStaffsForDate.length;
+
+    if (selectedPeople && selectedPeople > maxPeople) {
+      setSelectedPeople(null);
+    }
+
+    const filteredSelectedStaffs = selectedStaffs.filter((selectedStaff) =>
+      availableStaffsForDate.some(
+        (staff) => String(staff.id) === String(selectedStaff.id)
+      )
+    );
+
+    if (filteredSelectedStaffs.length !== selectedStaffs.length) {
+      clearSelectedStaffs();
+    }
+  }, [
+    selectedDate,
+    availableStaffsForDate,
     selectedPeople,
     selectedStaffs,
-    selectedDate,
-    bookings,
-    staffs,
-    getAvailableSlots
+    setSelectedPeople,
+    clearSelectedStaffs,
   ]);
+
+  const availableSlots = useMemo(
+    () => getAvailableSlots(),
+    [
+      selectedService,
+      selectedPeople,
+      selectedStaffs,
+      selectedDate,
+      bookings,
+      availableStaffsForDate,
+      getAvailableSlots,
+    ]
+  );
 
   const groupedSlots = useMemo(() => {
     const groups = {
@@ -87,7 +158,7 @@ export default function BookingPage() {
     };
 
     availableSlots.forEach((time) => {
-      const hour = parseInt(time.split(":")[0]);
+      const hour = parseInt(time.split(":")[0], 10);
       if (hour < 12) groups.Morning.push(time);
       else if (hour < 17) groups.Afternoon.push(time);
       else groups.Evening.push(time);
@@ -96,11 +167,15 @@ export default function BookingPage() {
     return groups;
   }, [availableSlots]);
 
+  const peopleOptions = useMemo(() => {
+    const count = availableStaffsForDate.length;
+    return Array.from({ length: count }, (_, index) => index + 1);
+  }, [availableStaffsForDate]);
 
   const canProceed = () => {
     if (currentStep === 1) return !!selectedService;
-    if (currentStep === 2) return !!selectedPeople;
-    if (currentStep === 3) return !!selectedDate;
+    if (currentStep === 2) return !!selectedDate;
+    if (currentStep === 3) return !!selectedPeople;
     if (currentStep === 4) return !!selectedTime;
     if (currentStep === 5) return customerName.trim() && customerPhone.trim();
     return false;
@@ -118,9 +193,9 @@ export default function BookingPage() {
 
   const stepTitle = useMemo(() => {
     if (currentStep === 1) return "Select your service";
-    if (currentStep === 2) return "Number of people";
-    if (currentStep === 3) return "Select date";
-    if (currentStep === 4) return "Select preferred time";
+    if (currentStep === 2) return "Select date";
+    if (currentStep === 3) return "Number of people";
+    if (currentStep === 4) return "Staff preference and time";
     if (currentStep === 5) return "Customer information";
     return "Confirm booking";
   }, [currentStep]);
@@ -151,6 +226,7 @@ export default function BookingPage() {
     const bookingData = {
       customer_name: customerName,
       customer_phone: customerPhone,
+      notes: customerNotes,
       service_id: selectedService.id,
       staff_ids: selectedStaffs.map((staff) => staff.id),
       is_walk_in: false,
@@ -174,8 +250,14 @@ export default function BookingPage() {
       if (response.ok) {
         setIsSuccessOpen(true);
       } else {
-        const errorData = await response.json();
-        alert(`Booking failed: ${errorData.error}`);
+        let errorMessage = "Booking failed";
+
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.error || errorMessage;
+        } catch (e) {}
+
+        alert(`Booking failed: ${errorMessage}`);
       }
     } catch (error) {
       console.error("Error submitting booking:", error);
@@ -191,12 +273,13 @@ export default function BookingPage() {
     setCurrentStep(1);
     setCustomerName("");
     setCustomerPhone("");
+    setCustomerNotes("");
+    clearSelectedStaffs();
   };
 
   return (
     <>
       <div className="space-y-4 sm:space-y-6">
-        {/* Shop Header */}
         <section id="shopdetail">
           <div className="rounded-[1.75rem] border border-[#E8D8CC] bg-white/65 px-4 py-7 text-center shadow-[0_10px_30px_rgba(180,140,120,0.10)] backdrop-blur-sm sm:rounded-4xl sm:px-6 sm:py-10">
             <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-[#E5BCA9]/60 bg-[#FBEAD6]/80 px-3 py-1.5 text-xs text-[#6B7556] sm:text-sm">
@@ -214,10 +297,8 @@ export default function BookingPage() {
           </div>
         </section>
 
-        {/* Booking Container */}
         <section id="booking">
           <div className="rounded-[1.75rem] border border-[#E8D8CC] bg-white/75 p-4 shadow-[0_12px_36px_rgba(180,140,120,0.10)] backdrop-blur-sm sm:rounded-4xl sm:p-6">
-            {/* Heading */}
             <div className="text-center">
               <p className="mb-1 text-xs uppercase tracking-[0.24em] text-[#C87D87] sm:text-sm">
                 Jong Booking
@@ -230,7 +311,6 @@ export default function BookingPage() {
               </p>
             </div>
 
-            {/* Step Progress */}
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between text-xs text-[#8A7A72] sm:text-sm">
                 <span>Progress</span>
@@ -252,12 +332,13 @@ export default function BookingPage() {
                   return (
                     <div
                       key={step}
-                      className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-semibold sm:h-10 sm:w-10 sm:text-sm ${isCurrent
-                        ? "border-[#C87D87] bg-[#C87D87] text-white"
-                        : isDone
+                      className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-semibold sm:h-10 sm:w-10 sm:text-sm ${
+                        isCurrent
+                          ? "border-[#C87D87] bg-[#C87D87] text-white"
+                          : isDone
                           ? "border-[#E5BCA9] bg-[#FBEAD6] text-[#6B7556]"
                           : "border-[#E8D8CC] bg-[#FFF9F6] text-[#A79790]"
-                        }`}
+                      }`}
                     >
                       {step}
                     </div>
@@ -266,7 +347,6 @@ export default function BookingPage() {
               </div>
             </div>
 
-            {/* Step Content */}
             <div className="mt-5 rounded-3xl border border-[#F0E2D8] bg-[#FFF9F6]/80 p-4 sm:p-5">
               <div className="mb-4 flex items-center gap-2 text-[#4A3A34]">
                 <Sparkles className="h-5 w-5 text-[#C87D87]" />
@@ -292,14 +372,42 @@ export default function BookingPage() {
                       />
                     </div>
                   ))}
-
                 </div>
               )}
 
-{currentStep === 2 && (
-                <div className="space-y-4">
+              {currentStep === 2 && (
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full max-w-sm rounded-2xl border border-[#E5BCA9]/60 bg-white px-4 py-3 text-[#4A3A34] shadow-sm outline-none transition focus:border-[#C87D87] focus:ring-2 focus:ring-[#F0C4CB]/40"
+                  />
+                  {loading && (
+                    <p className="animate-pulse text-sm text-[#7A675F]">
+                      Checking availability...
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {currentStep === 3 &&
+                (!selectedDate ? (
+                  <div className="py-8 text-center text-[#7A675F]">
+                    <p>Please select a date first to see how many people can book.</p>
+                  </div>
+                ) : loading ? (
+                  <div className="py-8 text-center text-[#7A675F]">
+                    <p className="animate-pulse">Loading staff for this date...</p>
+                  </div>
+                ) : peopleOptions.length === 0 ? (
+                  <div className="py-8 text-center text-[#7A675F]">
+                    <p>No staff available for this date.</p>
+                    <p className="text-sm">Please choose another date.</p>
+                  </div>
+                ) : (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-                    {[1, 2, 3, 4].map((num) => (
+                    {peopleOptions.map((num) => (
                       <div
                         key={num}
                         onClick={() => setSelectedPeople(num)}
@@ -313,101 +421,82 @@ export default function BookingPage() {
                       </div>
                     ))}
                   </div>
+                ))}
 
-                  <div className="rounded-2xl border border-[#E8D8CC] bg-white p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-[#4A3A34]">
-                          Select Staff (Optional)
-                        </p>
-                        <p className="text-xs text-[#7A675F]">
-                          {selectedPeople
-                            ? `Choose up to ${selectedPeople} specific staff`
-                            : "Select people number first"}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setIsStaffModalOpen(true)}
-                        disabled={!selectedPeople}
-                        className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
-                          selectedPeople
-                            ? "bg-[#FBEAD6] text-[#4A3A34] hover:bg-[#F5DCC6]"
-                            : "cursor-not-allowed bg-[#F2ECE8] text-[#B7AAA3]"
-                        }`}
-                      >
-                        Pick Staff
-                      </button>
-                    </div>
+              {currentStep === 4 && (
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsStaffModalOpen(true)}
+                      disabled={!selectedPeople || !selectedDate}
+                      className={`text-xs underline underline-offset-4 transition ${
+                        selectedPeople && selectedDate
+                          ? "text-[#7A675F] hover:text-[#4A3A34]"
+                          : "cursor-not-allowed text-[#B7AAA3]"
+                      }`}
+                    >
+                      Select Staff (optional)
+                    </button>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {selectedStaffs.length > 0 ? (
-                        selectedStaffs.map((staff) => (
+                    {selectedStaffs.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedStaffs.map((staff) => (
                           <span
                             key={staff.id}
                             className="rounded-full bg-[#FDF1F3] px-3 py-1 text-xs font-medium text-[#7A675F]"
                           >
                             {staff.name}
                           </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-[#9A8A82]">Any available staff</span>
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
 
-              {currentStep === 3 && (
-                <div className="flex justify-center flex-col items-center gap-4">
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full max-w-sm rounded-2xl border border-[#E5BCA9]/60 bg-white px-4 py-3 text-[#4A3A34] shadow-sm outline-none transition focus:border-[#C87D87] focus:ring-2 focus:ring-[#F0C4CB]/40"
-                  />
-                  {loading && <p className="text-sm text-[#7A675F] animate-pulse">Checking availability...</p>}
-                </div>
-              )}
-
-              {currentStep === 4 && (
-                <div className="space-y-6">
                   {availableSlots.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      {Object.entries(groupedSlots).map(([range, slots]) => (
-                        slots.length > 0 && (
-                          <button
-                            key={range}
-                            onClick={() => {
-                              setSelectedTimeRange(range);
-                              setIsTimeModalOpen(true);
-                            }}
-                            className={`flex flex-col items-center justify-center rounded-2xl border-2 p-6 transition-all ${(selectedTime && groupedSlots[range].includes(selectedTime))
-                              ? "border-[#C87D87] bg-[#FFF9F6] shadow-sm"
-                              : "border-[#E8D8CC] bg-white hover:border-[#E5BCA9] hover:bg-[#FFF9F6]/50"
+                      {Object.entries(groupedSlots).map(
+                        ([range, slots]) =>
+                          slots.length > 0 && (
+                            <button
+                              key={range}
+                              onClick={() => {
+                                setSelectedTimeRange(range);
+                                setIsTimeModalOpen(true);
+                              }}
+                              className={`flex flex-col items-center justify-center rounded-2xl border-2 p-6 transition-all ${
+                                selectedTime &&
+                                groupedSlots[range].includes(selectedTime)
+                                  ? "border-[#C87D87] bg-[#FFF9F6] shadow-sm"
+                                  : "border-[#E8D8CC] bg-white hover:border-[#E5BCA9] hover:bg-[#FFF9F6]/50"
                               }`}
-                          >
-                            <span className="text-lg font-semibold text-[#4A3A34]">{range}</span>
-                            <span className="mt-1 text-xs text-[#7A675F]">
-                              {slots.length} slots available
-                            </span>
-                            {selectedTime && groupedSlots[range].includes(selectedTime) && (
-                              <span className="mt-2 rounded-full bg-[#C87D87] px-3 py-1 text-xs font-medium text-white">
-                                Selected: {selectedTime}
+                            >
+                              <span className="text-lg font-semibold text-[#4A3A34]">
+                                {range}
                               </span>
-                            )}
-                          </button>
-                        )
-                      ))}
+                              <span className="mt-1 text-xs text-[#7A675F]">
+                                {slots.length} slots available
+                              </span>
+                              {selectedTime &&
+                                groupedSlots[range].includes(selectedTime) && (
+                                  <span className="mt-2 rounded-full bg-[#C87D87] px-3 py-1 text-xs font-medium text-white">
+                                    Selected: {selectedTime}
+                                  </span>
+                                )}
+                            </button>
+                          )
+                      )}
                     </div>
                   ) : (
-                    <div className="text-center py-10 text-[#7A675F]">
+                    <div className="py-10 text-center text-[#7A675F]">
                       <p>No available slots for this service and date.</p>
-                      <p className="text-sm">Please try a different date or service.</p>
+                      <p className="text-sm">
+                        Please try a different date or service.
+                      </p>
                     </div>
                   )}
                 </div>
               )}
-
 
               {currentStep === 5 && (
                 <div className="space-y-4">
@@ -436,6 +525,19 @@ export default function BookingPage() {
                       placeholder="Enter your phone number"
                     />
                   </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-[#7A675F]">
+                      Notes / Requests (Optional)
+                    </label>
+                    <textarea
+                      value={customerNotes}
+                      onChange={(e) => setCustomerNotes(e.target.value)}
+                      rows={4}
+                      className="w-full rounded-2xl border border-[#E5BCA9]/60 bg-white px-4 py-3 text-[#4A3A34] shadow-sm outline-none transition focus:border-[#C87D87] focus:ring-2 focus:ring-[#F0C4CB]/40"
+                      placeholder="e.g. female therapist, strong pressure, focus on neck and shoulders"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -458,16 +560,20 @@ export default function BookingPage() {
                       <strong className="text-[#4A3A34]">Price:</strong> $
                       {selectedService?.price}
                     </p>
+                    <p>
+                      <strong className="text-[#4A3A34]">
+                        Number of People:
+                      </strong>{" "}
+                      {selectedPeople}
+                    </p>
+
                     {selectedStaffs.length > 0 && (
                       <p>
-                        <strong className="text-[#4A3A34]">Staff:</strong>{" "}
+                        <strong className="text-[#4A3A34]">Requested Staff:</strong>{" "}
                         {selectedStaffs.map((staff) => staff.name).join(", ")}
                       </p>
                     )}
-                    <p>
-                      <strong className="text-[#4A3A34]">Number of People:</strong>{" "}
-                      {selectedPeople}
-                    </p>
+
                     <p>
                       <strong className="text-[#4A3A34]">Date:</strong>{" "}
                       {formatDate(selectedDate)}
@@ -484,15 +590,22 @@ export default function BookingPage() {
                       <strong className="text-[#4A3A34]">Phone:</strong>{" "}
                       {customerPhone}
                     </p>
+                    {customerNotes && (
+                      <p>
+                        <strong className="text-[#4A3A34]">Notes:</strong>{" "}
+                        {customerNotes}
+                      </p>
+                    )}
                   </div>
 
                   <button
                     onClick={handleBooking}
                     disabled={isSubmitting}
-                    className={`w-full rounded-2xl px-5 py-3.5 font-semibold text-white shadow-sm transition ${isSubmitting
-                      ? "cursor-not-allowed bg-[#D9B3B8]"
-                      : "bg-[#C87D87] hover:opacity-90"
-                      }`}
+                    className={`w-full rounded-2xl px-5 py-3.5 font-semibold text-white shadow-sm transition ${
+                      isSubmitting
+                        ? "cursor-not-allowed bg-[#D9B3B8]"
+                        : "bg-[#C87D87] hover:opacity-90"
+                    }`}
                   >
                     {isSubmitting ? "Confirming..." : "Confirm Booking"}
                   </button>
@@ -500,15 +613,15 @@ export default function BookingPage() {
               )}
             </div>
 
-            {/* Bottom Navigation */}
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button
                 onClick={prevStep}
                 disabled={currentStep === 1}
-                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${currentStep === 1
-                  ? "cursor-not-allowed border border-[#E8D8CC] bg-[#F6F1ED] text-[#B7AAA3]"
-                  : "border border-[#D9C5B8] bg-[#FFF9F6] text-[#6B7556] hover:bg-[#FBEAD6]/60"
-                  }`}
+                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${
+                  currentStep === 1
+                    ? "cursor-not-allowed border border-[#E8D8CC] bg-[#F6F1ED] text-[#B7AAA3]"
+                    : "border border-[#D9C5B8] bg-[#FFF9F6] text-[#6B7556] hover:bg-[#FBEAD6]/60"
+                }`}
               >
                 <ArrowLeft size={18} />
                 <span className="hidden sm:inline">Previous</span>
@@ -518,17 +631,17 @@ export default function BookingPage() {
               <button
                 onClick={nextStep}
                 disabled={currentStep === 6 || !canProceed()}
-                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${currentStep === 6 || !canProceed()
-                  ? "cursor-not-allowed bg-[#EDE4DE] text-[#B7AAA3]"
-                  : "bg-[#C87D87] text-white shadow-sm hover:opacity-90"
-                  }`}
+                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${
+                  currentStep === 6 || !canProceed()
+                    ? "cursor-not-allowed bg-[#EDE4DE] text-[#B7AAA3]"
+                    : "bg-[#C87D87] text-white shadow-sm hover:opacity-90"
+                }`}
               >
                 <span>{currentStep === 5 ? "Review" : "Next"}</span>
                 <ArrowRight size={18} />
               </button>
             </div>
 
-            {/* Optional Summary Trigger */}
             <button
               type="button"
               onClick={() => setIsSummaryOpen(true)}
@@ -540,7 +653,6 @@ export default function BookingPage() {
         </section>
       </div>
 
-      {/* Summary Bottom Sheet */}
       {isSummaryOpen && (
         <div className="fixed inset-0 z-50">
           <button
@@ -618,6 +730,15 @@ export default function BookingPage() {
                   {formatDate(selectedDate) || "-"}
                 </p>
               </div>
+
+              {selectedStaffs.length > 0 && (
+                <div className="rounded-2xl border border-[#F1E4DA] bg-white px-4 py-3">
+                  <p className="text-xs text-[#9A8A82]">Requested Staff</p>
+                  <p className="font-medium text-[#4A3A34]">
+                    {selectedStaffs.map((staff) => staff.name).join(", ")}
+                  </p>
+                </div>
+              )}
             </div>
 
             <button
@@ -631,7 +752,6 @@ export default function BookingPage() {
         </div>
       )}
 
-      {/* Time Selection Modal */}
       {isTimeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
@@ -657,7 +777,7 @@ export default function BookingPage() {
               </button>
             </div>
 
-            <div className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
                 {groupedSlots[selectedTimeRange]?.map((time) => (
                   <button
@@ -666,10 +786,11 @@ export default function BookingPage() {
                       setSelectedTime(time);
                       setIsTimeModalOpen(false);
                     }}
-                    className={`rounded-xl border py-3 text-sm font-medium transition ${selectedTime === time
-                      ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
-                      : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
-                      }`}
+                    className={`rounded-xl border py-3 text-sm font-medium transition ${
+                      selectedTime === time
+                        ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
+                        : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
+                    }`}
                   >
                     {time}
                   </button>
@@ -689,19 +810,15 @@ export default function BookingPage() {
         </div>
       )}
 
-      {/* Success Modal */}
-
       {isSuccessOpen && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-[#2E211C]/45" />
 
           <div className="relative z-10 w-full max-w-lg rounded-4xl border border-[#E8D8CC] bg-[#FFF9F6] p-6 shadow-[0_16px_50px_rgba(60,35,30,0.22)]">
-
-            <div className="absolute top-0 left-0 right-0 h-1 bg-[#6B7556] rounded-t-4xl" />
+            <div className="absolute left-0 right-0 top-0 h-1 rounded-t-4xl bg-[#6B7556]" />
 
             <div className="mb-5 flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF1E9]">
                   <CircleCheckBig className="h-6 w-6 text-[#6B7556]" />
                 </div>
@@ -726,7 +843,6 @@ export default function BookingPage() {
             </div>
 
             <div className="space-y-3 text-sm text-[#5F4E47]">
-
               <div className="rounded-2xl border border-[#E8D8CC] bg-white px-4 py-3">
                 Please arrive at least <strong>5 minutes before</strong> your appointment time.
               </div>
@@ -743,7 +859,6 @@ export default function BookingPage() {
                   {shopPhone}
                 </div>
               </div>
-
             </div>
 
             <div className="mt-6 flex gap-3">
@@ -753,14 +868,11 @@ export default function BookingPage() {
               >
                 Done
               </button>
-
             </div>
-
-
           </div>
         </div>
       )}
-      {/* Staff Selection Modal */}
+
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
@@ -794,29 +906,32 @@ export default function BookingPage() {
                   clearSelectedStaffs();
                   setIsStaffModalOpen(false);
                 }}
-                className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaffs.length === 0
-                  ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
-                  : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
-                  }`}
+                className={`w-full rounded-xl border py-3 text-sm font-medium transition ${
+                  selectedStaffs.length === 0
+                    ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
+                    : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
+                }`}
               >
                 Any Available Staff
               </button>
-              {staffs.map((staff) => (
+
+              {availableStaffsForDate.map((staff) => (
                 <button
                   key={staff.id}
                   onClick={() => {
                     toggleSelectedStaff(staff);
-                    
                   }}
                   disabled={!selectedPeople}
-                  className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaffs.some(s => s.id === staff.id)
-                    ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
-                    : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
-                    }`}
+                  className={`w-full rounded-xl border py-3 text-sm font-medium transition ${
+                    selectedStaffs.some((s) => s.id === staff.id)
+                      ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
+                      : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
+                  }`}
                 >
                   {staff.name}
                 </button>
               ))}
+
               <button
                 onClick={() => setIsStaffModalOpen(false)}
                 className="mt-3 w-full rounded-xl bg-[#C87D87] py-3 text-sm font-semibold text-white"

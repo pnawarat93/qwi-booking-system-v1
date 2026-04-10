@@ -14,6 +14,7 @@ const UNASSIGNED_COLUMN_WIDTH = 180;
 
 const ACTIVE_GRID_STATUSES = ["pending", "paid"];
 const INACTIVE_DAY_STATUSES = ["cancelled", "no_show"];
+const NEEDS_REASSIGN_STATUSES = ["pending"];
 
 function generateTimeSlots(startHour, endHour) {
   const slots = [];
@@ -88,7 +89,7 @@ export default function ScheduleGrid({
 
         if (Array.isArray(staffData)) {
           const normalizedStaff = staffData
-            .filter((shift) => shift.users)
+            .filter((shift) => shift.users && shift.is_working)
             .map((shift) => ({
               id: shift.users.id,
               name: shift.users.name_display || shift.users.name,
@@ -98,6 +99,7 @@ export default function ScheduleGrid({
               end_time: shift.end_time,
               display_order: shift.display_order,
               notes: shift.notes || "",
+              is_working: shift.is_working,
             }));
 
           setStaffList(normalizedStaff);
@@ -149,11 +151,15 @@ export default function ScheduleGrid({
   }, [staffList]);
 
   const unassignedBookings = useMemo(() => {
-    return activeBookings.filter((booking) => {
+    return bookings.filter((booking) => {
+      const status = booking.status?.toLowerCase();
+
+      if (!NEEDS_REASSIGN_STATUSES.includes(status)) return false;
       if (!booking.staff_id) return true;
+
       return !workingStaffIds.has(String(booking.staff_id));
     });
-  }, [activeBookings, workingStaffIds]);
+  }, [bookings, workingStaffIds]);
 
   useEffect(() => {
     onDataChange?.({
@@ -206,22 +212,6 @@ export default function ScheduleGrid({
 
     setBookings((prev) => prev.map(optimisticBooking));
 
-    setSelectedBooking((prev) =>
-      prev && String(prev.id) === String(updatedBooking.id)
-        ? {
-            ...prev,
-            ...updatedBooking,
-            services: {
-              ...prev.services,
-              name:
-                updatedBooking.service_name ??
-                prev.services?.name ??
-                prev.service_name,
-            },
-          }
-        : prev
-    );
-
     try {
       const res = await fetch(`/api/booking/${updatedBooking.id}`, {
         method: "PATCH",
@@ -238,6 +228,7 @@ export default function ScheduleGrid({
           party_size: updatedBooking.party_size,
           status: updatedBooking.status,
           is_walk_in: updatedBooking.is_walk_in,
+          notes: updatedBooking.notes,
         }),
       });
 
@@ -255,11 +246,7 @@ export default function ScheduleGrid({
         )
       );
 
-      if (INACTIVE_DAY_STATUSES.includes(savedBooking.status?.toLowerCase())) {
-        setSelectedBooking(null);
-      } else {
-        setSelectedBooking(savedBooking);
-      }
+      setSelectedBooking(null);
     } catch (error) {
       console.error(error);
       setBookings(previousBookings);
@@ -395,6 +382,7 @@ export default function ScheduleGrid({
                       >
                         <BookingCard
                           customer_name={booking.customer_name}
+                          customer_phone={booking.customer_phone}
                           service_name={
                             booking.services?.name || booking.service_name
                           }
@@ -403,6 +391,16 @@ export default function ScheduleGrid({
                             booking.duration ?? booking.services?.duration
                           }
                           status={booking.status?.toLowerCase()}
+                          notes={booking.notes}
+                          is_staff_requested={Boolean(
+                            booking.requested_staff_id ||
+                              booking.is_staff_requested
+                          )}
+                          requested_staff_name={
+                            booking.requested_staff?.name_display ||
+                            booking.requested_staff?.name ||
+                            ""
+                          }
                         />
                       </button>
                     );
@@ -439,13 +437,24 @@ export default function ScheduleGrid({
                     <div className="h-full rounded-lg ring-1 ring-amber-300">
                       <BookingCard
                         customer_name={booking.customer_name}
+                        customer_phone={booking.customer_phone}
                         service_name={
                           booking.services?.name || booking.service_name
                         }
                         time={booking.time?.substring(0, 5)}
                         duration={booking.duration ?? booking.services?.duration}
                         status={booking.status?.toLowerCase()}
+                        notes={booking.notes}
                         compact
+                        is_staff_requested={Boolean(
+                          booking.requested_staff_id ||
+                            booking.is_staff_requested
+                        )}
+                        requested_staff_name={
+                          booking.requested_staff?.name_display ||
+                          booking.requested_staff?.name ||
+                          ""
+                        }
                       />
                     </div>
                   </button>
@@ -461,6 +470,8 @@ export default function ScheduleGrid({
         open={Boolean(selectedBooking)}
         onClose={closeBookingDetails}
         onSave={handleSaveBooking}
+        availableStaffOptions={staffList}
+        allBookings={bookings}
       />
     </div>
   );

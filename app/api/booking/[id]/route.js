@@ -67,6 +67,10 @@ export async function PATCH(request, context) {
       updatePayload.is_walk_in = Boolean(body.is_walk_in);
     }
 
+    if (body.notes !== undefined) {
+      updatePayload.notes = body.notes;
+    }
+
     const { data: updatedRow, error: updateError } = await supabase
       .from("jobs")
       .update(updatePayload)
@@ -84,7 +88,27 @@ export async function PATCH(request, context) {
 
     const { data: fullBooking, error: fetchError } = await supabase
       .from("jobs")
-      .select("*, services(name, duration, price), users(name)")
+      .select(`
+        *,
+        services (
+          id,
+          name,
+          duration,
+          price
+        ),
+        assigned_staff:users!jobs_staff_id_fkey (
+          id,
+          name,
+          name_display,
+          staff_code
+        ),
+        requested_staff:users!jobs_requested_staff_id_fkey (
+          id,
+          name,
+          name_display,
+          staff_code
+        )
+      `)
       .eq("id", id)
       .single();
 

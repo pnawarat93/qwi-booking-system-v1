@@ -3,6 +3,48 @@
 import { useEffect, useMemo, useState } from "react";
 
 const STATUS_OPTIONS = ["pending", "paid", "cancelled", "no_show"];
+const ACTIVE_BOOKING_STATUSES = ["pending", "paid"];
+
+function timeToMinutes(timeString) {
+  if (!timeString) return null;
+
+  const safeTime = String(timeString).substring(0, 5);
+  const [hours, minutes] = safeTime.split(":").map(Number);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function bookingDuration(booking) {
+  return Number(booking?.duration ?? booking?.services?.duration ?? 30);
+}
+
+function bookingsOverlap(aStart, aDuration, bStart, bDuration) {
+  const aEnd = aStart + aDuration;
+  const bEnd = bStart + bDuration;
+  return aStart < bEnd && aEnd > bStart;
+}
+
+function formatTimeRange(startTime, duration) {
+  if (!startTime) return "--:-- - --:--";
+
+  const safeTime = String(startTime).substring(0, 5);
+  const [hours, minutes] = safeTime.split(":").map(Number);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return `${safeTime} - --:--`;
+  }
+
+  const startTotal = hours * 60 + minutes;
+  const endTotal = startTotal + (Number(duration) || 30);
+
+  const endHours = Math.floor(endTotal / 60);
+  const endMinutes = endTotal % 60;
+
+  return `${safeTime} - ${String(endHours).padStart(2, "0")}:${String(
+    endMinutes
+  ).padStart(2, "0")}`;
+}
 
 export default function BookingDetailsModal({
   booking,
@@ -10,9 +52,12 @@ export default function BookingDetailsModal({
   onClose,
   onSave,
   onRefresh,
+  availableStaffOptions = [],
+  allBookings = [],
 }) {
   const [formData, setFormData] = useState({
     customer_name: "",
+    customer_phone: "",
     service_name: "",
     time: "",
     duration: 30,
@@ -32,14 +77,12 @@ export default function BookingDetailsModal({
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
 
-  const [availableStaff, setAvailableStaff] = useState([]);
-  const [loadingStaff, setLoadingStaff] = useState(false);
-
   useEffect(() => {
     if (!booking) return;
 
     setFormData({
       customer_name: booking.customer_name || "",
+      customer_phone: booking.customer_phone || "",
       service_name: booking.services?.name || booking.service_name || "",
       time: booking.time?.substring(0, 5) || "",
       duration: booking.duration ?? booking.services?.duration ?? 30,
@@ -59,47 +102,62 @@ export default function BookingDetailsModal({
     setPaymentScope("job");
   }, [booking]);
 
-  useEffect(() => {
-    if (!open || !booking?.date) return;
+  const assignableStaff = useMemo(() => {
+    if (!booking) return [];
 
-    async function fetchAvailableStaff() {
-      setLoadingStaff(true);
+    const targetStart = timeToMinutes(formData.time || booking.time);
+    const targetDuration = Number(formData.duration) || bookingDuration(booking);
 
-      try {
-        const res = await fetch(`/api/staff-shifts?date=${booking.date}`);
-        const data = await res.json();
+    if (targetStart === null) return [];
 
-        if (!res.ok) {
-          throw new Error(data?.error || "Failed to load available staff");
-        }
+    return availableStaffOptions.filter((staff) => {
+      const hasConflict = allBookings.some((otherBooking) => {
+        if (!otherBooking) return false;
+        if (String(otherBooking.id) === String(booking.id)) return false;
+        if (String(otherBooking.staff_id) !== String(staff.id)) return false;
+        if (otherBooking.date !== booking.date) return false;
 
-        const normalized = Array.isArray(data)
-          ? data
-              .filter((shift) => shift.users)
-              .map((shift) => ({
-                id: shift.users.id,
-                name: shift.users.name_display || shift.users.name,
-                staff_code: shift.users.staff_code || "",
-              }))
-          : [];
+        const otherStatus = otherBooking.status?.toLowerCase();
+        if (!ACTIVE_BOOKING_STATUSES.includes(otherStatus)) return false;
 
-        setAvailableStaff(normalized);
-      } catch (error) {
-        console.error(error);
-        setAvailableStaff([]);
-      } finally {
-        setLoadingStaff(false);
-      }
-    }
+        const otherStart = timeToMinutes(otherBooking.time);
+        const otherDuration = bookingDuration(otherBooking);
+        if (otherStart === null) return false;
 
-    fetchAvailableStaff();
-  }, [open, booking?.date]);
+        return bookingsOverlap(
+          targetStart,
+          targetDuration,
+          otherStart,
+          otherDuration
+        );
+      });
+
+      return !hasConflict;
+    });
+  }, [availableStaffOptions, allBookings, booking, formData.time, formData.duration]);
+
+  const currentStaffMissing = useMemo(() => {
+    if (!booking?.staff_id) return false;
+
+    return !availableStaffOptions.some(
+      (staff) => String(staff.id) === String(booking.staff_id)
+    );
+  }, [availableStaffOptions, booking]);
+
+  const isGroupBooking = Boolean(booking?.job_group_id);
+  const isRequestedStaffBooking = Boolean(
+    booking?.requested_staff_id || booking?.is_staff_requested
+  );
+
+  const originalStaffId = booking?.staff_id ? String(booking.staff_id) : "";
+  const staffChanged = String(formData.staff_id || "") !== originalStaffId;
 
   const isDirty = useMemo(() => {
     if (!booking) return false;
 
     return (
       formData.customer_name !== (booking.customer_name || "") ||
+      formData.customer_phone !== (booking.customer_phone || "") ||
       formData.service_name !==
         (booking.services?.name || booking.service_name || "") ||
       formData.time !== (booking.time?.substring(0, 5) || "") ||
@@ -180,9 +238,18 @@ export default function BookingDetailsModal({
   function handleSave() {
     if (!booking) return;
 
+    if (isRequestedStaffBooking && staffChanged) {
+      const confirmed = window.confirm(
+        "This customer requested a specific staff member. Are you sure you want to reassign this booking?"
+      );
+
+      if (!confirmed) return;
+    }
+
     onSave?.({
       ...booking,
       customer_name: formData.customer_name,
+      customer_phone: formData.customer_phone,
       service_name: formData.service_name,
       time: formData.time,
       duration: Number(formData.duration),
@@ -192,24 +259,18 @@ export default function BookingDetailsModal({
     });
   }
 
-  const currentStaffMissing =
-    booking.staff_id &&
-    !availableStaff.some(
-      (staff) => String(staff.id) === String(booking.staff_id)
-    );
+  const timeRange = formatTimeRange(formData.time, formData.duration);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="shrink-0 border-b px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold text-gray-900">
                 Booking details
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Review booking info and reassign staff if needed.
-              </p>
+              <p className="mt-1 text-sm text-gray-500">{timeRange}</p>
             </div>
 
             <button
@@ -220,84 +281,193 @@ export default function BookingDetailsModal({
               Close
             </button>
           </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {isGroupBooking && (
+              <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">
+                Group booking
+              </span>
+            )}
+
+            {isRequestedStaffBooking && (
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                Requested staff booking
+              </span>
+            )}
+
+            {currentStaffMissing && (
+              <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
+                Needs reassignment
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-6 overflow-y-auto px-6 py-6">
-          {currentStaffMissing && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <span className="font-semibold">Needs reassignment.</span>
-              <span className="ml-2">
-                The originally assigned staff member is not on today’s shift.
-              </span>
-            </div>
-          )}
+        <div className="space-y-5 overflow-y-auto px-6 py-6">
+          <section className="rounded-xl border bg-gray-50 p-4">
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">
+              Customer
+            </h3>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Customer name
-              </label>
-              <input
-                type="text"
-                value={formData.customer_name}
-                onChange={(e) => updateField("customer_name", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-              />
-            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Customer name
+                </label>
+                <input
+                  type="text"
+                  value={formData.customer_name}
+                  onChange={(e) => updateField("customer_name", e.target.value)}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                />
+              </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Service name
-              </label>
-              <input
-                type="text"
-                value={formData.service_name}
-                onChange={(e) => updateField("service_name", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-              />
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Phone number
+                </label>
+                <input
+                  type="text"
+                  value={formData.customer_phone}
+                  onChange={(e) => updateField("customer_phone", e.target.value)}
+                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                />
+              </div>
             </div>
+          </section>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Time
-              </label>
-              <input
-                type="time"
-                step="300"
-                value={formData.time}
-                onChange={(e) => updateField("time", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-              />
+          <section className="rounded-xl border bg-white p-4">
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">
+              Booking
+            </h3>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Service name
+                </label>
+                <input
+                  type="text"
+                  value={formData.service_name}
+                  onChange={(e) => updateField("service_name", e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Duration (mins)
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  step="5"
+                  value={formData.duration}
+                  onChange={(e) => updateField("duration", e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Time
+                </label>
+                <input
+                  type="time"
+                  step="300"
+                  value={formData.time}
+                  onChange={(e) => updateField("time", e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Status
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange("pending")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "pending"
+                        ? "border-blue-300 bg-blue-50 text-blue-700"
+                        : "border-gray-200 text-gray-700"
+                    }`}
+                  >
+                    Pending
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange("paid")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "paid"
+                        ? "border-green-300 bg-green-50 text-green-700"
+                        : "border-gray-200 text-gray-700"
+                    }`}
+                  >
+                    Paid
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange("cancelled")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "cancelled"
+                        ? "border-red-300 bg-red-50 text-red-700"
+                        : "border-gray-200 text-gray-700"
+                    }`}
+                  >
+                    Cancelled
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange("no_show")}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "no_show"
+                        ? "border-gray-400 bg-gray-100 text-gray-700"
+                        : "border-gray-200 text-gray-700"
+                    }`}
+                  >
+                    No-show
+                  </button>
+                </div>
+              </div>
             </div>
+          </section>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Duration (mins)
-              </label>
-              <input
-                type="number"
-                min="5"
-                step="5"
-                value={formData.duration}
-                onChange={(e) => updateField("duration", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
+          <section className="rounded-xl border bg-white p-4">
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">
               Assigned staff
-            </label>
+            </h3>
+
+            {(isRequestedStaffBooking || isGroupBooking) && (
+              <div className="mb-3 space-y-2">
+                {isRequestedStaffBooking && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    Customer requested this staff. Reassign only if necessary.
+                  </div>
+                )}
+
+                {isGroupBooking && (
+                  <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-700">
+                    This booking is part of a group booking. Check linked jobs
+                    before changing staff.
+                  </div>
+                )}
+              </div>
+            )}
 
             <select
               value={formData.staff_id}
               onChange={(e) => updateField("staff_id", e.target.value)}
               className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-              disabled={loadingStaff}
             >
               <option value="">Unassigned</option>
-              {availableStaff.map((staff) => (
+              {assignableStaff.map((staff) => (
                 <option key={staff.id} value={staff.id}>
                   {staff.name}
                   {staff.staff_code ? ` (${staff.staff_code})` : ""}
@@ -306,66 +476,13 @@ export default function BookingDetailsModal({
             </select>
 
             <p className="mt-2 text-xs text-gray-500">
-              Only staff on the selected date’s shift are shown here.
+              Only staff on the selected date’s shift and free at this time are
+              shown here.
             </p>
-          </div>
-
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-700">Status</p>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => handleStatusChange("paid")}
-                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                  formData.status === "paid"
-                    ? "border-green-300 bg-green-50 text-green-700"
-                    : "border-gray-200 text-gray-700"
-                }`}
-              >
-                Mark as paid
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleStatusChange("cancelled")}
-                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                  formData.status === "cancelled"
-                    ? "border-red-300 bg-red-50 text-red-700"
-                    : "border-gray-200 text-gray-700"
-                }`}
-              >
-                Mark as cancelled
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleStatusChange("no_show")}
-                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                  formData.status === "no_show"
-                    ? "border-gray-400 bg-gray-100 text-gray-700"
-                    : "border-gray-200 text-gray-700"
-                }`}
-              >
-                Mark as no_show
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleStatusChange("pending")}
-                className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                  formData.status === "pending"
-                    ? "border-blue-300 bg-blue-50 text-blue-700"
-                    : "border-gray-200 text-gray-700"
-                }`}
-              >
-                Back to pending
-              </button>
-            </div>
-          </div>
+          </section>
 
           {showPaymentForm && (
-            <div className="space-y-4 rounded-xl border border-green-100 bg-green-50/30 p-6">
+            <section className="space-y-4 rounded-xl border border-green-100 bg-green-50/30 p-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-green-800">
                   Payment information
@@ -483,33 +600,20 @@ export default function BookingDetailsModal({
                   {isRecordingPayment ? "Recording..." : "Finalize & Record Payment"}
                 </button>
               )}
-            </div>
+            </section>
           )}
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Notes
-            </label>
+          <section className="rounded-xl border bg-white p-4">
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">Notes</h3>
+
             <textarea
               rows={4}
               value={formData.notes}
               onChange={(e) => updateField("notes", e.target.value)}
               className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-              placeholder="Keep for later extensibility"
+              placeholder="Internal notes"
             />
-          </div>
-
-          <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600">
-            <p>
-              <span className="font-medium text-gray-800">Booking ID:</span>{" "}
-              {booking.id}
-            </p>
-            <p className="mt-1">
-              <span className="font-medium text-gray-800">Current grid rule:</span>{" "}
-              only <span className="font-medium">pending</span> and{" "}
-              <span className="font-medium">paid</span> stay on the schedule.
-            </p>
-          </div>
+          </section>
         </div>
 
         <div className="flex items-center justify-between border-t px-6 py-4">

@@ -12,6 +12,7 @@ import EndDayReport from "../components/EndDayReport";
 import AddWalkInModal from "../components/AddWalkInModal";
 import InactiveBookingsModal from "../components/InactiveBookingsModal";
 import UnassignedBookingsModal from "../components/UnassignedBookingsModal";
+import StaffControlsModal from "../components/StaffControlsModal";
 import { useAuthStore } from "../store/useAuthStore";
 
 export default function AdminPage() {
@@ -32,6 +33,7 @@ export default function AdminPage() {
     useState(false);
   const [showUnassignedBookingsModal, setShowUnassignedBookingsModal] =
     useState(false);
+  const [showStaffControlsModal, setShowStaffControlsModal] = useState(false);
   const [gridRefreshToken, setGridRefreshToken] = useState(0);
   const [bookingToOpenFromUnassigned, setBookingToOpenFromUnassigned] =
     useState(null);
@@ -110,7 +112,7 @@ export default function AdminPage() {
         inactiveBookings={trayData.inactiveBookings}
         onOpenEndDay={() => setShowEndDayReport(true)}
         onOpenStaffControls={() => {
-          console.log("Open staff controls later");
+          setShowStaffControlsModal(true);
         }}
         onOpenInactiveBookings={() => {
           setShowInactiveBookingsModal(true);
@@ -167,6 +169,15 @@ export default function AdminPage() {
         onOpenBooking={(booking) => {
           setShowUnassignedBookingsModal(false);
           setBookingToOpenFromUnassigned(booking);
+        }}
+      />
+
+      <StaffControlsModal
+        open={showStaffControlsModal}
+        selectedDate={selectedDate}
+        onClose={() => setShowStaffControlsModal(false)}
+        onUpdated={() => {
+          setGridRefreshToken((prev) => prev + 1);
         }}
       />
     </main>
