@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import BookingCard from "./BookingCard";
 import BookingDetailsModal from "./BookingDetailsModal";
+import { getSydneyTodayDate } from "@/lib/sydneyDate";
 
 const startHour = 8;
 const endHour = 20;
@@ -62,7 +63,7 @@ function getHeightPx(durationMinutes) {
 }
 
 export default function ScheduleGrid({
-  selectedDate = new Date().toISOString().split("T")[0],
+  selectedDate = getSydneyTodayDate(),
   onDataChange,
   refreshToken = 0,
   externalSelectedBooking = null,

@@ -1,5 +1,7 @@
 "use client";
 
+import { addDaysToDateString, getSydneyTodayDate } from "@/lib/sydneyDate";
+
 export default function ScheduleToolbar({
   selectedDate,
   dateLabel = "Sunday, 15 March 2026",
@@ -8,13 +10,11 @@ export default function ScheduleToolbar({
   onOpenNewBooking,
 }) {
   const shiftDate = (days) => {
-    const d = new Date(`${selectedDate}T00:00:00`);
-    d.setDate(d.getDate() + days);
-    onDateChange(d.toISOString().split("T")[0]);
+    onDateChange(addDaysToDateString(selectedDate, days));
   };
 
   const setToday = () => {
-    onDateChange(new Date().toISOString().split("T")[0]);
+    onDateChange(getSydneyTodayDate());
   };
 
   return (

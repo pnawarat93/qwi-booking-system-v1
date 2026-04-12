@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 
 import StoreInfoBar from "../components/StoreInfoBar";
@@ -10,15 +9,15 @@ import ScheduleGrid from "../components/ScheduleGrid";
 import BottomDayTray from "../components/BottomDayTray";
 import EndDayReport from "../components/EndDayReport";
 import AddWalkInModal from "../components/AddWalkInModal";
+import NewBookingModal from "../components/NewBookingModal";
 import InactiveBookingsModal from "../components/InactiveBookingsModal";
 import UnassignedBookingsModal from "../components/UnassignedBookingsModal";
 import StaffControlsModal from "../components/StaffControlsModal";
 import { useAuthStore } from "../store/useAuthStore";
+import { getSydneyTodayDate } from "@/lib/sydneyDate";
 
 export default function AdminPage() {
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+  const [selectedDate, setSelectedDate] = useState(getSydneyTodayDate());
 
   const [trayData, setTrayData] = useState({
     bookings: [],
@@ -29,6 +28,7 @@ export default function AdminPage() {
 
   const [showEndDayReport, setShowEndDayReport] = useState(false);
   const [showWalkInModal, setShowWalkInModal] = useState(false);
+  const [showNewBookingModal, setShowNewBookingModal] = useState(false);
   const [showInactiveBookingsModal, setShowInactiveBookingsModal] =
     useState(false);
   const [showUnassignedBookingsModal, setShowUnassignedBookingsModal] =
@@ -47,6 +47,19 @@ export default function AdminPage() {
     }
   }, [user, router]);
 
+  const dateLabel = (() => {
+    const [year, month, day] = String(selectedDate).split("-").map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day));
+
+    return utcDate.toLocaleDateString("en-AU", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "Australia/Sydney",
+    });
+  })();
+
   const unassignedCount = trayData.unassignedBookings?.length || 0;
 
   return (
@@ -63,11 +76,9 @@ export default function AdminPage() {
         <ScheduleToolbar
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
-          dateLabel={format(new Date(selectedDate), "EEEE, d MMMM yyyy")}
+          dateLabel={dateLabel}
           onOpenWalkIn={() => setShowWalkInModal(true)}
-          onOpenNewBooking={() => {
-            console.log("Open new booking modal later");
-          }}
+          onOpenNewBooking={() => setShowNewBookingModal(true)}
         />
       </div>
 
@@ -122,6 +133,7 @@ export default function AdminPage() {
       {showEndDayReport && (
         <EndDayReport
           bookings={trayData.bookings}
+          selectedDate={selectedDate}
           onClose={() => setShowEndDayReport(false)}
           onFinish={() => setShowEndDayReport(false)}
         />
@@ -132,6 +144,16 @@ export default function AdminPage() {
         selectedDate={selectedDate}
         onClose={() => setShowWalkInModal(false)}
         onCreated={() => {
+          setGridRefreshToken((prev) => prev + 1);
+        }}
+      />
+
+      <NewBookingModal
+        open={showNewBookingModal}
+        selectedDate={selectedDate}
+        onClose={() => setShowNewBookingModal(false)}
+        onCreated={() => {
+          setShowNewBookingModal(false);
           setGridRefreshToken((prev) => prev + 1);
         }}
       />

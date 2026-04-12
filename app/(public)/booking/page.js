@@ -11,8 +11,11 @@ import {
   Phone,
   CircleCheckBig,
 } from "lucide-react";
+import { getSydneyTodayDate } from "@/lib/sydneyDate";
 
 export default function BookingPage() {
+  const sydneyToday = getSydneyTodayDate();
+
   const {
     services,
     selectedService,
@@ -202,12 +205,17 @@ export default function BookingPage() {
 
   const formatDate = (dateString) => {
     if (!dateString) return null;
-    const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) return dateString;
-    return date.toLocaleDateString("en-AU", {
+
+    const [year, month, day] = String(dateString).split("-").map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day));
+
+    if (Number.isNaN(utcDate.getTime())) return dateString;
+
+    return utcDate.toLocaleDateString("en-AU", {
       day: "numeric",
       month: "short",
       year: "numeric",
+      timeZone: "Australia/Sydney",
     });
   };
 
@@ -380,6 +388,7 @@ export default function BookingPage() {
                   <input
                     type="date"
                     value={selectedDate}
+                    min={sydneyToday}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="w-full max-w-sm rounded-2xl border border-[#E5BCA9]/60 bg-white px-4 py-3 text-[#4A3A34] shadow-sm outline-none transition focus:border-[#C87D87] focus:ring-2 focus:ring-[#F0C4CB]/40"
                   />

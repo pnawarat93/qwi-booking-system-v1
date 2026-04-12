@@ -6,8 +6,6 @@ import {
   getSydneyTodayDate,
 } from "@/lib/sydneyDate";
 
-const ACTIVE_BOOKING_STATUSES = ["pending", "paid"];
-
 function timeToMinutes(timeString) {
   if (!timeString) return null;
 
@@ -24,7 +22,7 @@ function bookingsOverlap(aStart, aDuration, bStart, bDuration) {
   return aStart < bEnd && aEnd > bStart;
 }
 
-export default function AddWalkInModal({
+export default function NewBookingModal({
   open,
   selectedDate,
   onClose,
@@ -36,13 +34,12 @@ export default function AddWalkInModal({
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const sydneyToday = useMemo(() => getSydneyTodayDate(), []);
-  const defaultTime = useMemo(() => {
-    return selectedDate === sydneyToday ? getSydneyRoundedNowTime() : "09:00";
-  }, [selectedDate, sydneyToday]);
+  const sydneyToday = getSydneyTodayDate();
+  const defaultTime =
+    selectedDate === sydneyToday ? getSydneyRoundedNowTime() : "09:00";
 
   const [formData, setFormData] = useState({
-    customer_name: "Walk-in",
+    customer_name: "",
     customer_phone: "",
     service_id: "",
     staff_id: "",
@@ -50,17 +47,20 @@ export default function AddWalkInModal({
     time: defaultTime,
     party_size: 1,
     status: "pending",
-    is_walk_in: true,
+    is_walk_in: false,
+    notes: "",
   });
 
   useEffect(() => {
     if (!open) return;
 
     const nextDefaultTime =
-      selectedDate === sydneyToday ? getSydneyRoundedNowTime() : "09:00";
+      selectedDate === getSydneyTodayDate()
+        ? getSydneyRoundedNowTime()
+        : "09:00";
 
     setFormData({
-      customer_name: "Walk-in",
+      customer_name: "",
       customer_phone: "",
       service_id: "",
       staff_id: "",
@@ -68,9 +68,10 @@ export default function AddWalkInModal({
       time: nextDefaultTime,
       party_size: 1,
       status: "pending",
-      is_walk_in: true,
+      is_walk_in: false,
+      notes: "",
     });
-  }, [open, selectedDate, sydneyToday]);
+  }, [open, selectedDate]);
 
   useEffect(() => {
     if (!open || !formData.date) return;
@@ -107,7 +108,7 @@ export default function AddWalkInModal({
         setShiftStaff(normalizedShiftStaff);
         setBookings(Array.isArray(bookingsData) ? bookingsData : []);
       } catch (error) {
-        console.error("Failed to load walk-in options:", error);
+        console.error("Failed to load new booking options:", error);
         setServices([]);
         setShiftStaff([]);
         setBookings([]);
@@ -120,13 +121,13 @@ export default function AddWalkInModal({
   }, [open, formData.date]);
 
   const selectedService = useMemo(() => {
-    return services.find((service) => String(service.id) === String(formData.service_id));
+    return services.find(
+      (service) => String(service.id) === String(formData.service_id)
+    );
   }, [services, formData.service_id]);
 
   const availableStaffList = useMemo(() => {
-    if (!selectedService || !formData.time) {
-      return shiftStaff;
-    }
+    if (!selectedService || !formData.time) return shiftStaff;
 
     const targetStart = timeToMinutes(formData.time);
     const targetDuration = Number(selectedService.duration || 30);
@@ -134,8 +135,16 @@ export default function AddWalkInModal({
     if (targetStart === null) return shiftStaff;
 
     return shiftStaff.filter((staff) => {
+      const shiftStart = timeToMinutes(staff.start_time || "00:00");
+      const shiftEnd = timeToMinutes(staff.end_time || "23:59");
+
+      if (shiftStart !== null && targetStart < shiftStart) return false;
+      if (shiftEnd !== null && targetStart + targetDuration > shiftEnd) {
+        return false;
+      }
+
       const hasConflict = bookings.some((booking) => {
-        if (!ACTIVE_BOOKING_STATUSES.includes(booking.status?.toLowerCase())) {
+        if (!["pending", "paid"].includes(booking.status?.toLowerCase())) {
           return false;
         }
 
@@ -175,7 +184,7 @@ export default function AddWalkInModal({
         staff_id: "",
       }));
     }
-  }, [availableStaffList, formData.staff_id]);
+  }, [formData.staff_id, availableStaffList]);
 
   if (!open) return null;
 
@@ -189,8 +198,18 @@ export default function AddWalkInModal({
   async function handleSubmit(e) {
     e.preventDefault();
 
-    if (!formData.service_id || !formData.staff_id) {
-      alert("Please select service and staff.");
+    if (!formData.customer_name.trim()) {
+      alert("Please enter customer name.");
+      return;
+    }
+
+    if (!formData.customer_phone.trim()) {
+      alert("Please enter customer phone.");
+      return;
+    }
+
+    if (!formData.service_id) {
+      alert("Please select service.");
       return;
     }
 
@@ -198,15 +217,16 @@ export default function AddWalkInModal({
 
     try {
       const payload = {
-        customer_name: formData.customer_name,
-        customer_phone: formData.customer_phone,
+        customer_name: formData.customer_name.trim(),
+        customer_phone: formData.customer_phone.trim(),
         service_id: Number(formData.service_id),
-        staff_id: Number(formData.staff_id),
+        staff_id: formData.staff_id ? Number(formData.staff_id) : null,
         date: formData.date,
         time: formData.time,
         party_size: Number(formData.party_size),
         status: formData.status,
-        is_walk_in: true,
+        is_walk_in: false,
+        notes: formData.notes?.trim() || null,
       };
 
       const res = await fetch("/api/booking", {
@@ -220,14 +240,13 @@ export default function AddWalkInModal({
       const createdBooking = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(createdBooking?.error || "Failed to create walk-in booking");
+        throw new Error(createdBooking?.error || "Failed to create booking");
       }
 
       onCreated?.(createdBooking);
-      onClose?.();
     } catch (error) {
       console.error(error);
-      alert(error.message || "Could not create walk-in.");
+      alert(error.message || "Could not create booking.");
     } finally {
       setSaving(false);
     }
@@ -235,12 +254,12 @@ export default function AddWalkInModal({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Add walk-in</h2>
+            <h2 className="text-lg font-semibold text-gray-900">New booking</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Quick add for today’s grid
+              Manual booking for phone calls and future appointments
             </p>
           </div>
 
@@ -264,7 +283,7 @@ export default function AddWalkInModal({
                 value={formData.customer_name}
                 onChange={(e) => updateField("customer_name", e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
-                placeholder="Walk-in customer"
+                placeholder="Customer name"
               />
             </div>
 
@@ -277,7 +296,7 @@ export default function AddWalkInModal({
                 value={formData.customer_phone}
                 onChange={(e) => updateField("customer_phone", e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
-                placeholder="Optional for now"
+                placeholder="Phone number"
               />
             </div>
 
@@ -310,7 +329,7 @@ export default function AddWalkInModal({
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 disabled={loadingOptions}
               >
-                <option value="">Select staff</option>
+                <option value="">Unassigned</option>
                 {availableStaffList.map((staff) => (
                   <option key={staff.id} value={staff.id}>
                     {staff.name}
@@ -319,7 +338,8 @@ export default function AddWalkInModal({
                 ))}
               </select>
               <p className="mt-1 text-xs text-gray-500">
-                Shows only staff working on this date and free at this time.
+                Shows only staff working on this date and free at this time. You
+                can leave it unassigned.
               </p>
             </div>
 
@@ -330,6 +350,7 @@ export default function AddWalkInModal({
               <input
                 type="date"
                 value={formData.date}
+                min={getSydneyTodayDate()}
                 onChange={(e) => updateField("date", e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
               />
@@ -376,6 +397,19 @@ export default function AddWalkInModal({
             </div>
           </div>
 
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Notes
+            </label>
+            <textarea
+              rows={3}
+              value={formData.notes}
+              onChange={(e) => updateField("notes", e.target.value)}
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              placeholder="Optional request or phone note"
+            />
+          </div>
+
           <div className="flex items-center justify-end gap-3 border-t pt-4">
             <button
               type="button"
@@ -388,9 +422,9 @@ export default function AddWalkInModal({
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Add walk-in"}
+              {saving ? "Saving..." : "Create booking"}
             </button>
           </div>
         </form>

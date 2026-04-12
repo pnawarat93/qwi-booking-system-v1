@@ -46,6 +46,20 @@ function formatTimeRange(startTime, duration) {
   ).padStart(2, "0")}`;
 }
 
+function totalPaymentAmount(payment) {
+  if (!payment) return 0;
+  return (
+    Number(payment.cash || 0) +
+    Number(payment.card || 0) +
+    Number(payment.hicaps || 0) +
+    Number(payment.other || 0)
+  );
+}
+
+function totalRefundRows(refunds = []) {
+  return refunds.reduce((sum, row) => sum + totalPaymentAmount(row), 0);
+}
+
 export default function BookingDetailsModal({
   booking,
   open,
@@ -73,9 +87,24 @@ export default function BookingDetailsModal({
     other: 0,
   });
 
+  const [refundInfo, setRefundInfo] = useState({
+    cash: 0,
+    card: 0,
+    hicaps: 0,
+    other: 0,
+  });
+
   const [paymentScope, setPaymentScope] = useState("job");
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showRefundForm, setShowRefundForm] = useState(false);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [existingPayment, setExistingPayment] = useState(null);
+  const [refundRows, setRefundRows] = useState([]);
+  const [refundedTotal, setRefundedTotal] = useState(0);
+  const [remainingRefundable, setRemainingRefundable] = useState(0);
+  const [loadingPayment, setLoadingPayment] = useState(false);
+  const [isVoidingPayment, setIsVoidingPayment] = useState(false);
 
   useEffect(() => {
     if (!booking) return;
@@ -98,9 +127,66 @@ export default function BookingDetailsModal({
       other: 0,
     });
 
+    setRefundInfo({
+      cash: 0,
+      card: 0,
+      hicaps: 0,
+      other: 0,
+    });
+
     setShowPaymentForm(false);
+    setShowRefundForm(false);
     setPaymentScope("job");
+    setExistingPayment(null);
+    setRefundRows([]);
+    setRefundedTotal(0);
+    setRemainingRefundable(0);
   }, [booking]);
+
+  useEffect(() => {
+    if (!open || !booking) return;
+
+    async function fetchExistingPayment() {
+      try {
+        setLoadingPayment(true);
+
+        const query = booking.job_group_id
+          ? `/api/payments?jobgroup_id=${booking.job_group_id}`
+          : `/api/payments?job_id=${booking.id}`;
+
+        const response = await fetch(query);
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result?.error || "Failed to load payment");
+        }
+
+        setExistingPayment(result.payment || null);
+        setRefundRows(Array.isArray(result.refunds) ? result.refunds : []);
+        setRefundedTotal(Number(result.refundedTotal || 0));
+        setRemainingRefundable(Number(result.remainingRefundable || 0));
+
+        if (result.payment) {
+          setPaymentInfo({
+            cash: Number(result.payment.cash || 0),
+            card: Number(result.payment.card || 0),
+            hicaps: Number(result.payment.hicaps || 0),
+            other: Number(result.payment.other || 0),
+          });
+        }
+      } catch (error) {
+        console.error(error);
+        setExistingPayment(null);
+        setRefundRows([]);
+        setRefundedTotal(0);
+        setRemainingRefundable(0);
+      } finally {
+        setLoadingPayment(false);
+      }
+    }
+
+    fetchExistingPayment();
+  }, [open, booking]);
 
   const assignableStaff = useMemo(() => {
     if (!booking) return [];
@@ -134,7 +220,13 @@ export default function BookingDetailsModal({
 
       return !hasConflict;
     });
-  }, [availableStaffOptions, allBookings, booking, formData.time, formData.duration]);
+  }, [
+    availableStaffOptions,
+    allBookings,
+    booking,
+    formData.time,
+    formData.duration,
+  ]);
 
   const currentStaffMissing = useMemo(() => {
     if (!booking?.staff_id) return false;
@@ -169,10 +261,20 @@ export default function BookingDetailsModal({
     );
   }, [booking, formData]);
 
+  const refundDraftTotal = totalPaymentAmount(refundInfo);
+  const hasFullyRefunded = remainingRefundable <= 0 && refundedTotal > 0;
+
   if (!open || !booking) return null;
 
   function updateField(field, value) {
     setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }
+
+  function updateRefundField(field, value) {
+    setRefundInfo((prev) => ({
       ...prev,
       [field]: value,
     }));
@@ -188,15 +290,73 @@ export default function BookingDetailsModal({
 
     if (nextStatus === "paid") {
       setShowPaymentForm(true);
+      setShowRefundForm(false);
     } else {
       setShowPaymentForm(false);
     }
+  }
+
+  async function reloadPaymentState() {
+    const query = booking.job_group_id
+      ? `/api/payments?jobgroup_id=${booking.job_group_id}`
+      : `/api/payments?job_id=${booking.id}`;
+
+    const response = await fetch(query);
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result?.error || "Failed to reload payment");
+    }
+
+    setExistingPayment(result.payment || null);
+    setRefundRows(Array.isArray(result.refunds) ? result.refunds : []);
+    setRefundedTotal(Number(result.refundedTotal || 0));
+    setRemainingRefundable(Number(result.remainingRefundable || 0));
   }
 
   async function handleRecordPayment() {
     setIsRecordingPayment(true);
 
     try {
+      if (existingPayment?.id) {
+        const updateResponse = await fetch("/api/payments", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            payment_id: existingPayment.id,
+            cash: paymentInfo.cash,
+            card: paymentInfo.card,
+            hicaps: paymentInfo.hicaps,
+            other: paymentInfo.other,
+            notes: "Updated from booking details modal",
+          }),
+        });
+
+        const updateResult = await updateResponse.json().catch(() => null);
+
+        if (!updateResponse.ok) {
+          throw new Error(updateResult?.error || "Failed to update payment");
+        }
+
+        setExistingPayment(updateResult?.data || existingPayment);
+
+        onSave?.({
+          ...booking,
+          customer_name: formData.customer_name,
+          customer_phone: formData.customer_phone,
+          service_name: formData.service_name,
+          time: formData.time,
+          duration: Number(formData.duration),
+          status: "paid",
+          notes: formData.notes,
+          staff_id: formData.staff_id ? Number(formData.staff_id) : null,
+        });
+
+        onRefresh?.();
+        onClose?.();
+        return;
+      }
+
       const payload =
         paymentScope === "group" && booking.job_group_id
           ? {
@@ -205,6 +365,7 @@ export default function BookingDetailsModal({
               card: paymentInfo.card,
               hicaps: paymentInfo.hicaps,
               other: paymentInfo.other,
+              notes: "Created from booking details modal",
             }
           : {
               job_id: booking.id,
@@ -212,6 +373,7 @@ export default function BookingDetailsModal({
               card: paymentInfo.card,
               hicaps: paymentInfo.hicaps,
               other: paymentInfo.other,
+              notes: "Created from booking details modal",
             };
 
       const response = await fetch("/api/payments", {
@@ -222,9 +384,24 @@ export default function BookingDetailsModal({
 
       const result = await response.json().catch(() => null);
 
+      if (response.status === 409 && result?.existingPayment) {
+        setExistingPayment(result.existingPayment);
+        setPaymentInfo({
+          cash: Number(result.existingPayment.cash || 0),
+          card: Number(result.existingPayment.card || 0),
+          hicaps: Number(result.existingPayment.hicaps || 0),
+          other: Number(result.existingPayment.other || 0),
+        });
+        throw new Error(
+          "Payment already exists for this booking. Review or update the existing payment instead."
+        );
+      }
+
       if (!response.ok) {
         throw new Error(result?.error || "Failed to record payment");
       }
+
+      setExistingPayment(result?.data || null);
 
       onRefresh?.();
       onClose?.();
@@ -232,6 +409,130 @@ export default function BookingDetailsModal({
       alert(error.message || "Failed to record payment");
     } finally {
       setIsRecordingPayment(false);
+    }
+  }
+
+  async function handleRefund() {
+    if (!existingPayment?.id) {
+      alert("No active payment found to refund.");
+      return;
+    }
+
+    if (refundDraftTotal <= 0) {
+      alert("Refund amount must be greater than 0.");
+      return;
+    }
+
+    if (refundDraftTotal > remainingRefundable) {
+      alert(
+        `Refund exceeds remaining refundable amount. Remaining: $${remainingRefundable.toFixed(
+          2
+        )}`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Confirm refund of $${refundDraftTotal.toFixed(2)}?`
+    );
+    if (!confirmed) return;
+
+    setIsRefunding(true);
+
+    try {
+      const res = await fetch("/api/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          transaction_type: "refund",
+          parent_payment_id: existingPayment.id,
+          cash: refundInfo.cash,
+          card: refundInfo.card,
+          hicaps: refundInfo.hicaps,
+          other: refundInfo.other,
+          notes: "Refund from booking details modal",
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to record refund");
+      }
+
+      await reloadPaymentState();
+
+      setRefundInfo({
+        cash: 0,
+        card: 0,
+        hicaps: 0,
+        other: 0,
+      });
+
+      setShowRefundForm(false);
+      alert("Refund recorded");
+      onRefresh?.();
+    } catch (err) {
+      alert(err.message || "Failed to record refund");
+    } finally {
+      setIsRefunding(false);
+    }
+  }
+
+  async function handleBackToPendingWithVoid() {
+    if (!existingPayment?.id) {
+      setFormData((prev) => ({ ...prev, status: "pending" }));
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "This booking already has a payment. Do you want to void the payment and move the booking back to pending?"
+    );
+
+    if (!confirmed) return;
+
+    setIsVoidingPayment(true);
+
+    try {
+      const response = await fetch("/api/payments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payment_id: existingPayment.id }),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to void payment");
+      }
+
+      setExistingPayment(null);
+      setPaymentInfo({
+        cash: 0,
+        card: 0,
+        hicaps: 0,
+        other: 0,
+      });
+      setRefundInfo({
+        cash: 0,
+        card: 0,
+        hicaps: 0,
+        other: 0,
+      });
+      setRefundRows([]);
+      setRefundedTotal(0);
+      setRemainingRefundable(0);
+      setShowPaymentForm(false);
+      setShowRefundForm(false);
+
+      onRefresh?.();
+      onClose?.();
+    } catch (error) {
+      alert(error.message || "Failed to void payment");
+    } finally {
+      setIsVoidingPayment(false);
     }
   }
 
@@ -244,6 +545,17 @@ export default function BookingDetailsModal({
       );
 
       if (!confirmed) return;
+    }
+
+    if (formData.status === "paid" && !existingPayment) {
+      alert("You cannot save this booking as paid without recording payment.");
+      setShowPaymentForm(true);
+      return;
+    }
+
+    if (formData.status === "pending" && existingPayment) {
+      handleBackToPendingWithVoid();
+      return;
     }
 
     onSave?.({
@@ -481,127 +793,326 @@ export default function BookingDetailsModal({
             </p>
           </section>
 
-          {showPaymentForm && (
-            <section className="space-y-4 rounded-xl border border-green-100 bg-green-50/30 p-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-green-800">
-                  Payment information
-                </h3>
-                {booking.job_group_id && (
-                  <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-                    Group booking
-                  </span>
-                )}
-              </div>
+          <section className="rounded-xl border bg-white p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Payment information
+              </h3>
+              {isGroupBooking && (
+                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
+                  Group booking
+                </span>
+              )}
+            </div>
 
-              {booking.job_group_id && (
-                <div className="space-y-3 rounded-lg bg-white/70 p-4">
-                  <p className="text-sm font-medium text-gray-800">
-                    Choose payment scope
-                  </p>
+            {loadingPayment ? (
+              <p className="mt-3 text-sm text-gray-400">Loading payment...</p>
+            ) : existingPayment ? (
+              <div className="mt-3 space-y-3">
+                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-800">
+                  Active payment recorded. You can review or update it here.
+                </div>
 
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentScope("job")}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                        paymentScope === "job"
-                          ? "border-blue-300 bg-blue-50 text-blue-700"
-                          : "border-gray-200 text-gray-700"
-                      }`}
-                    >
-                      Pay this job only
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPaymentScope("group")}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                        paymentScope === "group"
-                          ? "border-green-300 bg-green-50 text-green-700"
-                          : "border-gray-200 text-gray-700"
-                      }`}
-                    >
-                      Pay whole group
-                    </button>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                    Cash: ${Number(existingPayment.cash || 0).toFixed(2)}
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                    Card: ${Number(existingPayment.card || 0).toFixed(2)}
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                    Hicaps: ${Number(existingPayment.hicaps || 0).toFixed(2)}
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                    Other: ${Number(existingPayment.other || 0).toFixed(2)}
                   </div>
                 </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
-                    Cash ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={paymentInfo.cash}
-                    onChange={(e) =>
-                      setPaymentInfo({ ...paymentInfo, cash: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
-                    placeholder="0.00"
-                  />
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <div className="rounded-lg border bg-white px-3 py-2 font-medium text-gray-800">
+                    Paid total: ${totalPaymentAmount(existingPayment).toFixed(2)}
+                  </div>
+                  <div className="rounded-lg border bg-blue-50 px-3 py-2 font-medium text-blue-800">
+                    Refunded total: ${refundedTotal.toFixed(2)}
+                  </div>
+                  <div className="rounded-lg border bg-amber-50 px-3 py-2 font-medium text-amber-800">
+                    Remaining refundable: ${remainingRefundable.toFixed(2)}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
-                    Card ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={paymentInfo.card}
-                    onChange={(e) =>
-                      setPaymentInfo({ ...paymentInfo, card: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
-                    placeholder="0.00"
-                  />
-                </div>
+                {refundRows.length > 0 && (
+                  <div className="rounded-lg border bg-gray-50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Refund history
+                    </p>
+                    <div className="space-y-2">
+                      {refundRows.map((row) => (
+                        <div
+                          key={row.id}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span className="text-gray-600">
+                            Refunded
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            ${totalPaymentAmount(row).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
-                    Hicaps ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={paymentInfo.hicaps}
-                    onChange={(e) =>
-                      setPaymentInfo({ ...paymentInfo, hicaps: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
-                    placeholder="0.00"
-                  />
-                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentForm((prev) => !prev)}
+                    className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    {showPaymentForm ? "Hide payment editor" : "Edit payment"}
+                  </button>
 
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
-                    Other ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={paymentInfo.other}
-                    onChange={(e) =>
-                      setPaymentInfo({ ...paymentInfo, other: e.target.value })
-                    }
-                    className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
-                    placeholder="0.00"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRefundForm((prev) => !prev)}
+                    disabled={hasFullyRefunded}
+                    className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {hasFullyRefunded
+                      ? "Fully refunded"
+                      : showRefundForm
+                      ? "Cancel refund"
+                      : "Refund"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBackToPendingWithVoid}
+                    disabled={isVoidingPayment}
+                    className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {isVoidingPayment
+                      ? "Voiding..."
+                      : "Void payment & back to pending"}
+                  </button>
                 </div>
               </div>
+            ) : (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPaymentForm((prev) => !prev);
+                    setFormData((prev) => ({ ...prev, status: "paid" }));
+                  }}
+                  className="rounded-lg border px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                >
+                  {showPaymentForm ? "Hide payment form" : "Record payment"}
+                </button>
+              </div>
+            )}
 
-              {(!booking.payments || booking.payments.length === 0) && (
+            {showPaymentForm && (
+              <div className="mt-4 space-y-4 rounded-xl border border-green-100 bg-green-50/30 p-4">
+                {booking.job_group_id && (
+                  <div className="space-y-3 rounded-lg bg-white/70 p-4">
+                    <p className="text-sm font-medium text-gray-800">
+                      Choose payment scope
+                    </p>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentScope("job")}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                          paymentScope === "job"
+                            ? "border-blue-300 bg-blue-50 text-blue-700"
+                            : "border-gray-200 text-gray-700"
+                        }`}
+                      >
+                        Pay this job only
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPaymentScope("group")}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                          paymentScope === "group"
+                            ? "border-green-300 bg-green-50 text-green-700"
+                            : "border-gray-200 text-gray-700"
+                        }`}
+                      >
+                        Pay whole group
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Cash ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={paymentInfo.cash}
+                      onChange={(e) =>
+                        setPaymentInfo({ ...paymentInfo, cash: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Card ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={paymentInfo.card}
+                      onChange={(e) =>
+                        setPaymentInfo({ ...paymentInfo, card: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Hicaps ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={paymentInfo.hicaps}
+                      onChange={(e) =>
+                        setPaymentInfo({ ...paymentInfo, hicaps: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Other ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={paymentInfo.other}
+                      onChange={(e) =>
+                        setPaymentInfo({ ...paymentInfo, other: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleRecordPayment}
                   disabled={isRecordingPayment}
                   className="w-full rounded-lg bg-green-600 py-3 text-sm font-bold uppercase tracking-widest text-white shadow-lg shadow-green-200 transition-all hover:bg-green-700 disabled:opacity-50"
                 >
-                  {isRecordingPayment ? "Recording..." : "Finalize & Record Payment"}
+                  {isRecordingPayment
+                    ? existingPayment
+                      ? "Updating..."
+                      : "Recording..."
+                    : existingPayment
+                    ? "Update payment"
+                    : "Finalize & Record Payment"}
                 </button>
-              )}
-            </section>
-          )}
+              </div>
+            )}
+
+            {showRefundForm && existingPayment && (
+              <div className="mt-4 space-y-4 rounded-xl border border-blue-100 bg-blue-50/30 p-4">
+                <p className="text-sm font-semibold text-blue-800">
+                  Refund amount
+                </p>
+
+                <div className="rounded-lg border bg-white px-3 py-2 text-sm">
+                  Remaining refundable: ${remainingRefundable.toFixed(2)}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Cash ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={refundInfo.cash}
+                      onChange={(e) => updateRefundField("cash", e.target.value)}
+                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Card ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={refundInfo.card}
+                      onChange={(e) => updateRefundField("card", e.target.value)}
+                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Hicaps ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={refundInfo.hicaps}
+                      onChange={(e) =>
+                        updateRefundField("hicaps", e.target.value)
+                      }
+                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Other ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={refundInfo.other}
+                      onChange={(e) => updateRefundField("other", e.target.value)}
+                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border bg-white px-3 py-2 text-sm font-medium">
+                  Refund draft total: ${refundDraftTotal.toFixed(2)}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRefund}
+                  disabled={
+                    isRefunding ||
+                    hasFullyRefunded ||
+                    refundDraftTotal <= 0 ||
+                    refundDraftTotal > remainingRefundable
+                  }
+                  className="w-full rounded-lg bg-blue-600 py-3 text-sm font-bold uppercase tracking-widest text-white shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isRefunding ? "Processing..." : "Confirm Refund"}
+                </button>
+              </div>
+            )}
+          </section>
 
           <section className="rounded-xl border bg-white p-4">
             <h3 className="mb-3 text-sm font-semibold text-gray-900">Notes</h3>
