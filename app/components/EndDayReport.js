@@ -11,6 +11,11 @@ import {
   CreditCard,
   Landmark,
 } from "lucide-react";
+import { storeApiUrl } from "@/lib/storeApi";
+
+function apiPath(slug, path) {
+  return slug ? storeApiUrl(slug, path) : `/api${path}`;
+}
 
 function currency(value) {
   return `$${Number(value || 0).toFixed(2)}`;
@@ -21,6 +26,7 @@ export default function EndDayReport({
   selectedDate,
   onClose,
   onFinish,
+  storeSlug,
 }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -34,7 +40,7 @@ export default function EndDayReport({
         setLoading(true);
         setLoadError("");
 
-        const res = await fetch(`/api/end-day-summary?date=${selectedDate}`);
+        const res = await fetch(apiPath(storeSlug, `/end-day-summary?date=${selectedDate}`));
         const data = await res.json();
 
         if (!res.ok) {

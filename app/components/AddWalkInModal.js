@@ -5,6 +5,11 @@ import {
   getSydneyRoundedNowTime,
   getSydneyTodayDate,
 } from "@/lib/sydneyDate";
+import { storeApiUrl } from "@/lib/storeApi";
+
+function apiPath(slug, path) {
+  return slug ? storeApiUrl(slug, path) : `/api${path}`;
+}
 
 const ACTIVE_BOOKING_STATUSES = ["pending", "paid"];
 
@@ -29,6 +34,7 @@ export default function AddWalkInModal({
   selectedDate,
   onClose,
   onCreated,
+  storeSlug,
 }) {
   const [services, setServices] = useState([]);
   const [shiftStaff, setShiftStaff] = useState([]);
@@ -79,9 +85,9 @@ export default function AddWalkInModal({
       setLoadingOptions(true);
       try {
         const [servicesRes, shiftRes, bookingsRes] = await Promise.all([
-          fetch("/api/services"),
-          fetch(`/api/staff-shifts?date=${formData.date}`),
-          fetch(`/api/booking?date=${formData.date}`),
+          fetch(apiPath(storeSlug, "/services")),
+          fetch(apiPath(storeSlug, `/staff-shifts?date=${formData.date}`)),
+          fetch(apiPath(storeSlug, `/booking?date=${formData.date}`)),
         ]);
 
         const servicesData = await servicesRes.json();
@@ -209,7 +215,7 @@ export default function AddWalkInModal({
         is_walk_in: true,
       };
 
-      const res = await fetch("/api/booking", {
+      const res = await fetch(apiPath(storeSlug, "/booking"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

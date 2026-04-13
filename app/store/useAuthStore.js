@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { storeApiUrl } from "@/lib/storeApi";
 
 export const useAuthStore = create(
   persist(
@@ -7,17 +8,17 @@ export const useAuthStore = create(
       user: null,
       loading: false,
       error: null,
-      login: async (pin) => {
+      login: async (pin, slug) => {
         set({ loading: true, error: null });
         try {
-          const res = await fetch("/api/auth/login", {
+          const res = await fetch(storeApiUrl(slug, "/auth/login"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pin }),
           });
           const data = await res.json();
           if (res.ok) {
-            set({ user: data.user, loading: false });
+            set({ user: { ...data.user, store_slug: slug }, loading: false });
             return true;
           } else {
             set({ error: data.error, loading: false });

@@ -4,6 +4,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import BookingCard from "./BookingCard";
 import BookingDetailsModal from "./BookingDetailsModal";
 import { getSydneyTodayDate } from "@/lib/sydneyDate";
+import { storeApiUrl } from "@/lib/storeApi";
+
+function apiPath(slug, path) {
+  return slug ? storeApiUrl(slug, path) : `/api${path}`;
+}
 
 const startHour = 8;
 const endHour = 20;
@@ -68,6 +73,7 @@ export default function ScheduleGrid({
   refreshToken = 0,
   externalSelectedBooking = null,
   onExternalBookingHandled,
+  storeSlug,
 }) {
   const [staffList, setStaffList] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -81,8 +87,8 @@ export default function ScheduleGrid({
 
       try {
         const [staffRes, bookingsRes] = await Promise.all([
-          fetch(`/api/staff-shifts?date=${selectedDate}`),
-          fetch(`/api/booking?date=${selectedDate}`),
+          fetch(apiPath(storeSlug, `/staff-shifts?date=${selectedDate}`)),
+          fetch(apiPath(storeSlug, `/booking?date=${selectedDate}`)),
         ]);
 
         const staffData = await staffRes.json();
@@ -124,7 +130,7 @@ export default function ScheduleGrid({
 
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [selectedDate, refreshKey, refreshToken]);
+  }, [selectedDate, refreshKey, refreshToken, storeSlug]);
 
   useEffect(() => {
     if (externalSelectedBooking) {
@@ -214,7 +220,7 @@ export default function ScheduleGrid({
     setBookings((prev) => prev.map(optimisticBooking));
 
     try {
-      const res = await fetch(`/api/booking/${updatedBooking.id}`, {
+      const res = await fetch(apiPath(storeSlug, `/booking/${updatedBooking.id}`), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -473,6 +479,7 @@ export default function ScheduleGrid({
         onSave={handleSaveBooking}
         availableStaffOptions={staffList}
         allBookings={bookings}
+        storeSlug={storeSlug}
       />
     </div>
   );

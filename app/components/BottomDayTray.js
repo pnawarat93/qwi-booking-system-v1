@@ -26,7 +26,7 @@ export default function BottomDayTray({
   ).length;
 
   return (
-    <section className="shrink-0 border-t bg-white">
+    <section className="shrink-0 border-t bg-white sticky bottom-0 z-10">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <span className="font-semibold text-gray-900">Total</span>:{" "}

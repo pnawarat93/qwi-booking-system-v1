@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { storeApiUrl } from "@/lib/storeApi";
+
+function apiPath(slug, path) {
+  return slug ? storeApiUrl(slug, path) : `/api${path}`;
+}
 
 const STATUS_OPTIONS = ["pending", "paid", "cancelled", "no_show"];
 const ACTIVE_BOOKING_STATUSES = ["pending", "paid"];
@@ -68,6 +73,7 @@ export default function BookingDetailsModal({
   onRefresh,
   availableStaffOptions = [],
   allBookings = [],
+  storeSlug,
 }) {
   const [formData, setFormData] = useState({
     customer_name: "",
@@ -151,8 +157,8 @@ export default function BookingDetailsModal({
         setLoadingPayment(true);
 
         const query = booking.job_group_id
-          ? `/api/payments?jobgroup_id=${booking.job_group_id}`
-          : `/api/payments?job_id=${booking.id}`;
+          ? apiPath(storeSlug, `/payments?jobgroup_id=${booking.job_group_id}`)
+          : apiPath(storeSlug, `/payments?job_id=${booking.id}`);
 
         const response = await fetch(query);
         const result = await response.json();
@@ -298,8 +304,8 @@ export default function BookingDetailsModal({
 
   async function reloadPaymentState() {
     const query = booking.job_group_id
-      ? `/api/payments?jobgroup_id=${booking.job_group_id}`
-      : `/api/payments?job_id=${booking.id}`;
+      ? apiPath(storeSlug, `/payments?jobgroup_id=${booking.job_group_id}`)
+      : apiPath(storeSlug, `/payments?job_id=${booking.id}`);
 
     const response = await fetch(query);
     const result = await response.json();
@@ -319,7 +325,7 @@ export default function BookingDetailsModal({
 
     try {
       if (existingPayment?.id) {
-        const updateResponse = await fetch("/api/payments", {
+        const updateResponse = await fetch(apiPath(storeSlug, "/payments"), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -376,7 +382,7 @@ export default function BookingDetailsModal({
               notes: "Created from booking details modal",
             };
 
-      const response = await fetch("/api/payments", {
+      const response = await fetch(apiPath(storeSlug, "/payments"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -440,7 +446,7 @@ export default function BookingDetailsModal({
     setIsRefunding(true);
 
     try {
-      const res = await fetch("/api/payments", {
+      const res = await fetch(apiPath(storeSlug, "/payments"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -496,7 +502,7 @@ export default function BookingDetailsModal({
     setIsVoidingPayment(true);
 
     try {
-      const response = await fetch("/api/payments", {
+      const response = await fetch(apiPath(storeSlug, "/payments"), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ payment_id: existingPayment.id }),

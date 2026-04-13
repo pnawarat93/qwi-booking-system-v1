@@ -5,6 +5,11 @@ import {
   getSydneyRoundedNowTime,
   getSydneyTodayDate,
 } from "@/lib/sydneyDate";
+import { storeApiUrl } from "@/lib/storeApi";
+
+function apiPath(slug, path) {
+  return slug ? storeApiUrl(slug, path) : `/api${path}`;
+}
 
 function timeToMinutes(timeString) {
   if (!timeString) return null;
@@ -27,6 +32,7 @@ export default function NewBookingModal({
   selectedDate,
   onClose,
   onCreated,
+  storeSlug,
 }) {
   const [services, setServices] = useState([]);
   const [shiftStaff, setShiftStaff] = useState([]);
@@ -80,9 +86,9 @@ export default function NewBookingModal({
       setLoadingOptions(true);
       try {
         const [servicesRes, shiftRes, bookingsRes] = await Promise.all([
-          fetch("/api/services"),
-          fetch(`/api/staff-shifts?date=${formData.date}`),
-          fetch(`/api/booking?date=${formData.date}`),
+          fetch(apiPath(storeSlug, "/services")),
+          fetch(apiPath(storeSlug, `/staff-shifts?date=${formData.date}`)),
+          fetch(apiPath(storeSlug, `/booking?date=${formData.date}`)),
         ]);
 
         const servicesData = await servicesRes.json();
@@ -229,7 +235,7 @@ export default function NewBookingModal({
         notes: formData.notes?.trim() || null,
       };
 
-      const res = await fetch("/api/booking", {
+      const res = await fetch(apiPath(storeSlug, "/booking"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

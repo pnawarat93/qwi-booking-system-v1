@@ -1,83 +1,65 @@
 import { create } from "zustand";
 import { addMinutes, format, parse, isBefore, isAfter, isEqual } from "date-fns";
+import { storeApiUrl } from "@/lib/storeApi";
 
 const useBookingStore = create((set, get) => ({
-  staffs: [],
-  availableStaffsForDate: [],
+  slug: "",
   services: [],
+  staffs: [],
   selectedService: null,
+  selectedStaff: null,
+  selectedStaffs: [],
   selectedPeople: null,
   selectedDate: "",
   selectedTime: null,
-  selectedStaffs: [],
   bookings: [],
   loading: false,
+  availableStaffsForDate: [],
 
-  setServices: (services) => set({ services }),
+  setSlug: (slug) => set({ slug }),
+
   setStaffs: (staffs) => set({ staffs }),
 
-  setAvailableStaffsForDate: (staffsForDate) =>
-    set({
-      availableStaffsForDate: staffsForDate,
-      selectedTime: null,
-    }),
+  setSelectedStaff: (staff) => set({
+    selectedStaff: staff,
+    selectedTime: null,
+  }),
 
-  toggleSelectedStaff: (staff) => {
-    const { selectedStaffs, selectedPeople } = get();
-    const exists = selectedStaffs.some((s) => s.id === staff.id);
+  setServices: (services) => set({ services }),
 
-    if (exists) {
-      set({
-        selectedStaffs: selectedStaffs.filter((s) => s.id !== staff.id),
-        selectedTime: null,
-      });
-      return true;
-    }
+  setSelectedService: (service) => set({
+    selectedService: service,
+    selectedTime: null // Reset time when service changes as duration might differ
+  }),
 
-    const maxSelectable = selectedPeople || 0;
-    if (maxSelectable === 0 || selectedStaffs.length >= maxSelectable) {
-      return false;
-    }
-
-    set({
-      selectedStaffs: [...selectedStaffs, staff],
-      selectedTime: null,
-    });
-    return true;
-  },
-
-  clearSelectedStaffs: () => set({ selectedStaffs: [], selectedTime: null }),
-
-  setSelectedService: (service) =>
-    set({
-      selectedService: service,
-      selectedTime: null,
-    }),
-
-  setSelectedPeople: (num) =>
-    set({
-      selectedPeople: num,
-      selectedTime: null,
-      selectedStaffs: [],
-    }),
+  setSelectedPeople: (num) => set({ selectedPeople: num }),
 
   setSelectedDate: async (date) => {
-    set({
-      selectedDate: date,
-      selectedTime: null,
-      loading: true,
-      selectedPeople: null,
-      selectedStaffs: [],
-    });
+    set({ selectedDate: date, selectedTime: null, loading: true });
     await get().fetchBookings(date);
     set({ loading: false });
   },
 
   setSelectedTime: (time) => set({ selectedTime: time }),
 
+  setAvailableStaffsForDate: (staffs) => set({ availableStaffsForDate: staffs, staffs: staffs }),
+
+  toggleSelectedStaff: (staff) => {
+    const { selectedStaffs, selectedPeople } = get();
+    const exists = selectedStaffs.some((s) => s.id === staff.id);
+    if (exists) {
+      set({ selectedStaffs: selectedStaffs.filter((s) => s.id !== staff.id) });
+    } else if (selectedStaffs.length < (selectedPeople || 1)) {
+      set({ selectedStaffs: [...selectedStaffs, staff] });
+    }
+  },
+
+  clearSelectedStaffs: () => set({ selectedStaffs: [] }),
+
   fetchServices: async () => {
+    const { slug } = get();
     try {
-      const response = await fetch("/api/services");
+      const response = await fetch(storeApiUrl(slug, "/services"));
       const data = await response.json();
       if (Array.isArray(data)) {
         set({ services: data });
@@ -88,8 +70,9 @@ const useBookingStore = create((set, get) => ({
   },
 
   fetchStaffs: async () => {
+    const { slug } = get();
     try {
-      const response = await fetch("/api/staffs");
+      const response = await fetch(storeApiUrl(slug, "/staffs"));
       const data = await response.json();
       if (Array.isArray(data)) {
         set({ staffs: data });
@@ -100,86 +83,70 @@ const useBookingStore = create((set, get) => ({
   },
 
   fetchBookings: async (date) => {
+    const { slug } = get();
     try {
-      const response = await fetch(`/api/booking?date=${date}`);
+      const response = await fetch(storeApiUrl(slug, `/availability?date=${date}`));
       const data = await response.json();
-
       if (Array.isArray(data)) {
         set({ bookings: data });
-      } else {
-        set({ bookings: [] });
       }
     } catch (error) {
       console.error("Error fetching bookings:", error);
-      set({ bookings: [] });
     }
   },
 
   getAvailableSlots: () => {
-    const {
-      selectedService,
-      selectedDate,
-      bookings,
-      selectedStaffs,
-      selectedPeople,
-      availableStaffsForDate,
-    } = get();
-
-    if (!selectedService || !selectedDate || availableStaffsForDate.length === 0) {
-      return [];
-    }
+    const { selectedService, selectedDate, bookings, staffs, selectedStaff, selectedStaffs, selectedPeople } = get();
+    // Return empty if no service/date selected, or if staffs haven't loaded yet
+    if (!selectedService || !selectedDate || staffs.length === 0) return [];
 
     const slots = [];
     const startTime = parse("09:00", "HH:mm", new Date());
     const endTime = parse("20:00", "HH:mm", new Date());
-    const duration = Number(selectedService.duration || 60);
+    const duration = selectedService.duration;
+    const requiredStaffCount = selectedPeople || 1;
 
     let current = startTime;
-
     while (isBefore(current, endTime) || isEqual(current, endTime)) {
       const slotStartTimeStr = format(current, "HH:mm");
       const slotEndTime = addMinutes(current, duration);
 
-      let availableStaffIds = availableStaffsForDate.map((s) => s.id);
+      let availableStaffIds = staffs.map(s => s.id);
 
-      bookings.forEach((booking) => {
-        const bookingStatus = String(booking.status || "").toLowerCase();
-        if (!["pending", "paid"].includes(bookingStatus)) return;
+      // Remove staff members who have an overlapping booking
+      bookings.forEach(booking => {
+        if (!booking.time || !booking.staff_id) return;
 
-        if (!booking.staff_id) return;
-
-        const bookingTime = String(booking.time || "").substring(0, 5);
-        if (!bookingTime) return;
-
-        const bStart = parse(bookingTime, "HH:mm", new Date());
-        const bDuration = Number(
-          booking.services?.duration || booking.duration || 60
-        );
+        const bStart = parse(booking.time.substring(0, 5), "HH:mm", new Date());
+        const bDuration = booking.services?.duration || 60;
         const bEnd = addMinutes(bStart, bDuration);
 
-        const overlaps =
-          isBefore(current, bEnd) && isAfter(slotEndTime, bStart);
-
-        if (overlaps) {
-          availableStaffIds = availableStaffIds.filter(
-            (id) => String(id) !== String(booking.staff_id)
-          );
+        // Overlap: StartA < EndB AND EndA > StartB
+        if (isBefore(current, bEnd) && isAfter(slotEndTime, bStart)) {
+          // This staff member is busy
+          availableStaffIds = availableStaffIds.filter(id => id !== booking.staff_id);
         }
       });
 
-      const requiredStaffCount = selectedPeople || 1;
       let isAvailable = false;
 
-      if (selectedStaffs.length > 0) {
-        const requiredStaffIds = selectedStaffs.map((s) => s.id);
-        const hasRequiredStaff = requiredStaffIds.every((id) =>
-          availableStaffIds.some((staffId) => String(staffId) === String(id))
+      if (selectedStaffs && selectedStaffs.length > 0) {
+        // If specific staffs are requested, they MUST all be available
+        const allRequestedAvailable = selectedStaffs.every((s) =>
+          availableStaffIds.includes(s.id)
         );
-
-        if (hasRequiredStaff && availableStaffIds.length >= requiredStaffCount) {
+        if (allRequestedAvailable && availableStaffIds.length >= requiredStaffCount) {
           isAvailable = true;
         }
+      } else if (selectedStaff) {
+        // If a single specific staff is requested
+        if (availableStaffIds.includes(selectedStaff.id)) {
+          if (availableStaffIds.length >= requiredStaffCount) {
+            isAvailable = true;
+          }
+        }
       } else {
+        // No specific staff requested, just need enough total staff
         if (availableStaffIds.length >= requiredStaffCount) {
           isAvailable = true;
         }
@@ -195,16 +162,15 @@ const useBookingStore = create((set, get) => ({
     return slots;
   },
 
-  resetBooking: () =>
-    set({
-      selectedService: null,
-      selectedStaffs: [],
-      selectedPeople: null,
-      selectedDate: "",
-      selectedTime: null,
-      bookings: [],
-      availableStaffsForDate: [],
-    }),
+  resetBooking: () => set({
+    selectedService: null,
+    selectedStaff: null,
+    selectedStaffs: [],
+    selectedPeople: null,
+    selectedDate: "",
+    selectedTime: null,
+    bookings: []
+  })
 }));
 
 export default useBookingStore;

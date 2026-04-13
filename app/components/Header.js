@@ -1,6 +1,6 @@
 import { Sparkles } from "lucide-react";
 
-export default function Header() {
+export default function Header({ storeName }) {
   return (
     <header className="sticky top-0 z-50 border-b border-[#E8D8CC]/80 bg-[#FFF9F6]/80 backdrop-blur-xl">
       <div className="mx-auto flex w-[92%] max-w-5xl items-center justify-between py-4">
@@ -11,7 +11,7 @@ export default function Header() {
 
           <div className="flex flex-col leading-tight">
             <span className="text-lg font-semibold tracking-[0.18em] text-[#4A3A34]">
-              JONG
+              {storeName || "JONG"}
             </span>
             <span className="text-xs text-[#7A675F]">
               Elegant booking experience

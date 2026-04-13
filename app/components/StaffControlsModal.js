@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { storeApiUrl } from "@/lib/storeApi";
+
+function apiPath(slug, path) {
+  return slug ? storeApiUrl(slug, path) : `/api${path}`;
+}
 
 export default function StaffControlsModal({
   open,
   selectedDate,
   onClose,
   onUpdated,
+  storeSlug,
 }) {
   const [todayShifts, setTodayShifts] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
@@ -26,8 +32,8 @@ export default function StaffControlsModal({
 
       try {
         const [shiftRes, staffRes] = await Promise.all([
-          fetch(`/api/staff-shifts?date=${selectedDate}`),
-          fetch("/api/staffs"),
+          fetch(apiPath(storeSlug, `/staff-shifts?date=${selectedDate}`)),
+          fetch(apiPath(storeSlug, "/staffs")),
         ]);
 
         const shiftData = await shiftRes.json();
@@ -76,8 +82,8 @@ export default function StaffControlsModal({
 
   async function refreshAll() {
     const [shiftRes, staffRes] = await Promise.all([
-      fetch(`/api/staff-shifts?date=${selectedDate}`),
-      fetch("/api/staffs"),
+      fetch(apiPath(storeSlug, `/staff-shifts?date=${selectedDate}`)),
+      fetch(apiPath(storeSlug, "/staffs")),
     ]);
 
     const shiftData = await shiftRes.json();
@@ -99,7 +105,7 @@ export default function StaffControlsModal({
     try {
       setSavingId(staffId);
 
-      const res = await fetch("/api/staff-shifts/toggle", {
+      const res = await fetch(apiPath(storeSlug, "/staff-shifts/toggle"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -143,7 +149,7 @@ export default function StaffControlsModal({
       const displayOrder =
         workingStaff.length + offTodayStaff.length + 1;
 
-      const res = await fetch("/api/staff-shifts", {
+      const res = await fetch(apiPath(storeSlug, "/staff-shifts"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,7 +199,7 @@ export default function StaffControlsModal({
 
       setIsCreatingStaff(true);
 
-      const createRes = await fetch("/api/staffs", {
+      const createRes = await fetch(apiPath(storeSlug, "/staffs"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -211,7 +217,7 @@ export default function StaffControlsModal({
         throw new Error(createdStaff?.error || "Failed to create staff");
       }
 
-      const shiftRes = await fetch("/api/staff-shifts", {
+      const shiftRes = await fetch(apiPath(storeSlug, "/staff-shifts"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
