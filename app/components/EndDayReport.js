@@ -22,7 +22,7 @@ function currency(value) {
 }
 
 export default function EndDayReport({
-  bookings,
+  bookings = [],
   selectedDate,
   onClose,
   onFinish,

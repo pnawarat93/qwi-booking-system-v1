@@ -135,7 +135,7 @@ export async function GET(request, context) {
           duration,
           staff_payout_fixed
         ),
-        staff:users!jobs_staff_id_fkey (
+        staff:staff!jobs_staff_id_fkey (
           id,
           name,
           name_display,

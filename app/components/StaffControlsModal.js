@@ -7,8 +7,8 @@ function apiPath(slug, path) {
   return slug ? storeApiUrl(slug, path) : `/api${path}`;
 }
 
-function normalizeTime(value) {
-  if (!value) return null;
+function normalizeTime(value, fallback = "09:00") {
+  if (!value) return fallback;
   return String(value).substring(0, 5);
 }
 
@@ -21,8 +21,11 @@ export default function StaffControlsModal({
 }) {
   const [allStaff, setAllStaff] = useState([]);
   const [effectiveStaff, setEffectiveStaff] = useState([]);
+  const [businessHours, setBusinessHours] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [savingIds, setSavingIds] = useState(new Set());
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [showAddExisting, setShowAddExisting] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -34,9 +37,10 @@ export default function StaffControlsModal({
 
   async function loadData() {
     setLoading(true);
+    setErrorMessage("");
 
     try {
-      const [staffRes, effectiveRes] = await Promise.all([
+      const [staffRes, effectiveRes, hoursRes] = await Promise.all([
         fetch(apiPath(storeSlug, "/staffs")),
         fetch(
           apiPath(
@@ -44,10 +48,12 @@ export default function StaffControlsModal({
             `/effective-staff?date=${selectedDate}&include_all=true`
           )
         ),
+        fetch(apiPath(storeSlug, `/business-hours?date=${selectedDate}`)),
       ]);
 
       const staffData = await staffRes.json();
       const effectiveData = await effectiveRes.json();
+      const hoursData = await hoursRes.json();
 
       if (!staffRes.ok) {
         throw new Error(staffData?.error || "Failed to load staff");
@@ -57,13 +63,19 @@ export default function StaffControlsModal({
         throw new Error(effectiveData?.error || "Failed to load effective staff");
       }
 
+      if (!hoursRes.ok) {
+        throw new Error(hoursData?.error || "Failed to load business hours");
+      }
+
       setAllStaff(Array.isArray(staffData) ? staffData : []);
       setEffectiveStaff(Array.isArray(effectiveData?.items) ? effectiveData.items : []);
+      setBusinessHours(hoursData || null);
     } catch (err) {
       console.error("Failed to load staff controls:", err);
       setAllStaff([]);
       setEffectiveStaff([]);
-      alert(err.message || "Failed to load staff controls");
+      setBusinessHours(null);
+      setErrorMessage(err.message || "Failed to load staff controls");
     } finally {
       setLoading(false);
     }
@@ -74,48 +86,55 @@ export default function StaffControlsModal({
     loadData();
   }, [open, selectedDate, storeSlug]);
 
-  const workingMap = useMemo(() => {
-    const map = new Map();
-
-    effectiveStaff
-      .filter((s) => s.is_working === true)
-      .forEach((s) => {
-        map.set(String(s.staff_id), s);
-      });
-
-    return map;
-  }, [effectiveStaff]);
-
   const workingToday = useMemo(() => {
-    return Array.from(workingMap.values()).sort((a, b) => {
-      const aOrder = a.display_order ?? 0;
-      const bOrder = b.display_order ?? 0;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-
-      const aName = a.name_display || a.name || "";
-      const bName = b.name_display || b.name || "";
-      return aName.localeCompare(bName);
-    });
-  }, [workingMap]);
+    return (effectiveStaff || [])
+      .filter((s) => s.is_working === true)
+      .map((s, index) => ({
+        staff_id: s.staff_id,
+        name: s.name_display || s.name || "Staff",
+        staff_code: s.staff_code || "",
+        start_time: normalizeTime(
+          s.start_time,
+          normalizeTime(businessHours?.open_time, "09:00")
+        ),
+        end_time: normalizeTime(
+          s.end_time,
+          normalizeTime(businessHours?.close_time, "18:00")
+        ),
+        display_order:
+          s.display_order !== undefined && s.display_order !== null
+            ? s.display_order
+            : index + 1,
+        source: s.source || "override",
+      }))
+      .sort((a, b) => {
+        const aOrder = a.display_order ?? 0;
+        const bOrder = b.display_order ?? 0;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return (a.name || "").localeCompare(b.name || "");
+      });
+  }, [effectiveStaff, businessHours]);
 
   const availableToAdd = useMemo(() => {
+    const workingIds = new Set(workingToday.map((staff) => String(staff.staff_id)));
+
     return allStaff
-      .filter((staff) => !workingMap.has(String(staff.id)))
+      .filter((staff) => !workingIds.has(String(staff.id)))
       .sort((a, b) => {
         const aName = a.name_display || a.name || "";
         const bName = b.name_display || b.name || "";
         return aName.localeCompare(bName);
       });
-  }, [allStaff, workingMap]);
+  }, [allStaff, workingToday]);
+
+  const defaultStartTime = normalizeTime(businessHours?.open_time, "09:00");
+  const defaultEndTime = normalizeTime(businessHours?.close_time, "18:00");
 
   function setSaving(staffId, isSaving) {
     setSavingIds((prev) => {
       const next = new Set(prev);
-      if (isSaving) {
-        next.add(staffId);
-      } else {
-        next.delete(staffId);
-      }
+      if (isSaving) next.add(staffId);
+      else next.delete(staffId);
       return next;
     });
   }
@@ -138,23 +157,93 @@ export default function StaffControlsModal({
     return data;
   }
 
+  async function syncWholeWorkingOrder(nextWorkingList, removedStaffIds = []) {
+    const workingPayloads = nextWorkingList.map((staff, index) => ({
+      staff_id: staff.staff_id,
+      override_date: selectedDate,
+      is_working: true,
+      start_time: `${normalizeTime(staff.start_time, defaultStartTime)}:00`,
+      end_time: `${normalizeTime(staff.end_time, defaultEndTime)}:00`,
+      display_order: index + 1,
+    }));
+
+    const removedPayloads = removedStaffIds.map((staffId) => ({
+      staff_id: staffId,
+      override_date: selectedDate,
+      is_working: false,
+    }));
+
+    await Promise.all(
+      [...workingPayloads, ...removedPayloads].map(async (payload) => {
+        const res = await fetch(apiPath(storeSlug, "/staff-overrides"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          throw new Error(data?.error || "Failed to update daily staff order");
+        }
+      })
+    );
+  }
+
+  function normalizeWorkingOrder(list) {
+    return list.map((row, index) => ({
+      ...row,
+      display_order: index + 1,
+    }));
+  }
+
+  async function moveStaff(staffId, direction) {
+    try {
+      setSaving(staffId, true);
+      setErrorMessage("");
+
+      const next = [...workingToday];
+      const index = next.findIndex((row) => String(row.staff_id) === String(staffId));
+      if (index === -1) return;
+
+      const targetIndex = direction === "left" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) return;
+
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+
+      const normalized = normalizeWorkingOrder(next);
+      await syncWholeWorkingOrder(normalized);
+      await loadData();
+      onUpdated?.();
+    } catch (err) {
+      console.error("Move staff failed:", err);
+      setErrorMessage(err.message || "Could not update staff order.");
+    } finally {
+      setSaving(staffId, false);
+    }
+  }
+
   async function toggleOff(staff) {
     const staffId = staff.staff_id;
 
     try {
       setSaving(staffId, true);
+      setErrorMessage("");
 
-      await createOrUpdateOverride({
-        staff_id: staffId,
-        override_date: selectedDate,
-        is_working: false,
-      });
+      const remaining = normalizeWorkingOrder(
+        workingToday.filter((row) => String(row.staff_id) !== String(staffId))
+      );
 
+      await syncWholeWorkingOrder(remaining, [staffId]);
       await loadData();
       onUpdated?.();
     } catch (err) {
       console.error("Toggle off failed:", err);
-      alert(err.message || "Could not update staff");
+      setErrorMessage(err.message || "Could not update staff.");
     } finally {
       setSaving(staffId, false);
     }
@@ -163,21 +252,28 @@ export default function StaffControlsModal({
   async function addExistingStaff(staff) {
     try {
       setSaving(staff.id, true);
+      setErrorMessage("");
 
-      await createOrUpdateOverride({
-        staff_id: staff.id,
-        override_date: selectedDate,
-        is_working: true,
-        start_time: "09:00",
-        end_time: "18:00",
-      });
+      const next = normalizeWorkingOrder([
+        ...workingToday,
+        {
+          staff_id: staff.id,
+          name: staff.name_display || staff.name || "Staff",
+          staff_code: staff.staff_code || "",
+          start_time: defaultStartTime,
+          end_time: defaultEndTime,
+          display_order: workingToday.length + 1,
+          source: "override",
+        },
+      ]);
 
+      await syncWholeWorkingOrder(next);
       await loadData();
       onUpdated?.();
       setShowAddExisting(false);
     } catch (err) {
       console.error("Add existing staff failed:", err);
-      alert(err.message || "Could not add staff");
+      setErrorMessage(err.message || "Could not add staff.");
     } finally {
       setSaving(staff.id, false);
     }
@@ -186,11 +282,12 @@ export default function StaffControlsModal({
   async function createTemporaryStaff() {
     try {
       if (!newStaffName.trim()) {
-        alert("Please enter a display name.");
+        setErrorMessage("Please enter a display name.");
         return;
       }
 
       setIsCreatingStaff(true);
+      setErrorMessage("");
 
       const createRes = await fetch(apiPath(storeSlug, "/staffs"), {
         method: "POST",
@@ -199,7 +296,7 @@ export default function StaffControlsModal({
         },
         body: JSON.stringify({
           name_display: newStaffName.trim(),
-          staff_code: newStaffCode.trim(),
+          staff_code: newStaffCode.trim() || null,
           employment_type: newEmploymentType,
         }),
       });
@@ -210,24 +307,30 @@ export default function StaffControlsModal({
         throw new Error(createdStaff?.error || "Failed to create staff");
       }
 
-      await createOrUpdateOverride({
-        staff_id: createdStaff.id,
-        override_date: selectedDate,
-        is_working: true,
-        start_time: "09:00",
-        end_time: "18:00",
-      });
+      const next = normalizeWorkingOrder([
+        ...workingToday,
+        {
+          staff_id: createdStaff.id,
+          name: createdStaff.name_display || createdStaff.name || newStaffName.trim(),
+          staff_code: createdStaff.staff_code || "",
+          start_time: defaultStartTime,
+          end_time: defaultEndTime,
+          display_order: workingToday.length + 1,
+          source: "override",
+        },
+      ]);
+
+      await syncWholeWorkingOrder(next);
+      await loadData();
+      onUpdated?.();
 
       setNewStaffName("");
       setNewStaffCode("");
       setNewEmploymentType("temporary");
       setShowQuickAdd(false);
-
-      await loadData();
-      onUpdated?.();
     } catch (err) {
       console.error("Create temporary staff failed:", err);
-      alert(err.message || "Could not create and add staff");
+      setErrorMessage(err.message || "Could not create and add staff.");
     } finally {
       setIsCreatingStaff(false);
     }
@@ -265,7 +368,7 @@ export default function StaffControlsModal({
                   Today’s staff
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  Only staff currently working on this date are shown here.
+                  Add people during the day or adjust order. New staff always go to the far right.
                 </p>
               </div>
 
@@ -294,6 +397,12 @@ export default function StaffControlsModal({
               </div>
             </div>
 
+            {errorMessage && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {errorMessage}
+              </div>
+            )}
+
             {loading ? (
               <p className="text-sm text-gray-400">Loading...</p>
             ) : workingToday.length === 0 ? (
@@ -302,8 +411,7 @@ export default function StaffControlsModal({
               </div>
             ) : (
               <div className="space-y-3">
-                {workingToday.map((staff) => {
-                  const displayName = staff.name_display || staff.name || "Staff";
+                {workingToday.map((staff, index) => {
                   const saving = savingIds.has(staff.staff_id);
 
                   return (
@@ -313,29 +421,49 @@ export default function StaffControlsModal({
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-gray-900">
-                          {displayName}
+                          {index + 1}. {staff.name}
                         </p>
 
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                           <span>{staff.staff_code || "No staff code"}</span>
                           <span>•</span>
                           <span>
-                            {normalizeTime(staff.start_time) || "--:--"} -{" "}
-                            {normalizeTime(staff.end_time) || "--:--"}
+                            {normalizeTime(staff.start_time, defaultStartTime)} -{" "}
+                            {normalizeTime(staff.end_time, defaultEndTime)}
                           </span>
                           <span>•</span>
                           <span className="capitalize">{staff.source}</span>
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={saving}
-                        onClick={() => toggleOff(staff)}
-                        className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        {saving ? "Saving..." : "Set off"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={saving || index === 0}
+                          onClick={() => moveStaff(staff.staff_id, "left")}
+                          className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                        >
+                          ←
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={saving || index === workingToday.length - 1}
+                          onClick={() => moveStaff(staff.staff_id, "right")}
+                          className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                        >
+                          →
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => toggleOff(staff)}
+                          className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {saving ? "Saving..." : "Set off"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -383,7 +511,7 @@ export default function StaffControlsModal({
                             onClick={() => addExistingStaff(staff)}
                             className="rounded-lg border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
                           >
-                            {saving ? "Adding..." : "Add"}
+                            {saving ? "Adding..." : "Add to end"}
                           </button>
                         </div>
                       );
@@ -447,7 +575,7 @@ export default function StaffControlsModal({
                     onClick={createTemporaryStaff}
                     className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
                   >
-                    {isCreatingStaff ? "Creating..." : "Create and add to today"}
+                    {isCreatingStaff ? "Creating..." : "Create and add to end"}
                   </button>
                 </div>
               </div>

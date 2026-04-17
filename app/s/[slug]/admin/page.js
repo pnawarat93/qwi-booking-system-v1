@@ -14,6 +14,7 @@ import InactiveBookingsModal from "@/app/components/InactiveBookingsModal";
 import UnassignedBookingsModal from "@/app/components/UnassignedBookingsModal";
 import StaffControlsModal from "@/app/components/StaffControlsModal";
 import StartDayModal from "@/app/components/StartDayModal";
+
 import { useAuthStore } from "@/store/useAuthStore";
 import { useStore } from "../StoreContext";
 import { storeApiUrl } from "@/lib/storeApi";
@@ -54,6 +55,7 @@ export default function StoreAdminPage() {
   const [showUnassignedBookingsModal, setShowUnassignedBookingsModal] =
     useState(false);
   const [showStaffControlsModal, setShowStaffControlsModal] = useState(false);
+
   const [gridRefreshToken, setGridRefreshToken] = useState(0);
   const [bookingToOpenFromUnassigned, setBookingToOpenFromUnassigned] =
     useState(null);
@@ -131,6 +133,29 @@ export default function StoreAdminPage() {
   const shouldBlockTodayOps =
     isTodaySelected && !loadingStoreDay && !isStoreDayStarted;
 
+  function refreshGridNow() {
+    setGridRefreshToken((prev) => prev + 1);
+  }
+
+  function handleStartedDay(startedStoreDay) {
+    setStoreDay(startedStoreDay || null);
+    refreshGridNow();
+  }
+
+  function handleStaffControlsUpdated() {
+    refreshGridNow();
+  }
+
+  function handleWalkInCreated() {
+    setShowWalkInModal(false);
+    refreshGridNow();
+  }
+
+  function handleNewBookingCreated() {
+    setShowNewBookingModal(false);
+    refreshGridNow();
+  }
+
   return (
     <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white">
       <div className="sticky top-0 z-40 shrink-0 border-b bg-white">
@@ -162,7 +187,8 @@ export default function StoreAdminPage() {
             </span>
           ) : (
             <span className="font-medium text-amber-800">
-              Start Day confirmation required for today before front-desk operations continue.
+              Start Day confirmation required for today before front-desk
+              operations continue.
             </span>
           )}
         </div>
@@ -177,14 +203,15 @@ export default function StoreAdminPage() {
                 {unassignedCount > 1 ? "s" : ""} need reassignment
               </span>
               <span className="ml-2 text-amber-700">
-                These bookings belong to staff who are not on today&apos;s shift.
+                These bookings belong to staff who are not on today&apos;s
+                shift.
               </span>
             </div>
 
             <button
               type="button"
               onClick={() => setShowUnassignedBookingsModal(true)}
-              className="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+              className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
             >
               Review unassigned
             </button>
@@ -192,7 +219,7 @@ export default function StoreAdminPage() {
         </div>
       )}
 
-      <section className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <ScheduleGrid
           selectedDate={selectedDate}
           onDataChange={setTrayData}
@@ -201,45 +228,46 @@ export default function StoreAdminPage() {
           onExternalBookingHandled={() => setBookingToOpenFromUnassigned(null)}
           storeSlug={store.slug}
         />
+      </div>
 
-        {shouldBlockTodayOps && (
-          <div className="absolute inset-0 z-40 bg-white/60 backdrop-blur-[1px]" />
-        )}
-      </section>
-
-      <div className="shrink-0">
+      <div className="shrink-0 border-t bg-white">
         <BottomDayTray
           selectedDate={selectedDate}
-          bookings={trayData.bookings}
-          activeBookings={trayData.activeBookings}
-          inactiveBookings={trayData.inactiveBookings}
+          totalBookings={trayData.bookings?.length || 0}
+          activeCount={trayData.activeBookings?.length || 0}
+          cancelledCount={
+            trayData.inactiveBookings?.filter(
+              (booking) => booking.status?.toLowerCase() === "cancelled"
+            ).length || 0
+          }
+          noShowCount={
+            trayData.inactiveBookings?.filter(
+              (booking) => booking.status?.toLowerCase() === "no_show"
+            ).length || 0
+          }
+          unassignedCount={trayData.unassignedBookings?.length || 0}
+          onOpenInactive={() => setShowInactiveBookingsModal(true)}
+          onOpenUnassigned={() => setShowUnassignedBookingsModal(true)}
+          onOpenStaffControls={() => setShowStaffControlsModal(true)}
           onOpenEndDay={() => setShowEndDayReport(true)}
-          onOpenStaffControls={() => {
-            setShowStaffControlsModal(true);
-          }}
-          onOpenInactiveBookings={() => {
-            setShowInactiveBookingsModal(true);
-          }}
+          storeDay={storeDay}
         />
       </div>
 
-      {showEndDayReport && (
-        <EndDayReport
-          bookings={trayData.bookings}
-          selectedDate={selectedDate}
-          onClose={() => setShowEndDayReport(false)}
-          onFinish={() => setShowEndDayReport(false)}
-          storeSlug={store.slug}
-        />
-      )}
+      <StartDayModal
+        open={shouldBlockTodayOps}
+        selectedDate={selectedDate}
+        storeSlug={store.slug}
+        storeName={store.name}
+        existingStoreDay={storeDay}
+        onStarted={handleStartedDay}
+      />
 
       <AddWalkInModal
         open={showWalkInModal}
         selectedDate={selectedDate}
         onClose={() => setShowWalkInModal(false)}
-        onCreated={() => {
-          setGridRefreshToken((prev) => prev + 1);
-        }}
+        onCreated={handleWalkInCreated}
         storeSlug={store.slug}
       />
 
@@ -247,45 +275,19 @@ export default function StoreAdminPage() {
         open={showNewBookingModal}
         selectedDate={selectedDate}
         onClose={() => setShowNewBookingModal(false)}
-        onCreated={() => {
-          setShowNewBookingModal(false);
-          setGridRefreshToken((prev) => prev + 1);
-        }}
+        onCreated={handleNewBookingCreated}
         storeSlug={store.slug}
       />
 
       <InactiveBookingsModal
         open={showInactiveBookingsModal}
-        bookings={trayData.inactiveBookings}
+        bookings={trayData.inactiveBookings || []}
         onClose={() => setShowInactiveBookingsModal(false)}
-        onRecover={async (booking) => {
-          try {
-            const res = await fetch(
-              storeApiUrl(store.slug, `/booking/${booking.id}`),
-              {
-                method: "PATCH",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ status: "pending" }),
-              }
-            );
-
-            if (!res.ok) {
-              throw new Error("Failed to recover booking");
-            }
-
-            setGridRefreshToken((prev) => prev + 1);
-          } catch (error) {
-            console.error(error);
-            alert("Could not recover booking.");
-          }
-        }}
       />
 
       <UnassignedBookingsModal
         open={showUnassignedBookingsModal}
-        bookings={trayData.unassignedBookings}
+        bookings={trayData.unassignedBookings || []}
         onClose={() => setShowUnassignedBookingsModal(false)}
         onOpenBooking={(booking) => {
           setShowUnassignedBookingsModal(false);
@@ -295,25 +297,24 @@ export default function StoreAdminPage() {
 
       <StaffControlsModal
         open={showStaffControlsModal}
-        selectedDate={selectedDate}
         onClose={() => setShowStaffControlsModal(false)}
-        onUpdated={() => {
-          setGridRefreshToken((prev) => prev + 1);
-        }}
+        selectedDate={selectedDate}
         storeSlug={store.slug}
+        onUpdated={handleStaffControlsUpdated}
       />
 
-      <StartDayModal
-        open={shouldBlockTodayOps}
-        selectedDate={selectedDate}
-        storeSlug={store.slug}
-        storeName={store.name}
-        existingStoreDay={storeDay}
-        onStarted={(startedDay) => {
-          setStoreDay(startedDay);
-          setGridRefreshToken((prev) => prev + 1);
-        }}
-      />
+      {showEndDayReport && (
+        <EndDayReport
+          bookings={trayData.bookings || []}
+          selectedDate={selectedDate}
+          storeSlug={store.slug}
+          onClose={() => setShowEndDayReport(false)}
+          onFinish={() => {
+            setShowEndDayReport(false);
+            refreshGridNow();
+          }}
+        />
+      )}
     </main>
   );
 }

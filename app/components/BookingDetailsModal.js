@@ -111,6 +111,8 @@ export default function BookingDetailsModal({
   const [remainingRefundable, setRemainingRefundable] = useState(0);
   const [loadingPayment, setLoadingPayment] = useState(false);
   const [isVoidingPayment, setIsVoidingPayment] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
 
   useEffect(() => {
     if (!booking) return;
@@ -147,6 +149,8 @@ export default function BookingDetailsModal({
     setRefundRows([]);
     setRefundedTotal(0);
     setRemainingRefundable(0);
+    setSaveError("");
+    setIsSavingChanges(false);
   }, [booking]);
 
   useEffect(() => {
@@ -192,7 +196,7 @@ export default function BookingDetailsModal({
     }
 
     fetchExistingPayment();
-  }, [open, booking]);
+  }, [open, booking, storeSlug]);
 
   const assignableStaff = useMemo(() => {
     if (!booking) return [];
@@ -273,6 +277,7 @@ export default function BookingDetailsModal({
   if (!open || !booking) return null;
 
   function updateField(field, value) {
+    setSaveError("");
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -288,6 +293,8 @@ export default function BookingDetailsModal({
 
   function handleStatusChange(nextStatus) {
     if (!STATUS_OPTIONS.includes(nextStatus)) return;
+
+    setSaveError("");
 
     setFormData((prev) => ({
       ...prev,
@@ -346,7 +353,7 @@ export default function BookingDetailsModal({
 
         setExistingPayment(updateResult?.data || existingPayment);
 
-        onSave?.({
+        await onSave?.({
           ...booking,
           customer_name: formData.customer_name,
           customer_phone: formData.customer_phone,
@@ -542,39 +549,52 @@ export default function BookingDetailsModal({
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!booking) return;
 
-    if (isRequestedStaffBooking && staffChanged) {
-      const confirmed = window.confirm(
-        "This customer requested a specific staff member. Are you sure you want to reassign this booking?"
-      );
+    try {
+      setSaveError("");
 
-      if (!confirmed) return;
+      if (isRequestedStaffBooking && staffChanged) {
+        const confirmed = window.confirm(
+          "This customer requested a specific staff member. Are you sure you want to reassign this booking?"
+        );
+
+        if (!confirmed) return;
+      }
+
+      if (formData.status === "paid" && !existingPayment) {
+        setSaveError(
+          "You cannot save this booking as paid without recording payment first."
+        );
+        setShowPaymentForm(true);
+        return;
+      }
+
+      if (formData.status === "pending" && existingPayment) {
+        await handleBackToPendingWithVoid();
+        return;
+      }
+
+      setIsSavingChanges(true);
+
+      await onSave?.({
+        ...booking,
+        customer_name: formData.customer_name,
+        customer_phone: formData.customer_phone,
+        service_name: formData.service_name,
+        time: formData.time,
+        duration: Number(formData.duration),
+        status: formData.status,
+        notes: formData.notes,
+        staff_id: formData.staff_id ? Number(formData.staff_id) : null,
+      });
+    } catch (error) {
+      console.error(error);
+      setSaveError(error.message || "Could not save booking changes.");
+    } finally {
+      setIsSavingChanges(false);
     }
-
-    if (formData.status === "paid" && !existingPayment) {
-      alert("You cannot save this booking as paid without recording payment.");
-      setShowPaymentForm(true);
-      return;
-    }
-
-    if (formData.status === "pending" && existingPayment) {
-      handleBackToPendingWithVoid();
-      return;
-    }
-
-    onSave?.({
-      ...booking,
-      customer_name: formData.customer_name,
-      customer_phone: formData.customer_phone,
-      service_name: formData.service_name,
-      time: formData.time,
-      duration: Number(formData.duration),
-      status: formData.status,
-      notes: formData.notes,
-      staff_id: formData.staff_id ? Number(formData.staff_id) : null,
-    });
   }
 
   const timeRange = formatTimeRange(formData.time, formData.duration);
@@ -619,6 +639,12 @@ export default function BookingDetailsModal({
               </span>
             )}
           </div>
+
+          {saveError && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {saveError}
+            </div>
+          )}
         </div>
 
         <div className="space-y-5 overflow-y-auto px-6 py-6">
@@ -857,9 +883,7 @@ export default function BookingDetailsModal({
                           key={row.id}
                           className="flex items-center justify-between text-sm"
                         >
-                          <span className="text-gray-600">
-                            Refunded
-                          </span>
+                          <span className="text-gray-600">Refunded</span>
                           <span className="font-medium text-gray-900">
                             ${totalPaymentAmount(row).toFixed(2)}
                           </span>
@@ -910,6 +934,7 @@ export default function BookingDetailsModal({
                   onClick={() => {
                     setShowPaymentForm((prev) => !prev);
                     setFormData((prev) => ({ ...prev, status: "paid" }));
+                    setSaveError("");
                   }}
                   className="rounded-lg border px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
                 >
@@ -1142,7 +1167,8 @@ export default function BookingDetailsModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={isSavingChanges}
+              className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -1150,9 +1176,10 @@ export default function BookingDetailsModal({
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black"
+              disabled={isSavingChanges}
+              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
             >
-              Save changes
+              {isSavingChanges ? "Saving..." : "Save changes"}
             </button>
           </div>
         </div>

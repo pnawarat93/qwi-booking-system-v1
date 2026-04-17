@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import BookingCard from "./BookingCard";
 import BookingDetailsModal from "./BookingDetailsModal";
 import { getSydneyTodayDate } from "@/lib/sydneyDate";
@@ -84,65 +84,69 @@ export default function ScheduleGrid({
 
   const todaySydney = getSydneyTodayDate();
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
 
-      try {
-        const [staffRes, bookingsRes, hoursRes] = await Promise.all([
-          fetch(apiPath(storeSlug, `/effective-staff?date=${selectedDate}`)),
-          fetch(apiPath(storeSlug, `/booking?date=${selectedDate}`)),
-          fetch(apiPath(storeSlug, `/business-hours?date=${selectedDate}`)),
-        ]);
+    try {
+      const [staffRes, bookingsRes, hoursRes] = await Promise.all([
+        fetch(apiPath(storeSlug, `/effective-staff?date=${selectedDate}`)),
+        fetch(apiPath(storeSlug, `/booking?date=${selectedDate}`)),
+        fetch(apiPath(storeSlug, `/business-hours?date=${selectedDate}`)),
+      ]);
 
-        const staffData = await staffRes.json();
-        const bookingsData = await bookingsRes.json();
-        const hoursData = await hoursRes.json();
+      const staffData = await staffRes.json();
+      const bookingsData = await bookingsRes.json();
+      const hoursData = await hoursRes.json();
 
-        if (!staffRes.ok) {
-          throw new Error(staffData?.error || "Failed to load staff");
-        }
-
-        if (!bookingsRes.ok) {
-          throw new Error(bookingsData?.error || "Failed to load bookings");
-        }
-
-        if (!hoursRes.ok) {
-          throw new Error(hoursData?.error || "Failed to load business hours");
-        }
-
-        const normalizedStaff = Array.isArray(staffData?.items)
-          ? staffData.items.map((staff) => ({
-              id: staff.staff_id,
-              name: staff.name_display || staff.name,
-              staff_code: staff.staff_code || null,
-              start_time: staff.start_time,
-              end_time: staff.end_time,
-              display_order: staff.display_order || 0,
-              note: staff.note || "",
-              source: staff.source || "roster",
-              is_working: staff.is_working,
-            }))
-          : [];
-
-        setStaffList(normalizedStaff);
-        setBookings(Array.isArray(bookingsData) ? bookingsData : []);
-        setBusinessHours(hoursData || null);
-      } catch (error) {
-        console.error("Error fetching admin data:", error);
-        setStaffList([]);
-        setBookings([]);
-        setBusinessHours(null);
-      } finally {
-        setLoading(false);
+      if (!staffRes.ok) {
+        throw new Error(staffData?.error || "Failed to load staff");
       }
-    }
 
+      if (!bookingsRes.ok) {
+        throw new Error(bookingsData?.error || "Failed to load bookings");
+      }
+
+      if (!hoursRes.ok) {
+        throw new Error(hoursData?.error || "Failed to load business hours");
+      }
+
+      const normalizedStaff = Array.isArray(staffData?.items)
+        ? staffData.items.map((staff) => ({
+            id: staff.staff_id,
+            name: staff.name_display || staff.name,
+            staff_code: staff.staff_code || null,
+            start_time: staff.start_time,
+            end_time: staff.end_time,
+            display_order: staff.display_order || 0,
+            note: staff.note || "",
+            source: staff.source || "roster",
+            is_working: staff.is_working,
+          }))
+        : [];
+
+      setStaffList(normalizedStaff);
+      setBookings(Array.isArray(bookingsData) ? bookingsData : []);
+      setBusinessHours(hoursData || null);
+    } catch (error) {
+      console.error("Error fetching admin data:", error);
+      setStaffList([]);
+      setBookings([]);
+      setBusinessHours(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate, storeSlug]);
+
+  function forceRefreshGrid() {
+    setRefreshKey((k) => k + 1);
+  }
+
+  useEffect(() => {
     fetchData();
 
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
-  }, [selectedDate, refreshKey, refreshToken, storeSlug]);
+  }, [fetchData, refreshKey, refreshToken]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -322,12 +326,13 @@ export default function ScheduleGrid({
         )
       );
 
+      await fetchData();
       setSelectedBooking(null);
     } catch (error) {
       console.error(error);
       setBookings(previousBookings);
       setSelectedBooking(previousSelectedBooking);
-      alert(error.message || "Could not save booking changes.");
+      throw error;
     }
   }
 
@@ -372,7 +377,7 @@ export default function ScheduleGrid({
           >
             <div className="sticky left-0 z-40 border-b bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-600">
               <button
-                onClick={() => setRefreshKey((k) => k + 1)}
+                onClick={forceRefreshGrid}
                 className="text-[10px] uppercase tracking-tighter text-blue-500 hover:underline"
               >
                 Refresh
@@ -561,6 +566,7 @@ export default function ScheduleGrid({
         open={Boolean(selectedBooking)}
         onClose={closeBookingDetails}
         onSave={handleSaveBooking}
+        onRefresh={forceRefreshGrid}
         availableStaffOptions={staffList}
         allBookings={bookings}
         storeSlug={storeSlug}
