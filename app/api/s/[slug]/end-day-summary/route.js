@@ -37,7 +37,10 @@ function roundMoney(value) {
 
 function computePayoutForJob({ job, paymentRow, refundRows, policiesById }) {
   const paymentTotal = totalRowAmount(paymentRow);
-  const refundedTotal = refundRows.reduce((sum, row) => sum + totalRowAmount(row), 0);
+  const refundedTotal = refundRows.reduce(
+    (sum, row) => sum + totalRowAmount(row),
+    0
+  );
   const netAmount = Math.max(paymentTotal - refundedTotal, 0);
 
   if (netAmount <= 0) {
@@ -51,7 +54,8 @@ function computePayoutForJob({ job, paymentRow, refundRows, policiesById }) {
     };
   }
 
-  const policy = policiesById.get(String(job.staff?.payout_policy_id || "")) || null;
+  const policy =
+    policiesById.get(String(job.staff?.payout_policy_id || "")) || null;
 
   if (!policy || !policy.is_active) {
     return {
@@ -81,7 +85,6 @@ function computePayoutForJob({ job, paymentRow, refundRows, policiesById }) {
     const serviceFixedPayout = Number(job.services?.staff_payout_fixed || 0);
     const policyFixedAmount = Number(policy.fixed_amount || 0);
 
-    // ใช้ service payout ก่อน ถ้าไม่มีค่อย fallback policy
     payout = serviceFixedPayout > 0 ? serviceFixedPayout : policyFixedAmount;
   } else if (policy.payout_type === "percent") {
     payout = (effectiveAmount * Number(policy.percent || 0)) / 100;
@@ -119,6 +122,7 @@ export async function GET(request, context) {
       .from("jobs")
       .select(`
         id,
+        store_id,
         date,
         status,
         job_group_id,
@@ -169,6 +173,7 @@ export async function GET(request, context) {
         .from("store_payout_policies")
         .select(`
           id,
+          store_id,
           name,
           payout_type,
           fixed_amount,
@@ -177,16 +182,22 @@ export async function GET(request, context) {
           refund_behavior,
           is_active
         `)
+        .eq("store_id", store.id)
         .in("id", policyIds);
 
       if (policiesError) {
-        return NextResponse.json({ error: policiesError.message }, { status: 500 });
+        return NextResponse.json(
+          { error: policiesError.message },
+          { status: 500 }
+        );
       }
 
       policies = Array.isArray(policiesData) ? policiesData : [];
     }
 
-    const policiesById = new Map(policies.map((policy) => [String(policy.id), policy]));
+    const policiesById = new Map(
+      policies.map((policy) => [String(policy.id), policy])
+    );
 
     const jobIds = safeJobs.map((job) => job.id);
     const groupIds = [
@@ -204,6 +215,7 @@ export async function GET(request, context) {
         .from("payments")
         .select(`
           id,
+          store_id,
           job_id,
           job_group_id,
           cash,
@@ -231,7 +243,10 @@ export async function GET(request, context) {
       const { data: paymentsData, error: paymentsError } = await paymentsQuery;
 
       if (paymentsError) {
-        return NextResponse.json({ error: paymentsError.message }, { status: 500 });
+        return NextResponse.json(
+          { error: paymentsError.message },
+          { status: 500 }
+        );
       }
 
       payments = Array.isArray(paymentsData) ? paymentsData : [];
@@ -250,7 +265,8 @@ export async function GET(request, context) {
     );
 
     const activeCancellationFeeRows = payments.filter(
-      (row) => row.transaction_type === "cancellation_fee" && row.status === "active"
+      (row) =>
+        row.transaction_type === "cancellation_fee" && row.status === "active"
     );
 
     const activeVoidRows = payments.filter(
@@ -266,7 +282,9 @@ export async function GET(request, context) {
     const totalJobs = safeJobs.length;
     const paidJobs = safeJobs.filter((job) => job.status === "paid").length;
     const pendingJobs = safeJobs.filter((job) => job.status === "pending").length;
-    const cancelledJobs = safeJobs.filter((job) => job.status === "cancelled").length;
+    const cancelledJobs = safeJobs.filter(
+      (job) => job.status === "cancelled"
+    ).length;
     const noShowJobs = safeJobs.filter((job) => job.status === "no_show").length;
 
     const outstanding = safeJobs
@@ -298,7 +316,8 @@ export async function GET(request, context) {
 
     staffIds.forEach((staffId) => {
       const staffInfo =
-        safeJobs.find((job) => String(job.staff?.id) === String(staffId))?.staff || null;
+        safeJobs.find((job) => String(job.staff?.id) === String(staffId))?.staff ||
+        null;
 
       staffPayoutMap.set(String(staffId), {
         staff_id: staffId,
@@ -334,7 +353,8 @@ export async function GET(request, context) {
       const paymentRow = paymentRowsByJobId.get(String(job.id));
       if (!paymentRow) return;
 
-      const refundRows = refundRowsByParentPaymentId.get(String(paymentRow.id)) || [];
+      const refundRows =
+        refundRowsByParentPaymentId.get(String(paymentRow.id)) || [];
 
       const result = computePayoutForJob({
         job,
@@ -351,7 +371,9 @@ export async function GET(request, context) {
       entry.paid_jobs_count += 1;
       entry.gross_sales = roundMoney(entry.gross_sales + result.paymentTotal);
       entry.refunds = roundMoney(entry.refunds + result.refundedTotal);
-      entry.effective_sales = roundMoney(entry.effective_sales + result.effectiveAmount);
+      entry.effective_sales = roundMoney(
+        entry.effective_sales + result.effectiveAmount
+      );
       entry.payout_total = roundMoney(entry.payout_total + result.payout);
     });
 
@@ -360,13 +382,17 @@ export async function GET(request, context) {
     );
 
     const totalStaffPayout = roundMoney(
-      staffPayouts.reduce((sum, staff) => sum + Number(staff.payout_total || 0), 0)
+      staffPayouts.reduce(
+        (sum, staff) => sum + Number(staff.payout_total || 0),
+        0
+      )
     );
 
     const storeKeeps = roundMoney(netRevenue - totalStaffPayout);
 
     return NextResponse.json(
       {
+        store_id: store.id,
         date,
         stats: {
           totalJobs,

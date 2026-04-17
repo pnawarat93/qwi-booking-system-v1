@@ -14,7 +14,7 @@ export default function Header({ storeName }) {
               {storeName || "JONG"}
             </span>
             <span className="text-xs text-[#7A675F]">
-              Elegant booking experience
+              Elegant booking experience powered by Qwi
             </span>
           </div>
         </div>

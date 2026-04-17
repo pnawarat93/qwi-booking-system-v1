@@ -12,11 +12,45 @@ import {
   X,
   Phone,
   CircleCheckBig,
+  CalendarClock,
 } from "lucide-react";
-import { getSydneyTodayDate } from "@/lib/sydneyDate";
+
+function getTodayInTimeZone(timeZone = "Australia/Sydney") {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date());
+}
+
+function formatDateInTimeZone(dateString, timeZone = "Australia/Sydney") {
+  if (!dateString) return null;
+
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (Number.isNaN(utcDate.getTime())) return dateString;
+
+  return utcDate.toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone,
+  });
+}
+
+function safeTimeLabel(value) {
+  if (!value) return null;
+  return String(value).substring(0, 5);
+}
 
 export default function BookingPage() {
-  const sydneyToday = getSydneyTodayDate();
+  const store = useStore();
+  const storeTimeZone = store.timezone || "Australia/Sydney";
+  const todayInStoreTz = getTodayInTimeZone(storeTimeZone);
 
   const {
     services,
@@ -27,6 +61,7 @@ export default function BookingPage() {
     selectedStaffs,
     bookings,
     loading,
+    businessHours,
     fetchServices,
     setSelectedService,
     setSelectedPeople,
@@ -38,6 +73,7 @@ export default function BookingPage() {
     resetBooking,
     setAvailableStaffsForDate,
     setSlug,
+    setStore,
   } = useBookingStore();
 
   const [availableStaffsForDate, setLocalAvailableStaffsForDate] = useState([]);
@@ -55,14 +91,24 @@ export default function BookingPage() {
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState(null);
 
-  const store = useStore();
   const shopName = store.name;
   const shopPhone = store.phone || "";
+  const shopAddress = store.address || "";
 
-  // Set the slug in the booking store so API calls are store-scoped
+  const selectedDateIsClosed =
+    selectedDate && businessHours && businessHours.is_open === false;
+
+  const selectedDateHoursLabel =
+    selectedDate && businessHours?.is_open
+      ? `${safeTimeLabel(businessHours.open_time)} - ${safeTimeLabel(
+        businessHours.close_time
+      )}`
+      : null;
+
   useEffect(() => {
     setSlug(store.slug);
-  }, [store.slug]);
+    setStore(store);
+  }, [store, setSlug, setStore]);
 
   useEffect(() => {
     fetchServices();
@@ -88,22 +134,28 @@ export default function BookingPage() {
         return;
       }
 
+      if (businessHours && businessHours.is_open === false) {
+        setLocalAvailableStaffsForDate([]);
+        setAvailableStaffsForDate([]);
+        return;
+      }
+
       try {
-        const response = await fetch(storeApiUrl(store.slug, `/staff-shifts?date=${selectedDate}`));
+        const response = await fetch(
+          storeApiUrl(store.slug, `/effective-staff?date=${selectedDate}`)
+        );
         const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data?.error || "Failed to load staff");
         }
 
-        const normalized = Array.isArray(data)
-          ? data
-              .filter((shift) => shift.users && shift.is_working)
-              .map((shift) => ({
-                id: shift.users.id,
-                name: shift.users.name_display || shift.users.name,
-                staff_code: shift.users.staff_code || "",
-              }))
+        const normalized = Array.isArray(data?.items)
+          ? data.items.map((staff) => ({
+            id: staff.staff_id,
+            name: staff.name_display || staff.name,
+            staff_code: staff.staff_code || "",
+          }))
           : [];
 
         setLocalAvailableStaffsForDate(normalized);
@@ -116,11 +168,12 @@ export default function BookingPage() {
     }
 
     fetchStaffShiftsForDate();
-  }, [selectedDate, setAvailableStaffsForDate]);
+  }, [selectedDate, setAvailableStaffsForDate, store.slug, businessHours]);
 
   useEffect(() => {
     clearSelectedStaffs();
-  }, [selectedDate, clearSelectedStaffs]);
+    setSelectedTime(null);
+  }, [selectedDate, clearSelectedStaffs, setSelectedTime]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -158,6 +211,7 @@ export default function BookingPage() {
       selectedDate,
       bookings,
       availableStaffsForDate,
+      businessHours,
       getAvailableSlots,
     ]
   );
@@ -186,7 +240,9 @@ export default function BookingPage() {
 
   const canProceed = () => {
     if (currentStep === 1) return !!selectedService;
-    if (currentStep === 2) return !!selectedDate;
+    if (currentStep === 2) {
+      return !!selectedDate && !selectedDateIsClosed;
+    }
     if (currentStep === 3) return !!selectedPeople;
     if (currentStep === 4) return !!selectedTime;
     if (currentStep === 5) return customerName.trim() && customerPhone.trim();
@@ -212,28 +268,12 @@ export default function BookingPage() {
     return "Confirm booking";
   }, [currentStep]);
 
-  const formatDate = (dateString) => {
-    if (!dateString) return null;
-
-    const [year, month, day] = String(dateString).split("-").map(Number);
-    const utcDate = new Date(Date.UTC(year, month - 1, day));
-
-    if (Number.isNaN(utcDate.getTime())) return dateString;
-
-    return utcDate.toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "Australia/Sydney",
-    });
-  };
-
   const summaryLine = [
     selectedService?.name,
     selectedPeople
       ? `${selectedPeople} ${selectedPeople === 1 ? "person" : "people"}`
       : null,
-    formatDate(selectedDate),
+    formatDateInTimeZone(selectedDate, storeTimeZone),
     selectedTime,
   ]
     .filter(Boolean)
@@ -272,7 +312,7 @@ export default function BookingPage() {
         try {
           const errorData = await response.json();
           errorMessage = errorData?.error || errorMessage;
-        } catch (e) {}
+        } catch { }
 
         alert(`Booking failed: ${errorMessage}`);
       }
@@ -301,7 +341,7 @@ export default function BookingPage() {
           <div className="rounded-[1.75rem] border border-[#E8D8CC] bg-white/65 px-4 py-7 text-center shadow-[0_10px_30px_rgba(180,140,120,0.10)] backdrop-blur-sm sm:rounded-4xl sm:px-6 sm:py-10">
             <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-[#E5BCA9]/60 bg-[#FBEAD6]/80 px-3 py-1.5 text-xs text-[#6B7556] sm:text-sm">
               <Sparkles className="h-4 w-4 text-[#C87D87]" />
-              Smooth mobile booking experience
+              Smooth booking experience powered by Qwi
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight text-[#4A3A34] sm:text-4xl md:text-5xl">
@@ -309,7 +349,7 @@ export default function BookingPage() {
             </h1>
 
             <p className="mt-2 text-sm text-[#7A675F] sm:text-base md:text-lg">
-              123 Pitts Street, Sydney
+              {shopAddress || "Store address coming soon"}
             </p>
           </div>
         </section>
@@ -318,7 +358,7 @@ export default function BookingPage() {
           <div className="rounded-[1.75rem] border border-[#E8D8CC] bg-white/75 p-4 shadow-[0_12px_36px_rgba(180,140,120,0.10)] backdrop-blur-sm sm:rounded-4xl sm:p-6">
             <div className="text-center">
               <p className="mb-1 text-xs uppercase tracking-[0.24em] text-[#C87D87] sm:text-sm">
-                Jong Booking
+                Qwi Booking System
               </p>
               <h2 className="text-2xl font-semibold text-[#4A3A34] sm:text-3xl">
                 Start booking your service
@@ -349,13 +389,12 @@ export default function BookingPage() {
                   return (
                     <div
                       key={step}
-                      className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-semibold sm:h-10 sm:w-10 sm:text-sm ${
-                        isCurrent
+                      className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-semibold sm:h-10 sm:w-10 sm:text-sm ${isCurrent
                           ? "border-[#C87D87] bg-[#C87D87] text-white"
                           : isDone
-                          ? "border-[#E5BCA9] bg-[#FBEAD6] text-[#6B7556]"
-                          : "border-[#E8D8CC] bg-[#FFF9F6] text-[#A79790]"
-                      }`}
+                            ? "border-[#E5BCA9] bg-[#FBEAD6] text-[#6B7556]"
+                            : "border-[#E8D8CC] bg-[#FFF9F6] text-[#A79790]"
+                        }`}
                     >
                       {step}
                     </div>
@@ -397,10 +436,30 @@ export default function BookingPage() {
                   <input
                     type="date"
                     value={selectedDate}
-                    min={sydneyToday}
+                    min={todayInStoreTz}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="w-full max-w-sm rounded-2xl border border-[#E5BCA9]/60 bg-white px-4 py-3 text-[#4A3A34] shadow-sm outline-none transition focus:border-[#C87D87] focus:ring-2 focus:ring-[#F0C4CB]/40"
                   />
+
+                  {selectedDate && businessHours?.is_open && (
+                    <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                      <CalendarClock className="h-4 w-4" />
+                      <span>
+                        Open on {formatDateInTimeZone(selectedDate, storeTimeZone)}
+                        {selectedDateHoursLabel ? ` · ${selectedDateHoursLabel}` : ""}
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedDateIsClosed && (
+                    <div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                      <p className="font-semibold">Store is closed on this date.</p>
+                      <p className="mt-1">
+                        {businessHours?.note || "Please choose another date."}
+                      </p>
+                    </div>
+                  )}
+
                   {loading && (
                     <p className="animate-pulse text-sm text-[#7A675F]">
                       Checking availability...
@@ -413,6 +472,13 @@ export default function BookingPage() {
                 (!selectedDate ? (
                   <div className="py-8 text-center text-[#7A675F]">
                     <p>Please select a date first to see how many people can book.</p>
+                  </div>
+                ) : selectedDateIsClosed ? (
+                  <div className="py-8 text-center text-[#7A675F]">
+                    <p className="font-medium text-amber-900">Store is closed on this date.</p>
+                    <p className="text-sm">
+                      {businessHours?.note || "Please choose another date."}
+                    </p>
                   </div>
                 ) : loading ? (
                   <div className="py-8 text-center text-[#7A675F]">
@@ -443,75 +509,90 @@ export default function BookingPage() {
 
               {currentStep === 4 && (
                 <div className="space-y-6">
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsStaffModalOpen(true)}
-                      disabled={!selectedPeople || !selectedDate}
-                      className={`text-xs underline underline-offset-4 transition ${
-                        selectedPeople && selectedDate
-                          ? "text-[#7A675F] hover:text-[#4A3A34]"
-                          : "cursor-not-allowed text-[#B7AAA3]"
-                      }`}
-                    >
-                      Select Staff (optional)
-                    </button>
-
-                    {selectedStaffs.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {selectedStaffs.map((staff) => (
-                          <span
-                            key={staff.id}
-                            className="rounded-full bg-[#FDF1F3] px-3 py-1 text-xs font-medium text-[#7A675F]"
-                          >
-                            {staff.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {availableSlots.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      {Object.entries(groupedSlots).map(
-                        ([range, slots]) =>
-                          slots.length > 0 && (
-                            <button
-                              key={range}
-                              onClick={() => {
-                                setSelectedTimeRange(range);
-                                setIsTimeModalOpen(true);
-                              }}
-                              className={`flex flex-col items-center justify-center rounded-2xl border-2 p-6 transition-all ${
-                                selectedTime &&
-                                groupedSlots[range].includes(selectedTime)
-                                  ? "border-[#C87D87] bg-[#FFF9F6] shadow-sm"
-                                  : "border-[#E8D8CC] bg-white hover:border-[#E5BCA9] hover:bg-[#FFF9F6]/50"
-                              }`}
-                            >
-                              <span className="text-lg font-semibold text-[#4A3A34]">
-                                {range}
-                              </span>
-                              <span className="mt-1 text-xs text-[#7A675F]">
-                                {slots.length} slots available
-                              </span>
-                              {selectedTime &&
-                                groupedSlots[range].includes(selectedTime) && (
-                                  <span className="mt-2 rounded-full bg-[#C87D87] px-3 py-1 text-xs font-medium text-white">
-                                    Selected: {selectedTime}
-                                  </span>
-                                )}
-                            </button>
-                          )
-                      )}
-                    </div>
-                  ) : (
+                  {selectedDateIsClosed ? (
                     <div className="py-10 text-center text-[#7A675F]">
-                      <p>No available slots for this service and date.</p>
+                      <p className="font-medium text-amber-900">Store is closed on this date.</p>
                       <p className="text-sm">
-                        Please try a different date or service.
+                        {businessHours?.note || "Please choose another date."}
                       </p>
                     </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsStaffModalOpen(true)}
+                          disabled={!selectedPeople || !selectedDate}
+                          className={`text-xs underline underline-offset-4 transition ${selectedPeople && selectedDate
+                              ? "text-[#7A675F] hover:text-[#4A3A34]"
+                              : "cursor-not-allowed text-[#B7AAA3]"
+                            }`}
+                        >
+                          Select Staff (optional)
+                        </button>
+
+                        {selectedStaffs.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {selectedStaffs.map((staff) => (
+                              <span
+                                key={staff.id}
+                                className="rounded-full bg-[#FDF1F3] px-3 py-1 text-xs font-medium text-[#7A675F]"
+                              >
+                                {staff.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {selectedDateHoursLabel && (
+                          <p className="text-xs text-[#7A675F]">
+                            Available within store hours: {selectedDateHoursLabel}
+                          </p>
+                        )}
+                      </div>
+
+                      {availableSlots.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                          {Object.entries(groupedSlots).map(
+                            ([range, slots]) =>
+                              slots.length > 0 && (
+                                <button
+                                  key={range}
+                                  onClick={() => {
+                                    setSelectedTimeRange(range);
+                                    setIsTimeModalOpen(true);
+                                  }}
+                                  className={`flex flex-col items-center justify-center rounded-2xl border-2 p-6 transition-all ${selectedTime &&
+                                      groupedSlots[range].includes(selectedTime)
+                                      ? "border-[#C87D87] bg-[#FFF9F6] shadow-sm"
+                                      : "border-[#E8D8CC] bg-white hover:border-[#E5BCA9] hover:bg-[#FFF9F6]/50"
+                                    }`}
+                                >
+                                  <span className="text-lg font-semibold text-[#4A3A34]">
+                                    {range}
+                                  </span>
+                                  <span className="mt-1 text-xs text-[#7A675F]">
+                                    {slots.length} slots available
+                                  </span>
+                                  {selectedTime &&
+                                    groupedSlots[range].includes(selectedTime) && (
+                                      <span className="mt-2 rounded-full bg-[#C87D87] px-3 py-1 text-xs font-medium text-white">
+                                        Selected: {selectedTime}
+                                      </span>
+                                    )}
+                                </button>
+                              )
+                          )}
+                        </div>
+                      ) : (
+                        <div className="py-10 text-center text-[#7A675F]">
+                          <p>No available slots for this service and date.</p>
+                          <p className="text-sm">
+                            Please try a different date or service.
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -594,7 +675,7 @@ export default function BookingPage() {
 
                     <p>
                       <strong className="text-[#4A3A34]">Date:</strong>{" "}
-                      {formatDate(selectedDate)}
+                      {formatDateInTimeZone(selectedDate, storeTimeZone)}
                     </p>
                     <p>
                       <strong className="text-[#4A3A34]">Time:</strong>{" "}
@@ -619,11 +700,10 @@ export default function BookingPage() {
                   <button
                     onClick={handleBooking}
                     disabled={isSubmitting}
-                    className={`w-full rounded-2xl px-5 py-3.5 font-semibold text-white shadow-sm transition ${
-                      isSubmitting
+                    className={`w-full rounded-2xl px-5 py-3.5 font-semibold text-white shadow-sm transition ${isSubmitting
                         ? "cursor-not-allowed bg-[#D9B3B8]"
                         : "bg-[#C87D87] hover:opacity-90"
-                    }`}
+                      }`}
                   >
                     {isSubmitting ? "Confirming..." : "Confirm Booking"}
                   </button>
@@ -635,11 +715,10 @@ export default function BookingPage() {
               <button
                 onClick={prevStep}
                 disabled={currentStep === 1}
-                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${
-                  currentStep === 1
+                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${currentStep === 1
                     ? "cursor-not-allowed border border-[#E8D8CC] bg-[#F6F1ED] text-[#B7AAA3]"
                     : "border border-[#D9C5B8] bg-[#FFF9F6] text-[#6B7556] hover:bg-[#FBEAD6]/60"
-                }`}
+                  }`}
               >
                 <ArrowLeft size={18} />
                 <span className="hidden sm:inline">Previous</span>
@@ -649,11 +728,10 @@ export default function BookingPage() {
               <button
                 onClick={nextStep}
                 disabled={currentStep === 6 || !canProceed()}
-                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${
-                  currentStep === 6 || !canProceed()
+                className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 font-semibold transition ${currentStep === 6 || !canProceed()
                     ? "cursor-not-allowed bg-[#EDE4DE] text-[#B7AAA3]"
                     : "bg-[#C87D87] text-white shadow-sm hover:opacity-90"
-                }`}
+                  }`}
               >
                 <span>{currentStep === 5 ? "Review" : "Next"}</span>
                 <ArrowRight size={18} />
@@ -745,7 +823,7 @@ export default function BookingPage() {
               <div className="rounded-2xl border border-[#F1E4DA] bg-white px-4 py-3">
                 <p className="text-xs text-[#9A8A82]">Date</p>
                 <p className="font-medium text-[#4A3A34]">
-                  {formatDate(selectedDate) || "-"}
+                  {formatDateInTimeZone(selectedDate, storeTimeZone) || "-"}
                 </p>
               </div>
 
@@ -804,11 +882,10 @@ export default function BookingPage() {
                       setSelectedTime(time);
                       setIsTimeModalOpen(false);
                     }}
-                    className={`rounded-xl border py-3 text-sm font-medium transition ${
-                      selectedTime === time
+                    className={`rounded-xl border py-3 text-sm font-medium transition ${selectedTime === time
                         ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
                         : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
-                    }`}
+                      }`}
                   >
                     {time}
                   </button>
@@ -876,6 +953,10 @@ export default function BookingPage() {
                   <Phone className="h-4 w-4" />
                   {shopPhone}
                 </div>
+
+                {shopAddress && (
+                  <p className="mt-2 text-[#7A675F]">{shopAddress}</p>
+                )}
               </div>
             </div>
 
@@ -924,11 +1005,10 @@ export default function BookingPage() {
                   clearSelectedStaffs();
                   setIsStaffModalOpen(false);
                 }}
-                className={`w-full rounded-xl border py-3 text-sm font-medium transition ${
-                  selectedStaffs.length === 0
+                className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaffs.length === 0
                     ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
                     : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
-                }`}
+                  }`}
               >
                 Any Available Staff
               </button>
@@ -940,11 +1020,10 @@ export default function BookingPage() {
                     toggleSelectedStaff(staff);
                   }}
                   disabled={!selectedPeople}
-                  className={`w-full rounded-xl border py-3 text-sm font-medium transition ${
-                    selectedStaffs.some((s) => s.id === staff.id)
+                  className={`w-full rounded-xl border py-3 text-sm font-medium transition ${selectedStaffs.some((s) => s.id === staff.id)
                       ? "border-[#C87D87] bg-[#C87D87] text-white shadow-md"
                       : "border-[#E8D8CC] bg-white text-[#4A3A34] hover:border-[#E5BCA9] hover:bg-[#FFF9F6]"
-                  }`}
+                    }`}
                 >
                   {staff.name}
                 </button>

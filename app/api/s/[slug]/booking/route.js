@@ -22,6 +22,152 @@ function bookingsOverlap(aStart, aDuration, bStart, bDuration) {
   return aStart < bEnd && aEnd > bStart;
 }
 
+function getWeekdayFromDate(dateString) {
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (Number.isNaN(utcDate.getTime())) return null;
+  return utcDate.getUTCDay(); // 0 = Sunday ... 6 = Saturday
+}
+
+function normalizeTime(value) {
+  if (!value) return null;
+  return String(value).substring(0, 8);
+}
+
+async function getEffectiveStaffForDate(storeId, date) {
+  const weekday = getWeekdayFromDate(date);
+
+  if (weekday === null) {
+    throw new Error("Invalid date format");
+  }
+
+  const [
+    { data: rosterRows, error: rosterError },
+    { data: overrideRows, error: overrideError },
+  ] = await Promise.all([
+    supabase
+      .from("staff_rosters")
+      .select(`
+        id,
+        store_id,
+        staff_id,
+        weekday,
+        is_working,
+        start_time,
+        end_time,
+        display_order,
+        note,
+        is_active,
+        staff (
+          id,
+          name,
+          name_display,
+          staff_code,
+          is_active,
+          store_id
+        )
+      `)
+      .eq("store_id", storeId)
+      .eq("weekday", weekday)
+      .eq("is_active", true),
+
+    supabase
+      .from("staff_shift_overrides")
+      .select(`
+        id,
+        store_id,
+        staff_id,
+        override_date,
+        is_working,
+        start_time,
+        end_time,
+        display_order,
+        note,
+        staff (
+          id,
+          name,
+          name_display,
+          staff_code,
+          is_active,
+          store_id
+        )
+      `)
+      .eq("store_id", storeId)
+      .eq("override_date", date),
+  ]);
+
+  if (rosterError) throw new Error(rosterError.message);
+  if (overrideError) throw new Error(overrideError.message);
+
+  const rosterMap = new Map();
+
+  (Array.isArray(rosterRows) ? rosterRows : []).forEach((row) => {
+    const member = Array.isArray(row.staff) ? row.staff[0] : row.staff;
+
+    if (!member) return;
+    if (member.store_id !== storeId) return;
+    if (member.is_active === false) return;
+
+    rosterMap.set(String(row.staff_id), {
+      staff_id: row.staff_id,
+      name: member.name,
+      name_display: member.name_display,
+      staff_code: member.staff_code,
+      is_working: row.is_working,
+      start_time: normalizeTime(row.start_time),
+      end_time: normalizeTime(row.end_time),
+      display_order: row.display_order ?? 0,
+      note: row.note || null,
+      source: "roster",
+      roster_id: row.id,
+      override_id: null,
+    });
+  });
+
+  const mergedMap = new Map(rosterMap);
+
+  (Array.isArray(overrideRows) ? overrideRows : []).forEach((row) => {
+    const member = Array.isArray(row.staff) ? row.staff[0] : row.staff;
+    const existing = mergedMap.get(String(row.staff_id));
+
+    if (!member) return;
+    if (member.store_id !== storeId) return;
+    if (member.is_active === false) return;
+
+    mergedMap.set(String(row.staff_id), {
+      staff_id: row.staff_id,
+      name: member.name,
+      name_display: member.name_display,
+      staff_code: member.staff_code,
+      is_working: row.is_working,
+      start_time: row.is_working ? normalizeTime(row.start_time) : null,
+      end_time: row.is_working ? normalizeTime(row.end_time) : null,
+      display_order:
+        row.display_order !== null && row.display_order !== undefined
+          ? row.display_order
+          : existing?.display_order ?? 0,
+      note: row.note || existing?.note || null,
+      source: "override",
+      roster_id: existing?.roster_id ?? null,
+      override_id: row.id,
+    });
+  });
+
+  return Array.from(mergedMap.values())
+    .filter((row) => row.is_working === true)
+    .sort((a, b) => {
+      const aOrder = a.display_order ?? 0;
+      const bOrder = b.display_order ?? 0;
+
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      const aName = a.name_display || a.name || "";
+      const bName = b.name_display || b.name || "";
+      return aName.localeCompare(bName);
+    });
+}
+
 export async function GET(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -46,13 +192,13 @@ export async function GET(request, context) {
           duration,
           price
         ),
-        assigned_staff:users!jobs_staff_id_fkey (
+        assigned_staff:staff!jobs_staff_id_fkey (
           id,
           name,
           name_display,
           staff_code
         ),
-        requested_staff:users!jobs_requested_staff_id_fkey (
+        requested_staff:staff!jobs_requested_staff_id_fkey (
           id,
           name,
           name_display,
@@ -64,13 +210,13 @@ export async function GET(request, context) {
       .order("time", { ascending: true });
 
     if (error) {
-      console.error("GET /api/s/[slug]/booking error:", error);
+      console.error("GET booking error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error("GET /api/s/[slug]/booking server error:", error);
+    console.error("GET booking server error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -95,9 +241,9 @@ export async function POST(request, context) {
     const status = normalizeStatus(body.status || "pending");
 
     const selectedStaffIds = Array.isArray(body.staff_ids)
-      ? body.staff_ids
-          .map((id) => Number(id))
-          .filter((id) => !Number.isNaN(id))
+      ? body.staff_ids.map(Number).filter((id) => !Number.isNaN(id))
+      : body.staff_id !== undefined && body.staff_id !== null && body.staff_id !== ""
+      ? [Number(body.staff_id)].filter((id) => !Number.isNaN(id))
       : [];
 
     if (!service_id || !date || !time || !party_size) {
@@ -107,7 +253,7 @@ export async function POST(request, context) {
       );
     }
 
-    // 1) Get service duration
+    // 1) Service duration
     const { data: serviceRow, error: serviceError } = await supabase
       .from("services")
       .select("id, duration")
@@ -125,44 +271,89 @@ export async function POST(request, context) {
     const serviceDuration = Number(serviceRow.duration || 30);
     const targetStart = timeToMinutes(time);
 
-    // 2) Get today's working staff from staff_shifts
-    const { data: shiftRows, error: shiftError } = await supabase
-      .from("staff_shifts")
-      .select(`
-        staff_id,
-        is_working,
-        users (
-          id,
-          name,
-          name_display,
-          staff_code
-        )
-      `)
-      .eq("store_id", store.id)
-      .eq("shift_date", date)
-      .eq("is_working", true)
-      .order("display_order", { ascending: true });
-
-    if (shiftError) {
-      console.error("POST /api/s/[slug]/booking staff_shifts error:", shiftError);
-      return NextResponse.json({ error: shiftError.message }, { status: 500 });
+    if (targetStart === null) {
+      return NextResponse.json(
+        { error: "Invalid time" },
+        { status: 400 }
+      );
     }
 
-    const workingStaff = (shiftRows || [])
-      .filter((row) => row.users)
-      .map((row) => ({
-        id: row.users.id,
-        name: row.users.name_display || row.users.name,
-      }));
+    // 2) Business hours for that date
+    const weekday = getWeekdayFromDate(date);
 
-    if (workingStaff.length === 0) {
+    const [
+      { data: specialDateRow, error: specialDateError },
+      { data: businessHourRow, error: businessHourError },
+    ] = await Promise.all([
+      supabase
+        .from("store_special_dates")
+        .select("special_date, is_closed, open_time, close_time, note")
+        .eq("store_id", store.id)
+        .eq("special_date", date)
+        .maybeSingle(),
+
+      supabase
+        .from("store_business_hours")
+        .select("weekday, is_open, open_time, close_time, note")
+        .eq("store_id", store.id)
+        .eq("weekday", weekday)
+        .maybeSingle(),
+    ]);
+
+    if (specialDateError) {
+      return NextResponse.json({ error: specialDateError.message }, { status: 500 });
+    }
+
+    if (businessHourError) {
+      return NextResponse.json({ error: businessHourError.message }, { status: 500 });
+    }
+
+    let isOpen = true;
+    let openTime = store.open_time || "09:00:00";
+    let closeTime = store.close_time || "20:00:00";
+
+    if (specialDateRow) {
+      isOpen = !specialDateRow.is_closed;
+      openTime = specialDateRow.open_time || openTime;
+      closeTime = specialDateRow.close_time || closeTime;
+    } else if (businessHourRow) {
+      isOpen = businessHourRow.is_open;
+      openTime = businessHourRow.open_time || openTime;
+      closeTime = businessHourRow.close_time || closeTime;
+    }
+
+    if (!isOpen) {
+      return NextResponse.json(
+        { error: "Store is closed on this date" },
+        { status: 400 }
+      );
+    }
+
+    const openMinutes = timeToMinutes(openTime);
+    const closeMinutes = timeToMinutes(closeTime);
+
+    if (
+      openMinutes !== null &&
+      closeMinutes !== null &&
+      (targetStart < openMinutes || targetStart + serviceDuration > closeMinutes)
+    ) {
+      return NextResponse.json(
+        { error: "Booking time is outside business hours" },
+        { status: 400 }
+      );
+    }
+
+    // 3) Effective staff for that date
+    const effectiveStaff = await getEffectiveStaffForDate(store.id, date);
+
+    if (effectiveStaff.length === 0) {
       return NextResponse.json(
         { error: "No staff available for this date" },
         { status: 400 }
       );
     }
 
-    // 3) Get existing active bookings for the same date
+    // 4) Existing active bookings
     const { data: existingBookings, error: existingError } = await supabase
       .from("jobs")
       .select(`
@@ -179,7 +370,7 @@ export async function POST(request, context) {
       .in("status", ["pending", "paid"]);
 
     if (existingError) {
-      console.error("POST /api/s/[slug]/booking existing bookings error:", existingError);
+      console.error("POST booking existing bookings error:", existingError);
       return NextResponse.json({ error: existingError.message }, { status: 500 });
     }
 
@@ -190,7 +381,7 @@ export async function POST(request, context) {
         const existingStart = timeToMinutes(booking.time);
         const existingDuration = Number(booking.services?.duration || 30);
 
-        if (existingStart === null || targetStart === null) return false;
+        if (existingStart === null) return false;
 
         return bookingsOverlap(
           targetStart,
@@ -201,10 +392,44 @@ export async function POST(request, context) {
       });
     }
 
-    // 4) Validate selected staff (if any)
+    function isStaffWithinShift(staffRow) {
+      const shiftStart = timeToMinutes(staffRow.start_time || "00:00");
+      const shiftEnd = timeToMinutes(staffRow.end_time || "23:59");
+
+      if (shiftStart !== null && targetStart < shiftStart) return false;
+      if (shiftEnd !== null && targetStart + serviceDuration > shiftEnd) {
+        return false;
+      }
+
+      return true;
+    }
+
+    const workingStaff = effectiveStaff
+      .filter(isStaffWithinShift)
+      .map((staff) => ({
+        id: staff.staff_id,
+        name: staff.name_display || staff.name,
+        staff_code: staff.staff_code,
+      }));
+
+    if (workingStaff.length === 0) {
+      return NextResponse.json(
+        { error: "No staff available for this time" },
+        { status: 400 }
+      );
+    }
+
+    // 5) Validate selected staff
     const selectedWorkingStaffIds = selectedStaffIds.filter((staffId) =>
       workingStaff.some((staff) => String(staff.id) === String(staffId))
     );
+
+    if (selectedStaffIds.length > 0 && selectedWorkingStaffIds.length !== selectedStaffIds.length) {
+      return NextResponse.json(
+        { error: "One or more selected staff are not working at this time" },
+        { status: 400 }
+      );
+    }
 
     const selectedFreeStaffIds = selectedWorkingStaffIds.filter((staffId) =>
       isStaffFree(staffId)
@@ -217,7 +442,7 @@ export async function POST(request, context) {
       );
     }
 
-    // 5) Fill remaining slots automatically
+    // 6) Fill remaining slots automatically
     const assignedStaffIds = [...selectedFreeStaffIds];
 
     const autoCandidates = workingStaff
@@ -236,7 +461,7 @@ export async function POST(request, context) {
       );
     }
 
-    // 6) Create job group if needed
+    // 7) Create job group if needed
     let job_group_id = null;
 
     if (party_size > 1) {
@@ -247,15 +472,15 @@ export async function POST(request, context) {
         .single();
 
       if (groupError) {
-        console.error("POST /api/s/[slug]/booking job_groups insert error:", groupError);
+        console.error("POST booking job_groups insert error:", groupError);
         return NextResponse.json({ error: groupError.message }, { status: 500 });
       }
 
       job_group_id = groupRow.id;
     }
 
-    // 7) Build rows
-    const rowsToInsert = assignedStaffIds.map((staffId, index) => {
+    // 8) Insert jobs
+    const rowsToInsert = assignedStaffIds.map((staffId) => {
       const wasRequested = selectedFreeStaffIds.includes(staffId);
 
       return {
@@ -282,13 +507,16 @@ export async function POST(request, context) {
       .select();
 
     if (insertError) {
-      console.error("POST /api/s/[slug]/booking jobs insert error:", insertError);
+      console.error("POST booking jobs insert error:", insertError);
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
     return NextResponse.json(insertedRows || [], { status: 201 });
   } catch (error) {
-    console.error("POST /api/s/[slug]/booking server error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("POST booking server error:", error);
+    return NextResponse.json(
+      { error: error.message || "Server error" },
+      { status: 500 }
+    );
   }
 }

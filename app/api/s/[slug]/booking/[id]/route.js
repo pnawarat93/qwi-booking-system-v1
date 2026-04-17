@@ -104,13 +104,13 @@ export async function PATCH(request, context) {
           duration,
           price
         ),
-        assigned_staff:users!jobs_staff_id_fkey (
+        assigned_staff:staff!jobs_staff_id_fkey (
           id,
           name,
           name_display,
           staff_code
         ),
-        requested_staff:users!jobs_requested_staff_id_fkey (
+        requested_staff:staff!jobs_requested_staff_id_fkey (
           id,
           name,
           name_display,

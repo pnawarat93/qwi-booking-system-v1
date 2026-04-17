@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import StoreInfoBar from "@/app/components/StoreInfoBar";
@@ -13,14 +13,28 @@ import NewBookingModal from "@/app/components/NewBookingModal";
 import InactiveBookingsModal from "@/app/components/InactiveBookingsModal";
 import UnassignedBookingsModal from "@/app/components/UnassignedBookingsModal";
 import StaffControlsModal from "@/app/components/StaffControlsModal";
+import StartDayModal from "@/app/components/StartDayModal";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useStore } from "../StoreContext";
 import { storeApiUrl } from "@/lib/storeApi";
-import { getSydneyTodayDate } from "@/lib/sydneyDate";
+
+function getTodayInTimeZone(timeZone = "Australia/Sydney") {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date());
+}
 
 export default function StoreAdminPage() {
   const store = useStore();
-  const [selectedDate, setSelectedDate] = useState(getSydneyTodayDate());
+  const storeTimeZone = store.timezone || "Australia/Sydney";
+  const todayInStoreTz = getTodayInTimeZone(storeTimeZone);
+
+  const [selectedDate, setSelectedDate] = useState(todayInStoreTz);
 
   const [trayData, setTrayData] = useState({
     bookings: [],
@@ -28,6 +42,9 @@ export default function StoreAdminPage() {
     inactiveBookings: [],
     unassignedBookings: [],
   });
+
+  const [storeDay, setStoreDay] = useState(null);
+  const [loadingStoreDay, setLoadingStoreDay] = useState(true);
 
   const [showEndDayReport, setShowEndDayReport] = useState(false);
   const [showWalkInModal, setShowWalkInModal] = useState(false);
@@ -50,7 +67,51 @@ export default function StoreAdminPage() {
     }
   }, [user, router, store.slug]);
 
-  const dateLabel = (() => {
+  useEffect(() => {
+    setSelectedDate((prev) => prev || getTodayInTimeZone(storeTimeZone));
+  }, [storeTimeZone]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadStoreDay() {
+      if (!store?.slug || !selectedDate) return;
+
+      try {
+        setLoadingStoreDay(true);
+
+        const res = await fetch(
+          storeApiUrl(store.slug, `/store-day?date=${selectedDate}`)
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data?.error || "Failed to load store day");
+        }
+
+        if (isMounted) {
+          setStoreDay(data?.store_day || null);
+        }
+      } catch (error) {
+        console.error("Failed to load store day:", error);
+        if (isMounted) {
+          setStoreDay(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingStoreDay(false);
+        }
+      }
+    }
+
+    loadStoreDay();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [store?.slug, selectedDate]);
+
+  const dateLabel = useMemo(() => {
     const [year, month, day] = String(selectedDate).split("-").map(Number);
     const utcDate = new Date(Date.UTC(year, month - 1, day));
 
@@ -59,15 +120,20 @@ export default function StoreAdminPage() {
       day: "numeric",
       month: "long",
       year: "numeric",
-      timeZone: store.timezone || "Australia/Sydney",
+      timeZone: storeTimeZone,
     });
-  })();
+  }, [selectedDate, storeTimeZone]);
 
   const unassignedCount = trayData.unassignedBookings?.length || 0;
 
+  const isTodaySelected = selectedDate === todayInStoreTz;
+  const isStoreDayStarted = Boolean(storeDay?.is_open);
+  const shouldBlockTodayOps =
+    isTodaySelected && !loadingStoreDay && !isStoreDayStarted;
+
   return (
-    <main className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b bg-white">
+    <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white">
+      <div className="sticky top-0 z-40 shrink-0 border-b bg-white">
         <StoreInfoBar
           shopName={store.name}
           shopPhone={store.phone}
@@ -75,7 +141,7 @@ export default function StoreAdminPage() {
         />
       </div>
 
-      <div className="shrink-0 border-b bg-white">
+      <div className="sticky top-[73px] z-30 shrink-0 border-b bg-white">
         <ScheduleToolbar
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
@@ -85,8 +151,25 @@ export default function StoreAdminPage() {
         />
       </div>
 
+      {isTodaySelected && (
+        <div className="shrink-0 border-b bg-[#FFF9F6] px-4 py-2 text-sm text-[#7A675F]">
+          {loadingStoreDay ? (
+            <span>Checking today&apos;s opening status...</span>
+          ) : isStoreDayStarted ? (
+            <span>
+              Store day started · Start till: $
+              {Number(storeDay?.start_till || 0).toFixed(2)}
+            </span>
+          ) : (
+            <span className="font-medium text-amber-800">
+              Start Day confirmation required for today before front-desk operations continue.
+            </span>
+          )}
+        </div>
+      )}
+
       {unassignedCount > 0 && (
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="sticky top-[146px] z-20 shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-amber-800">
               <span className="font-semibold">
@@ -109,7 +192,7 @@ export default function StoreAdminPage() {
         </div>
       )}
 
-      <section className="min-h-0 flex-1 overflow-hidden">
+      <section className="relative min-h-0 flex-1 overflow-hidden">
         <ScheduleGrid
           selectedDate={selectedDate}
           onDataChange={setTrayData}
@@ -118,21 +201,27 @@ export default function StoreAdminPage() {
           onExternalBookingHandled={() => setBookingToOpenFromUnassigned(null)}
           storeSlug={store.slug}
         />
+
+        {shouldBlockTodayOps && (
+          <div className="absolute inset-0 z-40 bg-white/60 backdrop-blur-[1px]" />
+        )}
       </section>
 
-      <BottomDayTray
-        selectedDate={selectedDate}
-        bookings={trayData.bookings}
-        activeBookings={trayData.activeBookings}
-        inactiveBookings={trayData.inactiveBookings}
-        onOpenEndDay={() => setShowEndDayReport(true)}
-        onOpenStaffControls={() => {
-          setShowStaffControlsModal(true);
-        }}
-        onOpenInactiveBookings={() => {
-          setShowInactiveBookingsModal(true);
-        }}
-      />
+      <div className="shrink-0">
+        <BottomDayTray
+          selectedDate={selectedDate}
+          bookings={trayData.bookings}
+          activeBookings={trayData.activeBookings}
+          inactiveBookings={trayData.inactiveBookings}
+          onOpenEndDay={() => setShowEndDayReport(true)}
+          onOpenStaffControls={() => {
+            setShowStaffControlsModal(true);
+          }}
+          onOpenInactiveBookings={() => {
+            setShowInactiveBookingsModal(true);
+          }}
+        />
+      </div>
 
       {showEndDayReport && (
         <EndDayReport
@@ -171,13 +260,16 @@ export default function StoreAdminPage() {
         onClose={() => setShowInactiveBookingsModal(false)}
         onRecover={async (booking) => {
           try {
-            const res = await fetch(storeApiUrl(store.slug, `/booking/${booking.id}`), {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ status: "pending" }),
-            });
+            const res = await fetch(
+              storeApiUrl(store.slug, `/booking/${booking.id}`),
+              {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ status: "pending" }),
+              }
+            );
 
             if (!res.ok) {
               throw new Error("Failed to recover booking");
@@ -209,6 +301,18 @@ export default function StoreAdminPage() {
           setGridRefreshToken((prev) => prev + 1);
         }}
         storeSlug={store.slug}
+      />
+
+      <StartDayModal
+        open={shouldBlockTodayOps}
+        selectedDate={selectedDate}
+        storeSlug={store.slug}
+        storeName={store.name}
+        existingStoreDay={storeDay}
+        onStarted={(startedDay) => {
+          setStoreDay(startedDay);
+          setGridRefreshToken((prev) => prev + 1);
+        }}
       />
     </main>
   );

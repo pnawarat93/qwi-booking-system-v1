@@ -10,7 +10,7 @@ export async function GET(request, context) {
     }
 
     const { data, error } = await supabase
-      .from("users")
+      .from("staff")
       .select("id, name, name_display, staff_code, is_active, employment_type")
       .eq("store_id", store.id)
       .eq("is_active", true)
@@ -58,7 +58,7 @@ export async function POST(request, context) {
     };
 
     const { data, error } = await supabase
-      .from("users")
+      .from("staff")
       .insert(payload)
       .select("id, name, name_display, staff_code, is_active, employment_type")
       .single();

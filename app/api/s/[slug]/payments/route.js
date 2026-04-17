@@ -16,10 +16,11 @@ function totalAmount(row) {
   );
 }
 
-async function getLatestActivePayment({ job_id, jobgroup_id }) {
+async function getLatestActivePayment({ storeId, job_id, jobgroup_id }) {
   let query = supabase
     .from("payments")
     .select("*")
+    .eq("store_id", storeId)
     .eq("transaction_type", "payment")
     .eq("status", "active")
     .order("created_at", { ascending: false })
@@ -54,6 +55,7 @@ export async function GET(request, context) {
     }
 
     const { data: payment, error } = await getLatestActivePayment({
+      storeId: store.id,
       job_id,
       jobgroup_id,
     });
@@ -70,13 +72,17 @@ export async function GET(request, context) {
       const { data: refundRows, error: refundError } = await supabase
         .from("payments")
         .select("*")
+        .eq("store_id", store.id)
         .eq("transaction_type", "refund")
         .eq("status", "active")
         .eq("parent_payment_id", payment.id)
         .order("created_at", { ascending: false });
 
       if (refundError) {
-        return NextResponse.json({ error: refundError.message }, { status: 500 });
+        return NextResponse.json(
+          { error: refundError.message },
+          { status: 500 }
+        );
       }
 
       refunds = Array.isArray(refundRows) ? refundRows : [];
@@ -132,6 +138,7 @@ export async function POST(request, context) {
         .from("payments")
         .select("*")
         .eq("id", parent_payment_id)
+        .eq("store_id", store.id)
         .single();
 
       if (parentError) {
@@ -184,12 +191,14 @@ export async function POST(request, context) {
         );
       }
 
-      const { data: existingRefunds, error: existingRefundsError } = await supabase
-        .from("payments")
-        .select("*")
-        .eq("transaction_type", "refund")
-        .eq("status", "active")
-        .eq("parent_payment_id", parent_payment_id);
+      const { data: existingRefunds, error: existingRefundsError } =
+        await supabase
+          .from("payments")
+          .select("*")
+          .eq("store_id", store.id)
+          .eq("transaction_type", "refund")
+          .eq("status", "active")
+          .eq("parent_payment_id", parent_payment_id);
 
       if (existingRefundsError) {
         return NextResponse.json(
@@ -245,7 +254,11 @@ export async function POST(request, context) {
     }
 
     const { data: existingPayment, error: existingPaymentError } =
-      await getLatestActivePayment({ job_id, jobgroup_id });
+      await getLatestActivePayment({
+        storeId: store.id,
+        job_id,
+        jobgroup_id,
+      });
 
     if (existingPaymentError) {
       return NextResponse.json(
@@ -292,7 +305,10 @@ export async function POST(request, context) {
       .single();
 
     if (paymentError) {
-      return NextResponse.json({ error: paymentError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: paymentError.message },
+        { status: 500 }
+      );
     }
 
     if (jobgroup_id) {
