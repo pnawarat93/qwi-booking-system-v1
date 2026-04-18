@@ -8,17 +8,19 @@ function sumPaymentRows(rows) {
       const cash = Number(row.cash || 0);
       const card = Number(row.card || 0);
       const hicaps = Number(row.hicaps || 0);
+      const transfer = Number(row.transfer || 0);
       const other = Number(row.other || 0);
 
       acc.cash += cash;
       acc.card += card;
       acc.hicaps += hicaps;
+      acc.transfer += transfer;
       acc.other += other;
-      acc.total += cash + card + hicaps + other;
+      acc.total += cash + card + hicaps + transfer + other;
 
       return acc;
     },
-    { cash: 0, card: 0, hicaps: 0, other: 0, total: 0 }
+    { cash: 0, card: 0, hicaps: 0, transfer: 0, other: 0, total: 0 }
   );
 }
 
@@ -27,6 +29,7 @@ function totalRowAmount(row) {
     Number(row?.cash || 0) +
     Number(row?.card || 0) +
     Number(row?.hicaps || 0) +
+    Number(row?.transfer || 0) +
     Number(row?.other || 0)
   );
 }
@@ -221,11 +224,14 @@ export async function GET(request, context) {
           cash,
           card,
           hicaps,
+          transfer,
           other,
           transaction_type,
           status,
           parent_payment_id,
           notes,
+          staff_note,
+          reference_code,
           created_at
         `)
         .eq("store_id", store.id);
@@ -423,6 +429,12 @@ export async function GET(request, context) {
               depositTotals.hicaps +
               cancellationFeeTotals.hicaps -
               refundTotals.hicaps
+          ),
+          transfer: roundMoney(
+            paymentTotals.transfer +
+              depositTotals.transfer +
+              cancellationFeeTotals.transfer -
+              refundTotals.transfer
           ),
           other: roundMoney(
             paymentTotals.other +

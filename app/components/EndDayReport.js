@@ -31,6 +31,8 @@ export default function EndDayReport({
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState("");
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -39,8 +41,11 @@ export default function EndDayReport({
       try {
         setLoading(true);
         setLoadError("");
+        setCompleteError("");
 
-        const res = await fetch(apiPath(storeSlug, `/end-day-summary?date=${selectedDate}`));
+        const res = await fetch(
+          apiPath(storeSlug, `/end-day-summary?date=${selectedDate}`)
+        );
         const data = await res.json();
 
         if (!res.ok) {
@@ -58,7 +63,7 @@ export default function EndDayReport({
     }
 
     fetchSummary();
-  }, [selectedDate]);
+  }, [selectedDate, storeSlug]);
 
   const fallbackStats = useMemo(() => {
     return {
@@ -92,13 +97,47 @@ export default function EndDayReport({
   };
   const staffPayouts = summary?.staffPayouts || [];
 
+  async function handleCompleteEndDay() {
+    try {
+      setIsCompleting(true);
+      setCompleteError("");
+
+      const res = await fetch(
+        apiPath(storeSlug, "/complete-end-day"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            date: selectedDate,
+          }),
+        }
+      );
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to complete end of day");
+      }
+
+      onFinish?.(data);
+    } catch (error) {
+      console.error(error);
+      setCompleteError(error.message || "Could not complete end of day.");
+    } finally {
+      setIsCompleting(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
       <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
         <div className="relative shrink-0 bg-[#4A3A34] p-6 text-white">
           <button
             onClick={onClose}
-            className="absolute right-6 top-6 text-white/40 transition hover:text-white"
+            disabled={isCompleting}
+            className="absolute right-6 top-6 text-white/40 transition hover:text-white disabled:opacity-40"
           >
             <X size={24} />
           </button>
@@ -108,7 +147,9 @@ export default function EndDayReport({
           </div>
 
           <h2 className="text-3xl font-bold">End of Day Report</h2>
-          <p className="mt-1 text-white/70">Summary for {selectedDate || "today"}</p>
+          <p className="mt-1 text-white/70">
+            Summary for {selectedDate || "today"}
+          </p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -122,6 +163,12 @@ export default function EndDayReport({
             </div>
           ) : (
             <div className="space-y-6">
+              {completeError && (
+                <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                  {completeError}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
                   <div className="mb-2 flex items-center gap-2">
@@ -303,13 +350,19 @@ export default function EndDayReport({
                       <tbody>
                         {staffPayouts.length === 0 ? (
                           <tr>
-                            <td className="px-4 py-6 text-center text-gray-400" colSpan={8}>
+                            <td
+                              className="px-4 py-6 text-center text-gray-400"
+                              colSpan={8}
+                            >
                               No staff payout data for this day.
                             </td>
                           </tr>
                         ) : (
                           staffPayouts.map((staff) => (
-                            <tr key={staff.staff_id} className="border-t border-gray-100">
+                            <tr
+                              key={staff.staff_id}
+                              className="border-t border-gray-100"
+                            >
                               <td className="px-4 py-3 font-medium text-gray-900">
                                 {staff.staff_name}
                               </td>
@@ -350,15 +403,17 @@ export default function EndDayReport({
           <div className="flex gap-4">
             <button
               onClick={onClose}
-              className="flex-1 rounded-2xl border border-gray-100 py-4 font-bold text-gray-400 transition hover:bg-gray-50"
+              disabled={isCompleting}
+              className="flex-1 rounded-2xl border border-gray-100 py-4 font-bold text-gray-400 transition hover:bg-gray-50 disabled:opacity-50"
             >
               Back to Grid
             </button>
             <button
-              onClick={onFinish}
-              className="flex-[1.5] rounded-2xl bg-[#C87D87] py-4 font-bold text-white shadow-lg transition hover:bg-[#B8707A]"
+              onClick={handleCompleteEndDay}
+              disabled={loading || isCompleting || !!loadError}
+              className="flex-[1.5] rounded-2xl bg-[#C87D87] py-4 font-bold text-white shadow-lg transition hover:bg-[#B8707A] disabled:opacity-50"
             >
-              Complete End of Day
+              {isCompleting ? "Completing..." : "Complete End of Day"}
             </button>
           </div>
         </div>

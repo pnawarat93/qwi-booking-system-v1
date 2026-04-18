@@ -12,6 +12,7 @@ function totalAmount(row) {
     Number(row?.cash || 0) +
     Number(row?.card || 0) +
     Number(row?.hicaps || 0) +
+    Number(row?.transfer || 0) +
     Number(row?.other || 0)
   );
 }
@@ -119,8 +120,11 @@ export async function POST(request, context) {
       cash,
       card,
       hicaps,
+      transfer,
       other,
       notes,
+      staff_note,
+      reference_code,
       transaction_type = "payment",
       parent_payment_id,
     } = body;
@@ -175,11 +179,14 @@ export async function POST(request, context) {
         cash: normalizeNumber(cash),
         card: normalizeNumber(card),
         hicaps: normalizeNumber(hicaps),
+        transfer: normalizeNumber(transfer),
         other: normalizeNumber(other),
         transaction_type: "refund",
         status: "active",
         parent_payment_id,
         notes: notes || "Refund from booking details modal",
+        staff_note: null,
+        reference_code: null,
         store_id: store.id,
       };
 
@@ -283,10 +290,13 @@ export async function POST(request, context) {
       cash: normalizeNumber(cash),
       card: normalizeNumber(card),
       hicaps: normalizeNumber(hicaps),
+      transfer: normalizeNumber(transfer),
       other: normalizeNumber(other),
       transaction_type: "payment",
       status: "active",
       notes: notes || null,
+      staff_note: staff_note || null,
+      reference_code: reference_code || null,
       store_id: store.id,
     };
 
@@ -348,7 +358,6 @@ export async function POST(request, context) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-
 export async function PATCH(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -357,7 +366,17 @@ export async function PATCH(request, context) {
     }
 
     const body = await request.json();
-    const { payment_id, cash, card, hicaps, other, notes } = body;
+    const {
+      payment_id,
+      cash,
+      card,
+      hicaps,
+      transfer,
+      other,
+      notes,
+      staff_note,
+      reference_code,
+    } = body;
 
     if (!payment_id) {
       return NextResponse.json(
@@ -370,8 +389,11 @@ export async function PATCH(request, context) {
       cash: normalizeNumber(cash),
       card: normalizeNumber(card),
       hicaps: normalizeNumber(hicaps),
+      transfer: normalizeNumber(transfer),
       other: normalizeNumber(other),
       notes: notes || null,
+      staff_note: staff_note || null,
+      reference_code: reference_code || null,
     };
 
     const updatedTotal = totalAmount(updatePayload);
@@ -448,11 +470,14 @@ export async function DELETE(request, context) {
         cash: paymentRow.cash,
         card: paymentRow.card,
         hicaps: paymentRow.hicaps,
+        transfer: paymentRow.transfer,
         other: paymentRow.other,
         transaction_type: "void",
         status: "active",
         parent_payment_id: paymentRow.id,
         notes: "Voided from booking details modal",
+        staff_note: null,
+        reference_code: null,
         store_id: store.id,
       })
       .select("*")

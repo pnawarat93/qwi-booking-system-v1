@@ -57,12 +57,9 @@ function totalPaymentAmount(payment) {
     Number(payment.cash || 0) +
     Number(payment.card || 0) +
     Number(payment.hicaps || 0) +
+    Number(payment.transfer || 0) +
     Number(payment.other || 0)
   );
-}
-
-function totalRefundRows(refunds = []) {
-  return refunds.reduce((sum, row) => sum + totalPaymentAmount(row), 0);
 }
 
 export default function BookingDetailsModal({
@@ -90,13 +87,17 @@ export default function BookingDetailsModal({
     cash: 0,
     card: 0,
     hicaps: 0,
+    transfer: 0,
     other: 0,
+    staff_note: "",
+    reference_code: "",
   });
 
   const [refundInfo, setRefundInfo] = useState({
     cash: 0,
     card: 0,
     hicaps: 0,
+    transfer: 0,
     other: 0,
   });
 
@@ -113,6 +114,13 @@ export default function BookingDetailsModal({
   const [isVoidingPayment, setIsVoidingPayment] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [isSavingChanges, setIsSavingChanges] = useState(false);
+
+  const customerBookingNote =
+    booking?.customer_note ||
+    booking?.booking_note ||
+    booking?.notes_customer ||
+    booking?.customer_notes ||
+    "";
 
   useEffect(() => {
     if (!booking) return;
@@ -132,13 +140,17 @@ export default function BookingDetailsModal({
       cash: 0,
       card: 0,
       hicaps: 0,
+      transfer: 0,
       other: 0,
+      staff_note: "",
+      reference_code: "",
     });
 
     setRefundInfo({
       cash: 0,
       card: 0,
       hicaps: 0,
+      transfer: 0,
       other: 0,
     });
 
@@ -181,7 +193,10 @@ export default function BookingDetailsModal({
             cash: Number(result.payment.cash || 0),
             card: Number(result.payment.card || 0),
             hicaps: Number(result.payment.hicaps || 0),
+            transfer: Number(result.payment.transfer || 0),
             other: Number(result.payment.other || 0),
+            staff_note: result.payment.staff_note || "",
+            reference_code: result.payment.reference_code || "",
           });
         }
       } catch (error) {
@@ -261,10 +276,10 @@ export default function BookingDetailsModal({
       formData.customer_name !== (booking.customer_name || "") ||
       formData.customer_phone !== (booking.customer_phone || "") ||
       formData.service_name !==
-        (booking.services?.name || booking.service_name || "") ||
+      (booking.services?.name || booking.service_name || "") ||
       formData.time !== (booking.time?.substring(0, 5) || "") ||
       Number(formData.duration) !==
-        Number(booking.duration ?? booking.services?.duration ?? 30) ||
+      Number(booking.duration ?? booking.services?.duration ?? 30) ||
       formData.status !== (booking.status?.toLowerCase() || "pending") ||
       formData.notes !== (booking.notes || "") ||
       String(formData.staff_id || "") !== String(booking.staff_id || "")
@@ -340,7 +355,10 @@ export default function BookingDetailsModal({
             cash: paymentInfo.cash,
             card: paymentInfo.card,
             hicaps: paymentInfo.hicaps,
+            transfer: paymentInfo.transfer,
             other: paymentInfo.other,
+            staff_note: paymentInfo.staff_note,
+            reference_code: paymentInfo.reference_code,
             notes: "Updated from booking details modal",
           }),
         });
@@ -373,21 +391,27 @@ export default function BookingDetailsModal({
       const payload =
         paymentScope === "group" && booking.job_group_id
           ? {
-              jobgroup_id: booking.job_group_id,
-              cash: paymentInfo.cash,
-              card: paymentInfo.card,
-              hicaps: paymentInfo.hicaps,
-              other: paymentInfo.other,
-              notes: "Created from booking details modal",
-            }
+            jobgroup_id: booking.job_group_id,
+            cash: paymentInfo.cash,
+            card: paymentInfo.card,
+            hicaps: paymentInfo.hicaps,
+            transfer: paymentInfo.transfer,
+            other: paymentInfo.other,
+            staff_note: paymentInfo.staff_note,
+            reference_code: paymentInfo.reference_code,
+            notes: "Created from booking details modal",
+          }
           : {
-              job_id: booking.id,
-              cash: paymentInfo.cash,
-              card: paymentInfo.card,
-              hicaps: paymentInfo.hicaps,
-              other: paymentInfo.other,
-              notes: "Created from booking details modal",
-            };
+            job_id: booking.id,
+            cash: paymentInfo.cash,
+            card: paymentInfo.card,
+            hicaps: paymentInfo.hicaps,
+            transfer: paymentInfo.transfer,
+            other: paymentInfo.other,
+            staff_note: paymentInfo.staff_note,
+            reference_code: paymentInfo.reference_code,
+            notes: "Created from booking details modal",
+          };
 
       const response = await fetch(apiPath(storeSlug, "/payments"), {
         method: "POST",
@@ -403,7 +427,10 @@ export default function BookingDetailsModal({
           cash: Number(result.existingPayment.cash || 0),
           card: Number(result.existingPayment.card || 0),
           hicaps: Number(result.existingPayment.hicaps || 0),
+          transfer: Number(result.existingPayment.transfer || 0),
           other: Number(result.existingPayment.other || 0),
+          staff_note: result.existingPayment.staff_note || "",
+          reference_code: result.existingPayment.reference_code || "",
         });
         throw new Error(
           "Payment already exists for this booking. Review or update the existing payment instead."
@@ -424,7 +451,6 @@ export default function BookingDetailsModal({
       setIsRecordingPayment(false);
     }
   }
-
   async function handleRefund() {
     if (!existingPayment?.id) {
       alert("No active payment found to refund.");
@@ -464,6 +490,7 @@ export default function BookingDetailsModal({
           cash: refundInfo.cash,
           card: refundInfo.card,
           hicaps: refundInfo.hicaps,
+          transfer: refundInfo.transfer,
           other: refundInfo.other,
           notes: "Refund from booking details modal",
         }),
@@ -481,6 +508,7 @@ export default function BookingDetailsModal({
         cash: 0,
         card: 0,
         hicaps: 0,
+        transfer: 0,
         other: 0,
       });
 
@@ -526,12 +554,16 @@ export default function BookingDetailsModal({
         cash: 0,
         card: 0,
         hicaps: 0,
+        transfer: 0,
         other: 0,
+        staff_note: "",
+        reference_code: "",
       });
       setRefundInfo({
         cash: 0,
         card: 0,
         hicaps: 0,
+        transfer: 0,
         other: 0,
       });
       setRefundRows([]);
@@ -678,6 +710,17 @@ export default function BookingDetailsModal({
                 />
               </div>
             </div>
+
+            {customerBookingNote && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                  Customer note
+                </p>
+                <p className="mt-1 text-sm text-amber-900">
+                  {customerBookingNote}
+                </p>
+              </div>
+            )}
           </section>
 
           <section className="rounded-xl border bg-white p-4">
@@ -734,11 +777,10 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("pending")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "pending"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "pending"
                         ? "border-blue-300 bg-blue-50 text-blue-700"
                         : "border-gray-200 text-gray-700"
-                    }`}
+                      }`}
                   >
                     Pending
                   </button>
@@ -746,11 +788,10 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("paid")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "paid"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "paid"
                         ? "border-green-300 bg-green-50 text-green-700"
                         : "border-gray-200 text-gray-700"
-                    }`}
+                      }`}
                   >
                     Paid
                   </button>
@@ -758,11 +799,10 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("cancelled")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "cancelled"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "cancelled"
                         ? "border-red-300 bg-red-50 text-red-700"
                         : "border-gray-200 text-gray-700"
-                    }`}
+                      }`}
                   >
                     Cancelled
                   </button>
@@ -770,11 +810,10 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("no_show")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "no_show"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "no_show"
                         ? "border-gray-400 bg-gray-100 text-gray-700"
                         : "border-gray-200 text-gray-700"
-                    }`}
+                      }`}
                   >
                     No-show
                   </button>
@@ -824,7 +863,6 @@ export default function BookingDetailsModal({
               shown here.
             </p>
           </section>
-
           <section className="rounded-xl border bg-white p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900">
@@ -856,9 +894,22 @@ export default function BookingDetailsModal({
                     Hicaps: ${Number(existingPayment.hicaps || 0).toFixed(2)}
                   </div>
                   <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                    Transfer: ${Number(existingPayment.transfer || 0).toFixed(2)}
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
                     Other: ${Number(existingPayment.other || 0).toFixed(2)}
                   </div>
+                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                    Ref code: {existingPayment.reference_code || "-"}
+                  </div>
                 </div>
+
+                {existingPayment.staff_note && (
+                  <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+                    <span className="font-medium text-gray-900">Staff note:</span>{" "}
+                    {existingPayment.staff_note}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-2 text-sm">
                   <div className="rounded-lg border bg-white px-3 py-2 font-medium text-gray-800">
@@ -911,8 +962,8 @@ export default function BookingDetailsModal({
                     {hasFullyRefunded
                       ? "Fully refunded"
                       : showRefundForm
-                      ? "Cancel refund"
-                      : "Refund"}
+                        ? "Cancel refund"
+                        : "Refund"}
                   </button>
 
                   <button
@@ -955,11 +1006,10 @@ export default function BookingDetailsModal({
                       <button
                         type="button"
                         onClick={() => setPaymentScope("job")}
-                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                          paymentScope === "job"
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "job"
                             ? "border-blue-300 bg-blue-50 text-blue-700"
                             : "border-gray-200 text-gray-700"
-                        }`}
+                          }`}
                       >
                         Pay this job only
                       </button>
@@ -967,11 +1017,10 @@ export default function BookingDetailsModal({
                       <button
                         type="button"
                         onClick={() => setPaymentScope("group")}
-                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                          paymentScope === "group"
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "group"
                             ? "border-green-300 bg-green-50 text-green-700"
                             : "border-gray-200 text-gray-700"
-                        }`}
+                          }`}
                       >
                         Pay whole group
                       </button>
@@ -1027,6 +1076,24 @@ export default function BookingDetailsModal({
 
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Transfer ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={paymentInfo.transfer}
+                      onChange={(e) =>
+                        setPaymentInfo({
+                          ...paymentInfo,
+                          transfer: e.target.value,
+                        })
+                      }
+                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
                       Other ($)
                     </label>
                     <input
@@ -1039,6 +1106,42 @@ export default function BookingDetailsModal({
                       placeholder="0.00"
                     />
                   </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Reference code
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentInfo.reference_code}
+                      onChange={(e) =>
+                        setPaymentInfo({
+                          ...paymentInfo,
+                          reference_code: e.target.value,
+                        })
+                      }
+                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      placeholder="Voucher / bank ref / PayID"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Staff note
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={paymentInfo.staff_note}
+                    onChange={(e) =>
+                      setPaymentInfo({
+                        ...paymentInfo,
+                        staff_note: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                    placeholder="Voucher details, transfer time, bank used, split payment note, etc."
+                  />
                 </div>
 
                 <button
@@ -1052,8 +1155,8 @@ export default function BookingDetailsModal({
                       ? "Updating..."
                       : "Recording..."
                     : existingPayment
-                    ? "Update payment"
-                    : "Finalize & Record Payment"}
+                      ? "Update payment"
+                      : "Finalize & Record Payment"}
                 </button>
               </div>
             )}
@@ -1112,6 +1215,21 @@ export default function BookingDetailsModal({
 
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Transfer ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={refundInfo.transfer}
+                      onChange={(e) =>
+                        updateRefundField("transfer", e.target.value)
+                      }
+                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
                       Other ($)
                     </label>
                     <input
@@ -1146,14 +1264,16 @@ export default function BookingDetailsModal({
           </section>
 
           <section className="rounded-xl border bg-white p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">Notes</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">
+              Internal booking note
+            </h3>
 
             <textarea
               rows={4}
               value={formData.notes}
               onChange={(e) => updateField("notes", e.target.value)}
               className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-              placeholder="Internal notes"
+              placeholder="Internal note for this booking"
             />
           </section>
         </div>
@@ -1186,4 +1306,4 @@ export default function BookingDetailsModal({
       </div>
     </div>
   );
-}
+} 

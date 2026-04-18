@@ -10,6 +10,7 @@ import {
   Clock3,
   ChevronLeft,
   Settings,
+  FileText,
 } from "lucide-react";
 import { useStore } from "../StoreContext";
 
@@ -38,6 +39,11 @@ const ownerNavItems = [
     label: "Business Hours",
     href: (slug) => `/s/${slug}/owner/business-hours`,
     icon: Clock3,
+  },
+  {
+    label: "Reports",
+    href: (slug) => `/s/${slug}/owner/reports`,
+    icon: FileText,
   },
   {
     label: "Settings",

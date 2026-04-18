@@ -10,6 +10,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Store,
+  FileText,
 } from "lucide-react";
 import { useStore } from "../StoreContext";
 
@@ -42,9 +43,21 @@ const setupCards = [
     href: (slug) => `/s/${slug}/owner/business-hours`,
     icon: Clock3,
   },
+  {
+    title: "Daily reports",
+    description:
+      "View end-of-day summaries and daily booking logs for past dates.",
+    href: (slug) => `/s/${slug}/owner/reports`,
+    icon: FileText,
+  },
 ];
 
 const quickLinks = [
+  {
+    label: "Daily reports",
+    href: (slug) => `/s/${slug}/owner/reports`,
+    icon: FileText,
+  },
   {
     label: "Store settings",
     href: (slug) => `/s/${slug}/owner/settings`,
@@ -83,6 +96,14 @@ export default function OwnerOverviewPage() {
               className="inline-flex items-center gap-2 rounded-2xl bg-[#C87D87] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
             >
               Start with roster
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+
+            <Link
+              href={`/s/${store.slug}/owner/reports`}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[#D9C5B8] bg-white px-5 py-3 text-sm font-semibold text-[#4A3A34] transition hover:bg-[#FFF7F1]"
+            >
+              View daily reports
               <ArrowRight className="h-4 w-4" />
             </Link>
 
