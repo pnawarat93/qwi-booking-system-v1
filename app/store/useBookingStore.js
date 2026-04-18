@@ -19,7 +19,7 @@ const useBookingStore = create((set, get) => ({
   store: null,
   businessHours: null,
   services: [],
-  staffs: [],
+  staff: [],
   selectedService: null,
   selectedStaff: null,
   selectedStaffs: [],
@@ -36,7 +36,7 @@ const useBookingStore = create((set, get) => ({
 
   setBusinessHours: (businessHours) => set({ businessHours }),
 
-  setStaffs: (staffs) => set({ staffs }),
+  setStaff: (staff) => set({ staff }),
 
   setSelectedStaff: (staff) =>
     set({
@@ -71,20 +71,20 @@ const useBookingStore = create((set, get) => ({
 
   setSelectedTime: (time) => set({ selectedTime: time }),
 
-  setAvailableStaffsForDate: (staffs) =>
-    set({ availableStaffsForDate: staffs, staffs }),
+  setAvailableStaffsForDate: (staff) =>
+    set({ availableStaffsForDate: staff, staff }),
 
-  toggleSelectedStaff: (staff) => {
+  toggleSelectedStaff: (staffMember) => {
     const { selectedStaffs, selectedPeople } = get();
-    const exists = selectedStaffs.some((s) => s.id === staff.id);
+    const exists = selectedStaffs.some((s) => s.id === staffMember.id);
 
     if (exists) {
       set({
-        selectedStaffs: selectedStaffs.filter((s) => s.id !== staff.id),
+        selectedStaffs: selectedStaffs.filter((s) => s.id !== staffMember.id),
       });
     } else if (selectedStaffs.length < (selectedPeople || 1)) {
       set({
-        selectedStaffs: [...selectedStaffs, staff],
+        selectedStaffs: [...selectedStaffs, staffMember],
       });
     }
   },
@@ -107,19 +107,19 @@ const useBookingStore = create((set, get) => ({
     }
   },
 
-  fetchStaffs: async () => {
+  fetchStaff: async () => {
     const { slug } = get();
     if (!slug) return;
 
     try {
-      const response = await fetch(storeApiUrl(slug, "/staffs"));
+      const response = await fetch(storeApiUrl(slug, "/staff"));
       const data = await response.json();
 
       if (Array.isArray(data)) {
-        set({ staffs: data });
+        set({ staff: data });
       }
     } catch (error) {
-      console.error("Error fetching staffs:", error);
+      console.error("Error fetching staff:", error);
     }
   },
 
@@ -170,14 +170,14 @@ const useBookingStore = create((set, get) => ({
       selectedService,
       selectedDate,
       bookings,
-      staffs,
+      staff,
       selectedStaff,
       selectedStaffs,
       selectedPeople,
       businessHours,
     } = get();
 
-    if (!selectedService || !selectedDate || staffs.length === 0) return [];
+    if (!selectedService || !selectedDate || staff.length === 0) return [];
 
     if (!businessHours || businessHours.is_open === false) {
       return [];
@@ -203,7 +203,7 @@ const useBookingStore = create((set, get) => ({
         break;
       }
 
-      let availableStaffIds = staffs.map((s) => s.id);
+      let availableStaffIds = staff.map((s) => s.id);
 
       bookings.forEach((booking) => {
         if (!booking.time || !booking.staff_id) return;
@@ -226,8 +226,8 @@ const useBookingStore = create((set, get) => ({
       let isAvailable = false;
 
       if (selectedStaffs && selectedStaffs.length > 0) {
-        const allRequestedAvailable = selectedStaffs.every((s) =>
-          availableStaffIds.some((id) => String(id) === String(s.id))
+        const allRequestedAvailable = selectedStaffs.every((selectedStaffRow) =>
+          availableStaffIds.some((id) => String(id) === String(selectedStaffRow.id))
         );
 
         if (

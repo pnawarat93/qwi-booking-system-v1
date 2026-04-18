@@ -63,7 +63,7 @@ export default function StartDayModal({
       try {
         const [hoursRes, staffRes, effectiveRes] = await Promise.all([
           fetch(apiPath(storeSlug, `/business-hours?date=${selectedDate}`)),
-          fetch(apiPath(storeSlug, "/staffs")),
+          fetch(apiPath(storeSlug, "/staff")),
           fetch(
             apiPath(
               storeSlug,
@@ -253,7 +253,7 @@ export default function StartDayModal({
       setIsCreatingStaff(true);
       setErrorMessage("");
 
-      const createRes = await fetch(apiPath(storeSlug, "/staffs"), {
+      const createRes = await fetch(apiPath(storeSlug, "/staff"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -91,7 +91,7 @@ export default function OwnerRosterPage() {
         setSaveMessage("");
 
         const [staffRes, rosterRes, weeklyHoursRes] = await Promise.all([
-          fetch(apiPath(store.slug, "/staffs")),
+          fetch(apiPath(store.slug, "/staff")),
           fetch(apiPath(store.slug, "/staff-rosters")),
           fetch(apiPath(store.slug, "/weekly-business-hours")),
         ]);

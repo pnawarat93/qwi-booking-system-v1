@@ -41,7 +41,7 @@ export default function StaffControlsModal({
 
     try {
       const [staffRes, effectiveRes, hoursRes] = await Promise.all([
-        fetch(apiPath(storeSlug, "/staffs")),
+        fetch(apiPath(storeSlug, "/staff")),
         fetch(
           apiPath(
             storeSlug,
@@ -289,7 +289,7 @@ export default function StaffControlsModal({
       setIsCreatingStaff(true);
       setErrorMessage("");
 
-      const createRes = await fetch(apiPath(storeSlug, "/staffs"), {
+      const createRes = await fetch(apiPath(storeSlug, "/staff"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

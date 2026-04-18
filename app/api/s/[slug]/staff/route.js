@@ -22,7 +22,7 @@ export async function GET(request, context) {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error("GET /api/s/[slug]/staffs error:", error);
+    console.error("GET /api/s/[slug]/staff error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -69,7 +69,7 @@ export async function POST(request, context) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("POST /api/s/[slug]/staffs error:", error);
+    console.error("POST /api/s/[slug]/staff error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
