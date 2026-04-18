@@ -25,7 +25,7 @@ function normalizeNullableText(value) {
   return text || null;
 }
 
-export async function GET(request, context) {
+export async function PATCH(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
 
@@ -33,46 +33,11 @@ export async function GET(request, context) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || "active";
+    const params = await context.params;
+    const staffId = Number(params?.id);
 
-    let query = supabase
-      .from("staff")
-      .select(STAFF_SELECT)
-      .eq("store_id", store.id)
-      .order("name_display", { ascending: true, nullsFirst: false })
-      .order("name", { ascending: true });
-
-    if (status === "active") {
-      query = query.eq("is_active", true);
-    } else if (status === "inactive") {
-      query = query.eq("is_active", false);
-    } else if (status !== "all") {
-      return NextResponse.json(
-        { error: "Invalid status. Use all, active, or inactive." },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json(Array.isArray(data) ? data : []);
-  } catch (error) {
-    console.error("GET /api/s/[slug]/staff error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
-  }
-}
-
-export async function POST(request, context) {
-  try {
-    const store = await resolveStoreFromParams(context.params);
-
-    if (!store) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+    if (!staffId) {
+      return NextResponse.json({ error: "Invalid staff id" }, { status: 400 });
     }
 
     const body = await request.json();
@@ -97,22 +62,22 @@ export async function POST(request, context) {
 
     const payload = {
       name: name_legal || name_display,
-      role: "staff",
       name_display,
       name_legal,
       staff_code,
-      is_active,
+      employment_type,
       start_date,
       end_date,
       abn,
       tfn,
-      employment_type,
-      store_id: store.id,
+      is_active,
     };
 
     const { data, error } = await supabase
       .from("staff")
-      .insert(payload)
+      .update(payload)
+      .eq("id", staffId)
+      .eq("store_id", store.id)
       .select(STAFF_SELECT)
       .single();
 
@@ -127,9 +92,13 @@ export async function POST(request, context) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data, { status: 201 });
+    if (!data) {
+      return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("POST /api/s/[slug]/staff error:", error);
+    console.error("PATCH /api/s/[slug]/staff/[id] error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
