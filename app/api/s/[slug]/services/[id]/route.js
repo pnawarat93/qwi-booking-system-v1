@@ -19,7 +19,7 @@ function normalizeNumber(value, fallback = null) {
   return Number.isNaN(num) ? fallback : num;
 }
 
-export async function GET(request, context) {
+export async function PATCH(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
 
@@ -27,46 +27,11 @@ export async function GET(request, context) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status") || "active";
+    const params = await context.params;
+    const serviceId = Number(params?.id);
 
-    let query = supabase
-      .from("services")
-      .select(SERVICE_SELECT)
-      .eq("store_id", store.id)
-      .order("name", { ascending: true });
-
-    // ถ้าใน DB ยังไม่มี is_active จริง ให้ลบบล็อกนี้ออกก่อน
-    if (status === "active") {
-      query = query.eq("is_active", true);
-    } else if (status === "inactive") {
-      query = query.eq("is_active", false);
-    } else if (status !== "all") {
-      return NextResponse.json(
-        { error: "Invalid status. Use all, active, or inactive." },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json(Array.isArray(data) ? data : []);
-  } catch (error) {
-    console.error("GET /api/s/[slug]/services error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
-  }
-}
-
-export async function POST(request, context) {
-  try {
-    const store = await resolveStoreFromParams(context.params);
-
-    if (!store) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+    if (!serviceId) {
+      return NextResponse.json({ error: "Invalid service id" }, { status: 400 });
     }
 
     const body = await request.json();
@@ -104,13 +69,14 @@ export async function POST(request, context) {
       duration,
       price,
       staff_payout_fixed,
-      store_id: store.id,
       is_active,
     };
 
     const { data, error } = await supabase
       .from("services")
-      .insert(payload)
+      .update(payload)
+      .eq("id", serviceId)
+      .eq("store_id", store.id)
       .select(SERVICE_SELECT)
       .single();
 
@@ -118,9 +84,13 @@ export async function POST(request, context) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data, { status: 201 });
+    if (!data) {
+      return NextResponse.json({ error: "Service not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("POST /api/s/[slug]/services error:", error);
+    console.error("PATCH /api/s/[slug]/services/[id] error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

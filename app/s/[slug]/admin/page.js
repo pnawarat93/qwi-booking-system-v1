@@ -15,7 +15,7 @@ import UnassignedBookingsModal from "@/app/components/UnassignedBookingsModal";
 import StaffControlsModal from "@/app/components/StaffControlsModal";
 import StartDayModal from "@/app/components/StartDayModal";
 
-import { useAuthStore } from "@/store/useAuthStore";
+import useAuthStore from "@/store/useAuthStore";
 import { useStore } from "../StoreContext";
 import { storeApiUrl } from "@/lib/storeApi";
 

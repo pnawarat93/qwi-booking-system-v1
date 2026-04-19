@@ -241,6 +241,10 @@ export async function PATCH(request, context) {
       .from("jobs")
       .select(`
         *,
+        service_name_snapshot,
+        service_duration_snapshot,
+        service_price_snapshot,
+        staff_payout_snapshot,
         services (
           id,
           duration
@@ -266,6 +270,12 @@ export async function PATCH(request, context) {
     if (body.customer_phone !== undefined) {
       updatePayload.customer_phone = body.customer_phone || "";
     }
+
+    const serviceIdChanged =
+      body.service_id !== undefined &&
+      body.service_id !== null &&
+      body.service_id !== "" &&
+      Number(body.service_id) !== Number(existingBooking.service_id);
 
     if (
       body.service_id !== undefined &&
@@ -329,7 +339,7 @@ export async function PATCH(request, context) {
 
     const { data: serviceRow, error: serviceError } = await supabase
       .from("services")
-      .select("id, duration")
+      .select("id, name, duration, price, staff_payout_fixed")
       .eq("id", mergedServiceId)
       .eq("store_id", store.id)
       .single();
@@ -341,7 +351,19 @@ export async function PATCH(request, context) {
       );
     }
 
-    const serviceDuration = Number(serviceRow.duration || 30);
+    if (serviceIdChanged) {
+      updatePayload.service_name_snapshot = serviceRow.name || null;
+      updatePayload.service_duration_snapshot = Number(serviceRow.duration || 0);
+      updatePayload.service_price_snapshot = serviceRow.price ?? null;
+      updatePayload.staff_payout_snapshot = serviceRow.staff_payout_fixed ?? null;
+    }
+
+    const effectiveDuration = Number(
+      existingBooking.service_duration_snapshot ||
+        serviceRow.duration ||
+        30
+    );
+
     const targetStart = timeToMinutes(mergedTime);
 
     if (targetStart === null) {
@@ -363,7 +385,7 @@ export async function PATCH(request, context) {
     if (
       openMinutes !== null &&
       closeMinutes !== null &&
-      (targetStart < openMinutes || targetStart + serviceDuration > closeMinutes)
+      (targetStart < openMinutes || targetStart + effectiveDuration > closeMinutes)
     ) {
       return NextResponse.json(
         { error: "Booking time is outside business hours" },
@@ -397,7 +419,7 @@ export async function PATCH(request, context) {
 
       if (
         shiftEnd !== null &&
-        targetStart + serviceDuration > shiftEnd
+        targetStart + effectiveDuration > shiftEnd
       ) {
         return NextResponse.json(
           { error: "Selected staff is not available at this time" },
@@ -412,6 +434,7 @@ export async function PATCH(request, context) {
           staff_id,
           time,
           status,
+          service_duration_snapshot,
           services (
             duration
           )
@@ -432,13 +455,15 @@ export async function PATCH(request, context) {
         if (String(booking.id) === String(id)) return false;
 
         const existingStart = timeToMinutes(booking.time);
-        const existingDuration = Number(booking.services?.duration || 30);
+        const existingDuration = Number(
+          booking.service_duration_snapshot || booking.services?.duration || 30
+        );
 
         if (existingStart === null) return false;
 
         return bookingsOverlap(
           targetStart,
-          serviceDuration,
+          effectiveDuration,
           existingStart,
           existingDuration
         );
@@ -472,6 +497,10 @@ export async function PATCH(request, context) {
       .from("jobs")
       .select(`
         *,
+        service_name_snapshot,
+        service_duration_snapshot,
+        service_price_snapshot,
+        staff_payout_snapshot,
         services (
           id,
           name,

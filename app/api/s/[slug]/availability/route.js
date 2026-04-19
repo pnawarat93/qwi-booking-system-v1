@@ -15,10 +15,9 @@ export async function GET(request, context) {
     return NextResponse.json({ error: "Date is required" }, { status: 400 });
   }
 
-  // Fetch bookings for the date, joining with services to get duration
   const { data, error } = await supabase
     .from("jobs")
-    .select("time, staff_id, services(duration)")
+    .select("time, staff_id, service_duration_snapshot, services(duration)")
     .eq("store_id", store.id)
     .eq("date", date)
     .neq("status", "cancelled");

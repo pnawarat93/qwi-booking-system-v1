@@ -56,6 +56,22 @@ function minutesToTime(totalMinutes) {
   )}:00`;
 }
 
+function getJobServiceName(job) {
+  return job.service_name_snapshot || job.services?.name || "";
+}
+
+function getJobServicePrice(job) {
+  return Number(job.service_price_snapshot ?? job.services?.price ?? 0);
+}
+
+function getJobServiceDuration(job) {
+  return Number(job.service_duration_snapshot ?? job.services?.duration ?? 0);
+}
+
+function getJobStaffPayoutFixed(job) {
+  return Number(job.staff_payout_snapshot ?? job.services?.staff_payout_fixed ?? 0);
+}
+
 function computePayoutForJob({ job, paymentRow, refundRows, policiesById }) {
   const paymentTotal = totalRowAmount(paymentRow);
   const refundedTotal = refundRows.reduce(
@@ -103,13 +119,13 @@ function computePayoutForJob({ job, paymentRow, refundRows, policiesById }) {
   let payout = 0;
 
   if (policy.payout_type === "fixed_per_job") {
-    const serviceFixedPayout = Number(job.services?.staff_payout_fixed || 0);
+    const serviceFixedPayout = getJobStaffPayoutFixed(job);
     const policyFixedAmount = Number(policy.fixed_amount || 0);
     payout = serviceFixedPayout > 0 ? serviceFixedPayout : policyFixedAmount;
   } else if (policy.payout_type === "percent") {
     payout = (effectiveAmount * Number(policy.percent || 0)) / 100;
   } else if (policy.payout_type === "per_hour") {
-    const durationMinutes = Number(job.services?.duration || 0);
+    const durationMinutes = getJobServiceDuration(job);
     payout = (durationMinutes / 60) * Number(policy.hourly_rate || 0);
   }
 
@@ -188,6 +204,10 @@ export async function POST(request, context) {
           job_group_id,
           staff_id,
           service_id,
+          service_name_snapshot,
+          service_duration_snapshot,
+          service_price_snapshot,
+          staff_payout_snapshot,
           services (
             id,
             name,
@@ -345,7 +365,7 @@ export async function POST(request, context) {
 
     const outstanding = safeJobs
       .filter((job) => job.status === "pending")
-      .reduce((sum, job) => sum + Number(job.services?.price || 0), 0);
+      .reduce((sum, job) => sum + getJobServicePrice(job), 0);
 
     const netRevenue =
       paymentTotals.total +
@@ -416,7 +436,7 @@ export async function POST(request, context) {
           };
 
       const startMinutes = timeToMinutes(job.time);
-      const duration = Number(job.services?.duration || 0);
+      const duration = getJobServiceDuration(job);
       const endMinutes =
         startMinutes !== null && duration > 0 ? startMinutes + duration : null;
 
@@ -444,14 +464,14 @@ export async function POST(request, context) {
         job_group_id: job.job_group_id || null,
         row_order: index + 1,
         customer_name: job.customer_name || "",
-        service_name: job.services?.name || "",
+        service_name: getJobServiceName(job),
         start_time: job.time ? `${String(job.time).substring(0, 8)}` : null,
         end_time: endMinutes !== null ? minutesToTime(endMinutes) : null,
         duration: duration || 0,
         status: job.status || "",
         staff_id: job.staff?.id || null,
         staff_name: staffName,
-        service_price: roundMoney(job.services?.price || 0),
+        service_price: roundMoney(getJobServicePrice(job)),
         cash: roundMoney(paymentCash),
         card: roundMoney(paymentCard),
         hicaps: roundMoney(paymentHicaps),

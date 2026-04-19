@@ -186,6 +186,10 @@ export async function GET(request, context) {
       .from("jobs")
       .select(`
         *,
+        service_name_snapshot,
+        service_duration_snapshot,
+        service_price_snapshot,
+        staff_payout_snapshot,
         services (
           id,
           name,
@@ -253,10 +257,10 @@ export async function POST(request, context) {
       );
     }
 
-    // 1) Service duration
+    // 1) Service snapshot values
     const { data: serviceRow, error: serviceError } = await supabase
       .from("services")
-      .select("id, duration")
+      .select("id, name, duration, price, staff_payout_fixed")
       .eq("id", service_id)
       .eq("store_id", store.id)
       .single();
@@ -361,6 +365,7 @@ export async function POST(request, context) {
         staff_id,
         time,
         status,
+        service_duration_snapshot,
         services (
           duration
         )
@@ -379,7 +384,9 @@ export async function POST(request, context) {
         if (String(booking.staff_id) !== String(staffId)) return false;
 
         const existingStart = timeToMinutes(booking.time);
-        const existingDuration = Number(booking.services?.duration || 30);
+        const existingDuration = Number(
+          booking.service_duration_snapshot || booking.services?.duration || 30
+        );
 
         if (existingStart === null) return false;
 
@@ -479,7 +486,7 @@ export async function POST(request, context) {
       job_group_id = groupRow.id;
     }
 
-    // 8) Insert jobs
+    // 8) Insert jobs with service snapshots
     const rowsToInsert = assignedStaffIds.map((staffId) => {
       const wasRequested = selectedFreeStaffIds.includes(staffId);
 
@@ -498,6 +505,11 @@ export async function POST(request, context) {
         requested_staff_id: wasRequested ? staffId : null,
         is_staff_requested: wasRequested,
         store_id: store.id,
+
+        service_name_snapshot: serviceRow.name || null,
+        service_duration_snapshot: Number(serviceRow.duration || 0),
+        service_price_snapshot: serviceRow.price ?? null,
+        staff_payout_snapshot: serviceRow.staff_payout_fixed ?? null,
       };
     });
 

@@ -96,7 +96,9 @@ const useBookingStore = create((set, get) => ({
     if (!slug) return;
 
     try {
-      const response = await fetch(storeApiUrl(slug, "/services"));
+      const response = await fetch(
+        storeApiUrl(slug, "/services?status=active")
+      );
       const data = await response.json();
 
       if (Array.isArray(data)) {
@@ -213,7 +215,11 @@ const useBookingStore = create((set, get) => ({
           "HH:mm",
           new Date()
         );
-        const bDuration = Number(booking.services?.duration || 60);
+
+        const bDuration = Number(
+          booking.service_duration_snapshot || booking.services?.duration || 60
+        );
+
         const bEnd = addMinutes(bStart, bDuration);
 
         if (isBefore(current, bEnd) && isAfter(slotEndTime, bStart)) {
