@@ -84,3 +84,112 @@ export async function GET(request, context) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
+
+export async function PUT(request, context) {
+  try {
+    const store = await resolveStoreFromParams(context.params);
+
+    if (!store) {
+      return NextResponse.json({ error: "Store not found" }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const items = Array.isArray(body?.items) ? body.items : null;
+
+    if (!items) {
+      return NextResponse.json(
+        { error: "items array is required" },
+        { status: 400 }
+      );
+    }
+
+    const normalizedItems = items.map((item) => {
+      const weekday = Number(item.weekday);
+
+      if (!WEEKDAYS.includes(weekday)) {
+        throw new Error("Invalid weekday");
+      }
+
+      const is_open =
+        item.is_open === undefined ? true : Boolean(item.is_open);
+
+      return {
+        store_id: store.id,
+        weekday,
+        is_open,
+        open_time: is_open ? normalizeTime(item.open_time) : null,
+        close_time: is_open ? normalizeTime(item.close_time) : null,
+        note: item.note?.trim() || null,
+      };
+    });
+
+    const { error: upsertError } = await supabase
+      .from("store_business_hours")
+      .upsert(normalizedItems, {
+        onConflict: "store_id,weekday",
+      });
+
+    if (upsertError) {
+      return NextResponse.json({ error: upsertError.message }, { status: 500 });
+    }
+
+    const { data, error } = await supabase
+      .from("store_business_hours")
+      .select(`
+        id,
+        store_id,
+        weekday,
+        is_open,
+        open_time,
+        close_time,
+        note
+      `)
+      .eq("store_id", store.id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+
+    const itemsResponse = WEEKDAYS.map((weekday) => {
+      const found = rows.find((row) => Number(row.weekday) === weekday);
+
+      return found
+        ? {
+            id: found.id,
+            store_id: found.store_id,
+            weekday: Number(found.weekday),
+            is_open: Boolean(found.is_open),
+            open_time: normalizeTime(found.open_time),
+            close_time: normalizeTime(found.close_time),
+            note: found.note || null,
+            source: "weekly_default",
+          }
+        : {
+            id: null,
+            store_id: store.id,
+            weekday,
+            is_open: true,
+            open_time: normalizeTime(store.open_time) || "10:00:00",
+            close_time: normalizeTime(store.close_time) || "20:00:00",
+            note: null,
+            source: "store_fallback",
+          };
+    });
+
+    return NextResponse.json(
+      {
+        store_id: store.id,
+        items: itemsResponse,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("PUT /api/s/[slug]/weekly-business-hours error:", error);
+    return NextResponse.json(
+      { error: error.message || "Server error" },
+      { status: 500 }
+    );
+  }
+}

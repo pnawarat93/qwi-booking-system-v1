@@ -21,26 +21,27 @@ const useAuthStore = create(
 
           const data = await res.json();
 
-          if (res.ok) {
+          if (res.ok && data?.user) {
+            const nextUser = { ...data.user, store_slug: slug };
             set({
-              user: { ...data.user, store_slug: slug },
+              user: nextUser,
               loading: false,
               error: null,
             });
-            return true;
+            return nextUser;
           }
 
           set({
             error: data?.error || "Login failed",
             loading: false,
           });
-          return false;
+          return null;
         } catch (error) {
           set({
             error: "Network error",
             loading: false,
           });
-          return false;
+          return null;
         }
       },
 

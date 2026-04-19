@@ -163,6 +163,7 @@ export default function StoreAdminPage() {
           shopName={store.name}
           shopPhone={store.phone}
           shopAddress={store.address}
+          ownerHref={`/s/${store.slug}/owner-login`}
         />
       </div>
 
@@ -175,24 +176,6 @@ export default function StoreAdminPage() {
           onOpenNewBooking={() => setShowNewBookingModal(true)}
         />
       </div>
-
-      {isTodaySelected && (
-        <div className="shrink-0 border-b bg-[#FFF9F6] px-4 py-2 text-sm text-[#7A675F]">
-          {loadingStoreDay ? (
-            <span>Checking today&apos;s opening status...</span>
-          ) : isStoreDayStarted ? (
-            <span>
-              Store day started · Start till: $
-              {Number(storeDay?.start_till || 0).toFixed(2)}
-            </span>
-          ) : (
-            <span className="font-medium text-amber-800">
-              Start Day confirmation required for today before front-desk
-              operations continue.
-            </span>
-          )}
-        </div>
-      )}
 
       {unassignedCount > 0 && (
         <div className="sticky top-[146px] z-20 shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">

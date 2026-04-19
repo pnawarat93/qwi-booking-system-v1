@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useContext, useEffect, useMemo } from "react";
 import {
   LayoutGrid,
   CalendarDays,
@@ -12,7 +13,8 @@ import {
   Settings,
   FileText,
 } from "lucide-react";
-import { useStore } from "../StoreContext";
+import StoreContext from "../StoreContext";
+import useAuthStore from "@/store/useAuthStore";
 
 const ownerNavItems = [
   {
@@ -56,13 +58,47 @@ function isActivePath(pathname, href) {
   if (href.endsWith("/owner")) {
     return pathname === href;
   }
-
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function getSlugFromPathname(pathname) {
+  const parts = String(pathname || "").split("/").filter(Boolean);
+  // /s/[slug]/owner...
+  if (parts[0] === "s" && parts[1]) {
+    return parts[1];
+  }
+  return "";
 }
 
 export default function OwnerLayout({ children }) {
   const pathname = usePathname();
-  const store = useStore();
+  const router = useRouter();
+  const { user } = useAuthStore();
+
+  // Use context only if available. Do NOT call useStore() here.
+  const store = useContext(StoreContext);
+
+  const activeSlug = useMemo(() => {
+    return store?.slug || getSlugFromPathname(pathname);
+  }, [store?.slug, pathname]);
+
+  const storeName = store?.name || "Owner Dashboard";
+
+  useEffect(() => {
+    if (!activeSlug) return;
+
+    if (!user || user.store_slug !== activeSlug || user.role !== "owner") {
+      router.push(`/s/${activeSlug}/owner-login`);
+    }
+  }, [user, activeSlug, router]);
+
+  if (!activeSlug) {
+    return null;
+  }
+
+  if (!user || user.store_slug !== activeSlug || user.role !== "owner") {
+    return null;
+  }
 
   return (
     <main className="flex min-h-[100dvh] bg-[#FCFAF8] text-[#2F2723]">
@@ -72,7 +108,7 @@ export default function OwnerLayout({ children }) {
             Qwi Owner
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-[#4A3A34]">
-            {store.name}
+            {storeName}
           </h1>
           <p className="mt-1 text-sm text-[#7A675F]">
             Manage store setup and operations
@@ -82,7 +118,7 @@ export default function OwnerLayout({ children }) {
         <div className="flex-1 overflow-y-auto px-4 py-4">
           <nav className="space-y-1">
             {ownerNavItems.map((item) => {
-              const href = item.href(store.slug);
+              const href = item.href(activeSlug);
               const active = isActivePath(pathname, href);
               const Icon = item.icon;
 
@@ -106,7 +142,7 @@ export default function OwnerLayout({ children }) {
 
         <div className="border-t border-[#E8D8CC] p-4">
           <Link
-            href={`/s/${store.slug}/admin`}
+            href={`/s/${activeSlug}/admin`}
             className="flex items-center gap-2 rounded-2xl border border-[#D9C5B8] bg-[#FFF9F6] px-4 py-3 text-sm font-semibold text-[#6B7556] transition hover:bg-[#FBEAD6]/60"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -131,7 +167,7 @@ export default function OwnerLayout({ children }) {
             </div>
 
             <Link
-              href={`/s/${store.slug}/admin`}
+              href={`/s/${activeSlug}/admin`}
               className="rounded-xl border border-[#D9C5B8] bg-[#FFF9F6] px-3 py-2 text-sm font-semibold text-[#6B7556] transition hover:bg-[#FBEAD6]/60 lg:hidden"
             >
               Back
