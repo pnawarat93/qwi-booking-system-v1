@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { resolveStoreFromParams } from "@/lib/storeResolver";
 import { supabase } from "@/lib/supabase";
 import { createSession } from "@/lib/session";
@@ -19,40 +20,51 @@ export async function POST(request, context) {
       );
     }
 
-    // 1. Authenticate with Supabase Auth
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({ email, password });
+    // 1. Get owner by email from the manual 'owners' table
+    const { data: owner, error: fetchError } = await supabase
+      .from("owners")
+      .select("*")
+      .eq("email", email)
+      .single();
 
-    if (authError || !authData?.user) {
+    if (fetchError || !owner) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       );
     }
 
-    const userId = authData.user.id;
+    // 2. Verify password using bcrypt (same method as portal)
+    const isValidPassword = await bcrypt.compare(password, owner.password);
 
-    // 2. Verify this user is the owner of the requested store
-    const { data: ownerRecord, error: ownerError } = await supabase
-      .from("stores")
-      .select("id, name, slug, owner_id")
-      .eq("slug", store.slug)
-      .eq("owner_id", userId)
-      .single();
+    if (!isValidPassword) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      );
+    }
 
-    if (ownerError || !ownerRecord) {
+    // 3. Verify this owner actually owns the requested store
+    // Comparing the owner.id with store.owner_id
+    if (String(owner.id) !== String(store.owner_id)) {
       return NextResponse.json(
         { error: "You are not the owner of this store" },
         { status: 403 }
       );
     }
 
-    // 3. Issue a JWT session cookie
+    // 4. Update last login (optional but good for consistency)
+    await supabase
+      .from("owners")
+      .update({ last_login_at: new Date().toISOString() })
+      .eq("id", owner.id);
+
+    // 5. Issue a JWT session cookie
+    const { password: _, ...ownerData } = owner;
     await createSession({
-      id: userId,
-      email: authData.user.email,
-      store_id: ownerRecord.id,
-      store_slug: ownerRecord.slug,
+      ...ownerData,
+      store_id: store.id,
+      store_slug: store.slug,
     });
 
     return NextResponse.json({ success: true });
