@@ -11,8 +11,8 @@ export default async function OwnerLayout({ children, params }) {
   console.log(session ? `Session found for owner ID: ${session.owner.id}` : "No session found");
   if (!session || !session.owner) {
     // Redirect to SaaS Portal login
-    const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "http://localhost:3000";
-    return redirect(`${portalUrl}/login?callbackUrl=/s/${slug}/owner`);
+    //const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "http://localhost:3000";
+    return redirect(`/s/${slug}/owner-login`);
   }
 
   // 2. Resolve Store
