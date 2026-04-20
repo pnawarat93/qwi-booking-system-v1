@@ -42,6 +42,8 @@ export default function StoreAdminPage() {
     activeBookings: [],
     inactiveBookings: [],
     unassignedBookings: [],
+    // ✅ เพิ่มตัวนี้
+    missingAssignedPaidBookings: [],
   });
 
   const [storeDay, setStoreDay] = useState(null);
@@ -128,6 +130,10 @@ export default function StoreAdminPage() {
 
   const unassignedCount = trayData.unassignedBookings?.length || 0;
 
+  // ✅ เพิ่ม count ใหม่
+  const missingAssignedPaidCount =
+    trayData.missingAssignedPaidBookings?.length || 0;
+
   const isTodaySelected = selectedDate === todayInStoreTz;
   const isStoreDayStarted = Boolean(storeDay?.is_open);
   const shouldBlockTodayOps =
@@ -177,6 +183,7 @@ export default function StoreAdminPage() {
         />
       </div>
 
+      {/* ✅ Unassigned (pending only) */}
       {unassignedCount > 0 && (
         <div className="sticky top-[146px] z-20 shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -186,8 +193,7 @@ export default function StoreAdminPage() {
                 {unassignedCount > 1 ? "s" : ""} need reassignment
               </span>
               <span className="ml-2 text-amber-700">
-                These bookings belong to staff who are not on today&apos;s
-                shift.
+                These are pending bookings without an active staff.
               </span>
             </div>
 
@@ -202,13 +208,31 @@ export default function StoreAdminPage() {
         </div>
       )}
 
+      {/* ✅ NEW: Paid alert */}
+      {missingAssignedPaidCount > 0 && (
+        <div className="sticky top-[146px] z-20 shrink-0 border-b border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="text-sm text-blue-800">
+            <span className="font-semibold">
+              {missingAssignedPaidCount} paid booking
+              {missingAssignedPaidCount > 1 ? "s are" : " is"} linked to staff
+              not on today&apos;s grid
+            </span>
+            <span className="ml-2 text-blue-700">
+              Check if the service is still ongoing or staff has changed.
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 overflow-hidden">
         <ScheduleGrid
           selectedDate={selectedDate}
           onDataChange={setTrayData}
           refreshToken={gridRefreshToken}
           externalSelectedBooking={bookingToOpenFromUnassigned}
-          onExternalBookingHandled={() => setBookingToOpenFromUnassigned(null)}
+          onExternalBookingHandled={() =>
+            setBookingToOpenFromUnassigned(null)
+          }
           storeSlug={store.slug}
         />
       </div>

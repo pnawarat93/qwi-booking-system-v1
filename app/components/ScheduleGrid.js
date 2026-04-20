@@ -18,7 +18,8 @@ const UNASSIGNED_COLUMN_WIDTH = 180;
 
 const ACTIVE_GRID_STATUSES = ["pending", "paid"];
 const INACTIVE_DAY_STATUSES = ["cancelled", "no_show"];
-const NEEDS_REASSIGN_STATUSES = ["pending", "paid"];
+const NEEDS_REASSIGN_PENDING_STATUSES = ["pending"];
+const MISSING_ASSIGNED_PAID_STATUSES = ["paid"];
 
 function timeStringToHour(timeString, fallback) {
   if (!timeString) return fallback;
@@ -197,6 +198,22 @@ export default function ScheduleGrid({
   const unassignedBookings = useMemo(() => {
     const dateComparison = compareDateStrings(selectedDate, todaySydney);
     const isPastDay = dateComparison < 0;
+
+    if (isPastDay) return [];
+
+    return bookings.filter((booking) => {
+      const status = booking.status?.toLowerCase();
+
+      if (!NEEDS_REASSIGN_PENDING_STATUSES.includes(status)) return false;
+      if (!booking.staff_id) return true;
+
+      return !workingStaffIds.has(String(booking.staff_id));
+    });
+  }, [bookings, workingStaffIds, selectedDate, todaySydney]);
+
+  const missingAssignedPaidBookings = useMemo(() => {
+    const dateComparison = compareDateStrings(selectedDate, todaySydney);
+    const isPastDay = dateComparison < 0;
     const isToday = dateComparison === 0;
     const isFutureDay = dateComparison > 0;
 
@@ -209,8 +226,8 @@ export default function ScheduleGrid({
     return bookings.filter((booking) => {
       const status = booking.status?.toLowerCase();
 
-      if (!NEEDS_REASSIGN_STATUSES.includes(status)) return false;
-      if (!booking.staff_id) return true;
+      if (!MISSING_ASSIGNED_PAID_STATUSES.includes(status)) return false;
+      if (!booking.staff_id) return false;
       if (workingStaffIds.has(String(booking.staff_id))) return false;
 
       if (isFutureDay) return true;
@@ -237,12 +254,14 @@ export default function ScheduleGrid({
       activeBookings,
       inactiveBookings: inactiveDayBookings,
       unassignedBookings,
+      missingAssignedPaidBookings,
     });
   }, [
     bookings,
     activeBookings,
     inactiveDayBookings,
     unassignedBookings,
+    missingAssignedPaidBookings,
     onDataChange,
   ]);
 
