@@ -2,9 +2,26 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { resolveStoreFromParams } from "@/lib/storeResolver";
 
+const DEFAULT_DAILY_GUARANTEE_CONFIG = {
+  mon: 0,
+  tue: 0,
+  wed: 0,
+  thu: 0,
+  fri: 0,
+  sat: 0,
+  sun: 0,
+};
+
 function normalizeTime(value) {
   if (!value) return null;
   return String(value).substring(0, 8);
+}
+
+function normalizeDailyGuaranteeConfig(value) {
+  return {
+    ...DEFAULT_DAILY_GUARANTEE_CONFIG,
+    ...(value || {}),
+  };
 }
 
 export async function GET(request, context) {
@@ -25,7 +42,9 @@ export async function GET(request, context) {
         address,
         open_time,
         close_time,
-        slug
+        slug,
+        enable_daily_guarantee,
+        daily_guarantee_config
       `)
       .eq("id", store.id)
       .single();
@@ -39,6 +58,10 @@ export async function GET(request, context) {
         ...data,
         open_time: normalizeTime(data?.open_time),
         close_time: normalizeTime(data?.close_time),
+        enable_daily_guarantee: data?.enable_daily_guarantee ?? false,
+        daily_guarantee_config: normalizeDailyGuaranteeConfig(
+          data?.daily_guarantee_config
+        ),
       },
       { status: 200 }
     );
@@ -62,6 +85,10 @@ export async function PATCH(request, context) {
       name: body.name?.trim() || store.name,
       phone: body.phone?.trim() || null,
       address: body.address?.trim() || null,
+      enable_daily_guarantee: Boolean(body.enable_daily_guarantee),
+      daily_guarantee_config: normalizeDailyGuaranteeConfig(
+        body.daily_guarantee_config
+      ),
     };
 
     const { data, error } = await supabase
@@ -76,7 +103,9 @@ export async function PATCH(request, context) {
         address,
         open_time,
         close_time,
-        slug
+        slug,
+        enable_daily_guarantee,
+        daily_guarantee_config
       `)
       .single();
 
@@ -89,6 +118,10 @@ export async function PATCH(request, context) {
         ...data,
         open_time: normalizeTime(data?.open_time),
         close_time: normalizeTime(data?.close_time),
+        enable_daily_guarantee: data?.enable_daily_guarantee ?? false,
+        daily_guarantee_config: normalizeDailyGuaranteeConfig(
+          data?.daily_guarantee_config
+        ),
       },
       { status: 200 }
     );

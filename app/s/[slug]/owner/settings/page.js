@@ -1,11 +1,47 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Save, Store, Phone, MapPin, Link as LinkIcon, Copy, ExternalLink } from "lucide-react";
+import {
+  Save,
+  Store,
+  Phone,
+  MapPin,
+  Link as LinkIcon,
+  Copy,
+  ExternalLink,
+  ShieldCheck,
+} from "lucide-react";
 import { useStore } from "../../StoreContext";
 
 function apiPath(slug, path) {
   return `/api/s/${slug}${path}`;
+}
+
+const DEFAULT_DAILY_GUARANTEE_CONFIG = {
+  mon: 0,
+  tue: 0,
+  wed: 0,
+  thu: 0,
+  fri: 0,
+  sat: 0,
+  sun: 0,
+};
+
+const GUARANTEE_DAYS = [
+  { key: "mon", label: "Monday" },
+  { key: "tue", label: "Tuesday" },
+  { key: "wed", label: "Wednesday" },
+  { key: "thu", label: "Thursday" },
+  { key: "fri", label: "Friday" },
+  { key: "sat", label: "Saturday" },
+  { key: "sun", label: "Sunday" },
+];
+
+function normalizeDailyGuaranteeConfig(value) {
+  return {
+    ...DEFAULT_DAILY_GUARANTEE_CONFIG,
+    ...(value || {}),
+  };
 }
 
 export default function OwnerSettingsPage() {
@@ -16,6 +52,8 @@ export default function OwnerSettingsPage() {
     phone: "",
     address: "",
     slug: "",
+    enable_daily_guarantee: false,
+    daily_guarantee_config: DEFAULT_DAILY_GUARANTEE_CONFIG,
   });
 
   const [loading, setLoading] = useState(true);
@@ -42,6 +80,10 @@ export default function OwnerSettingsPage() {
         phone: data?.phone || "",
         address: data?.address || "",
         slug: data?.slug || "",
+        enable_daily_guarantee: data?.enable_daily_guarantee ?? false,
+        daily_guarantee_config: normalizeDailyGuaranteeConfig(
+          data?.daily_guarantee_config
+        ),
       });
     } catch (error) {
       console.error(error);
@@ -77,6 +119,10 @@ export default function OwnerSettingsPage() {
           name: storeInfo.name,
           phone: storeInfo.phone,
           address: storeInfo.address,
+          enable_daily_guarantee: storeInfo.enable_daily_guarantee,
+          daily_guarantee_config: normalizeDailyGuaranteeConfig(
+            storeInfo.daily_guarantee_config
+          ),
         }),
       });
 
@@ -91,6 +137,10 @@ export default function OwnerSettingsPage() {
         phone: data?.phone || "",
         address: data?.address || "",
         slug: data?.slug || "",
+        enable_daily_guarantee: data?.enable_daily_guarantee ?? false,
+        daily_guarantee_config: normalizeDailyGuaranteeConfig(
+          data?.daily_guarantee_config
+        ),
       });
 
       setSuccessMessage("Store settings saved");
@@ -114,11 +164,25 @@ export default function OwnerSettingsPage() {
     }
   }
 
+  function updateDailyGuaranteeDay(dayKey, value) {
+    setStoreInfo((prev) => ({
+      ...prev,
+      daily_guarantee_config: {
+        ...normalizeDailyGuaranteeConfig(prev.daily_guarantee_config),
+        [dayKey]: Number(value) || 0,
+      },
+    }));
+  }
+
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold text-emerald-600">Owner Dashboard</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900">Store Settings</h1>
+        <p className="text-sm font-semibold text-emerald-600">
+          Owner Dashboard
+        </p>
+        <h1 className="mt-1 text-2xl font-semibold text-gray-900">
+          Store Settings
+        </h1>
         <p className="mt-2 text-sm text-gray-500">
           Update your store details and access your customer booking link.
         </p>
@@ -143,9 +207,12 @@ export default function OwnerSettingsPage() {
           </div>
 
           <div className="w-full">
-            <h2 className="text-lg font-semibold text-gray-900">Store information</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Store information
+            </h2>
             <p className="mt-1 text-sm text-gray-500">
-              These details are shown for your store setup. Booking link is fixed from onboarding.
+              These details are shown for your store setup. Booking link is fixed
+              from onboarding.
             </p>
 
             {loading ? (
@@ -162,7 +229,10 @@ export default function OwnerSettingsPage() {
                     <input
                       value={storeInfo.name}
                       onChange={(e) =>
-                        setStoreInfo((prev) => ({ ...prev, name: e.target.value }))
+                        setStoreInfo((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
                       }
                       className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
                       placeholder="Store name"
@@ -178,7 +248,10 @@ export default function OwnerSettingsPage() {
                       <input
                         value={storeInfo.phone}
                         onChange={(e) =>
-                          setStoreInfo((prev) => ({ ...prev, phone: e.target.value }))
+                          setStoreInfo((prev) => ({
+                            ...prev,
+                            phone: e.target.value,
+                          }))
                         }
                         className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm"
                         placeholder="Phone number"
@@ -196,7 +269,10 @@ export default function OwnerSettingsPage() {
                         rows={3}
                         value={storeInfo.address}
                         onChange={(e) =>
-                          setStoreInfo((prev) => ({ ...prev, address: e.target.value }))
+                          setStoreInfo((prev) => ({
+                            ...prev,
+                            address: e.target.value,
+                          }))
                         }
                         className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm"
                         placeholder="Store address"
@@ -212,7 +288,103 @@ export default function OwnerSettingsPage() {
                   className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
-                  {savingStore ? "Saving..." : "Save store info"}
+                  {savingStore ? "Saving..." : "Save store settings"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100">
+            <ShieldCheck className="h-5 w-5 text-gray-700" />
+          </div>
+
+          <div className="w-full">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Daily Guarantee / ประกันมือ
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Optional minimum daily payout for staff. If a staff member earns
+              less than the daily guarantee, payout reports can use the guarantee
+              amount later.
+            </p>
+
+            {loading ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
+                Loading daily guarantee...
+              </div>
+            ) : (
+              <>
+                <label className="mt-5 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={storeInfo.enable_daily_guarantee}
+                    onChange={(e) =>
+                      setStoreInfo((prev) => ({
+                        ...prev,
+                        enable_daily_guarantee: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Enable daily guarantee
+                  </span>
+                </label>
+
+                <div
+                  className={`mt-5 grid gap-4 md:grid-cols-2 ${
+                    storeInfo.enable_daily_guarantee ? "" : "opacity-50"
+                  }`}
+                >
+                  {GUARANTEE_DAYS.map((day) => (
+                    <div key={day.key}>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        {day.label}
+                      </label>
+
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          disabled={!storeInfo.enable_daily_guarantee}
+                          value={
+                            normalizeDailyGuaranteeConfig(
+                              storeInfo.daily_guarantee_config
+                            )[day.key]
+                          }
+                          onChange={(e) =>
+                            updateDailyGuaranteeDay(day.key, e.target.value)
+                          }
+                          className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-4 text-sm disabled:bg-gray-50"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-xs text-gray-500">
+                  Example: Mon–Thu 150, Fri 180, Sat–Sun 200. This setting is
+                  saved now; payout calculation will be connected in the next
+                  step.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleSaveStoreInfo}
+                  disabled={savingStore}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {savingStore ? "Saving..." : "Save guarantee settings"}
                 </button>
               </>
             )}
@@ -227,7 +399,9 @@ export default function OwnerSettingsPage() {
           </div>
 
           <div className="w-full">
-            <h2 className="text-lg font-semibold text-gray-900">Booking link</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Booking link
+            </h2>
             <p className="mt-1 text-sm text-gray-500">
               Share this link with customers so they can book online.
             </p>
@@ -265,7 +439,8 @@ export default function OwnerSettingsPage() {
             </div>
 
             <p className="mt-3 text-xs text-gray-500">
-              This link is created from your onboarding setup and cannot be changed here.
+              This link is created from your onboarding setup and cannot be
+              changed here.
             </p>
           </div>
         </div>

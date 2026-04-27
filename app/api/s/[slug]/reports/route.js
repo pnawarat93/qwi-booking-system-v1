@@ -2,6 +2,43 @@ import { supabase } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 import { resolveStoreFromParams } from "@/lib/storeResolver";
 
+/* =========================
+   NEW: Daily Guarantee Utils
+========================= */
+
+const DEFAULT_DAILY_GUARANTEE_CONFIG = {
+  mon: 0,
+  tue: 0,
+  wed: 0,
+  thu: 0,
+  fri: 0,
+  sat: 0,
+  sun: 0,
+};
+
+function getDayKey(dateStr) {
+  const date = new Date(dateStr);
+  const day = date.getDay(); // 0 = Sunday
+  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return map[day];
+}
+
+function getDailyGuarantee(store, dateStr) {
+  if (!store?.enable_daily_guarantee) return 0;
+
+  const config = {
+    ...DEFAULT_DAILY_GUARANTEE_CONFIG,
+    ...(store.daily_guarantee_config || {}),
+  };
+
+  const key = getDayKey(dateStr);
+  return Number(config[key] || 0);
+}
+
+/* =========================
+   MAIN
+========================= */
+
 export async function GET(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -16,6 +53,29 @@ export async function GET(request, context) {
     if (!date) {
       return NextResponse.json({ error: "Date is required" }, { status: 400 });
     }
+
+    /* =========================
+       NEW: Get guarantee config
+    ========================= */
+
+    const { data: storeConfig, error: storeConfigError } = await supabase
+      .from("stores")
+      .select("enable_daily_guarantee, daily_guarantee_config")
+      .eq("id", store.id)
+      .single();
+
+    if (storeConfigError) {
+      return NextResponse.json(
+        { error: storeConfigError.message },
+        { status: 500 }
+      );
+    }
+
+    const dailyGuarantee = getDailyGuarantee(storeConfig, date);
+
+    /* =========================
+       Existing queries (UNCHANGED)
+    ========================= */
 
     const [{ data: report, error: reportError }, { data: rows, error: rowsError }] =
       await Promise.all([
@@ -102,10 +162,19 @@ export async function GET(request, context) {
       return NextResponse.json({ error: rowsError.message }, { status: 500 });
     }
 
+    /* =========================
+       RETURN (UPDATED)
+    ========================= */
+
     return NextResponse.json(
       {
         store_id: store.id,
         date,
+
+        // 👇 NEW
+        enable_daily_guarantee: storeConfig?.enable_daily_guarantee ?? false,
+        dailyGuarantee,
+
         report: report || null,
         rows: Array.isArray(rows) ? rows : [],
       },

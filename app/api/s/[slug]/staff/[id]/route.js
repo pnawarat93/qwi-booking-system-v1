@@ -29,48 +29,25 @@ export async function PATCH(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
 
-    if (!store) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
-    }
-
     const params = await context.params;
     const staffId = Number(params?.id);
 
-    if (!staffId) {
-      return NextResponse.json({ error: "Invalid staff id" }, { status: 400 });
-    }
-
     const body = await request.json();
 
-    const name_display = String(body.name_display || "").trim();
-    const name_legal = normalizeNullableText(body.name_legal);
-    const staff_code = normalizeNullableText(body.staff_code);
-    const employment_type = String(body.employment_type || "temporary").trim();
-    const start_date = body.start_date || null;
-    const end_date = body.end_date || null;
-    const abn = normalizeNullableText(body.abn);
-    const tfn = normalizeNullableText(body.tfn);
-    const is_active =
-      typeof body.is_active === "boolean" ? body.is_active : true;
-
-    if (!name_display) {
-      return NextResponse.json(
-        { error: "name_display is required" },
-        { status: 400 }
-      );
-    }
-
     const payload = {
-      name: name_legal || name_display,
-      name_display,
-      name_legal,
-      staff_code,
-      employment_type,
-      start_date,
-      end_date,
-      abn,
-      tfn,
-      is_active,
+      name: body.name_display,
+      name_display: body.name_display,
+      name_legal: normalizeNullableText(body.name_legal),
+      staff_code: normalizeNullableText(body.staff_code),
+      employment_type: body.employment_type,
+      start_date: body.start_date,
+      end_date: body.end_date,
+      abn: normalizeNullableText(body.abn),
+      tfn: normalizeNullableText(body.tfn),
+      is_active: body.is_active,
+
+      // ✅ NEW
+      payout_policy_id: body.payout_policy_id || null,
     };
 
     const { data, error } = await supabase
@@ -82,23 +59,12 @@ export async function PATCH(request, context) {
       .single();
 
     if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json(
-          { error: "This staff code is already in use." },
-          { status: 400 }
-        );
-      }
-
       return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!data) {
-      return NextResponse.json({ error: "Staff not found" }, { status: 404 });
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("PATCH /api/s/[slug]/staff/[id] error:", error);
+    console.error("PATCH staff error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

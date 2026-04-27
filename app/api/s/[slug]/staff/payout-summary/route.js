@@ -6,6 +6,37 @@ function isValidDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 }
 
+/* =========================
+   DAILY GUARANTEE
+========================= */
+
+const DEFAULT_DAILY_GUARANTEE_CONFIG = {
+  mon: 0,
+  tue: 0,
+  wed: 0,
+  thu: 0,
+  fri: 0,
+  sat: 0,
+  sun: 0,
+};
+
+function getDayKey(dateStr) {
+  const d = new Date(dateStr);
+  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return map[d.getDay()];
+}
+
+function getDailyGuarantee(store, dateStr) {
+  if (!store?.enable_daily_guarantee) return 0;
+
+  const config = {
+    ...DEFAULT_DAILY_GUARANTEE_CONFIG,
+    ...(store.daily_guarantee_config || {}),
+  };
+
+  return Number(config[getDayKey(dateStr)] || 0);
+}
+
 export async function GET(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -34,14 +65,21 @@ export async function GET(request, context) {
       );
     }
 
-    if (from > to) {
-      return NextResponse.json(
-        { error: "from cannot be later than to" },
-        { status: 400 }
-      );
-    }
+    /* =========================
+       GET STORE CONFIG
+    ========================= */
 
-    const [{ data: staffList, error: staffError }, { data: rows, error: rowsError }] =
+    const { data: storeConfig } = await supabase
+      .from("stores")
+      .select("enable_daily_guarantee, daily_guarantee_config")
+      .eq("id", store.id)
+      .single();
+
+    /* =========================
+       GET DATA
+    ========================= */
+
+    const [{ data: staffList }, { data: rows }] =
       await Promise.all([
         supabase
           .from("staff")
@@ -52,103 +90,118 @@ export async function GET(request, context) {
             staff_code,
             is_active,
             employment_type,
-            abn,
-            tfn
+            abn
           `)
-          .eq("store_id", store.id)
-          .order("name_display", { ascending: true, nullsFirst: false })
-          .order("name", { ascending: true }),
+          .eq("store_id", store.id),
+
         supabase
           .from("store_day_report_rows")
           .select(`
-            id,
             day_date,
-            job_id,
             staff_id,
             staff_name,
             duration,
-            staff_payout,
-            status
+            staff_payout
           `)
           .eq("store_id", store.id)
           .gte("day_date", from)
           .lte("day_date", to),
       ]);
 
-    if (staffError) {
-      return NextResponse.json({ error: staffError.message }, { status: 500 });
-    }
+    /* =========================
+       GROUP BY STAFF + DAY
+    ========================= */
 
-    if (rowsError) {
-      return NextResponse.json({ error: rowsError.message }, { status: 500 });
-    }
-
-    const staffMap = new Map();
-    (staffList || []).forEach((member) => {
-      staffMap.set(member.id, {
-        staff_id: member.id,
-        staff_name: member.name_display || member.name || "Unnamed staff",
-        staff_code: member.staff_code || null,
-        is_active: Boolean(member.is_active),
-        employment_type: member.employment_type || null,
-        abn: member.abn || null,
-        tfn: member.tfn || null,
-        jobs_count: 0,
-        total_minutes: 0,
-        payout_total: 0,
-      });
-    });
+    const staffDayMap = new Map();
 
     (rows || []).forEach((row) => {
-      const key = row.staff_id;
-      if (!key) return;
+      if (!row.staff_id) return;
 
-      const existing =
-        staffMap.get(key) ||
-        {
-          staff_id: key,
-          staff_name: row.staff_name || "Unknown staff",
-          staff_code: null,
-          is_active: false,
-          employment_type: null,
-          abn: null,
-          tfn: null,
+      const key = `${row.staff_id}_${row.day_date}`;
+
+      if (!staffDayMap.has(key)) {
+        staffDayMap.set(key, {
+          staff_id: row.staff_id,
+          staff_name: row.staff_name,
+          day_date: row.day_date,
+          payout: 0,
+          minutes: 0,
+          jobs: 0,
+        });
+      }
+
+      const entry = staffDayMap.get(key);
+
+      entry.payout += Number(row.staff_payout || 0);
+      entry.minutes += Number(row.duration || 0);
+      entry.jobs += 1;
+    });
+
+    /* =========================
+       APPLY GUARANTEE PER DAY
+    ========================= */
+
+    const staffMap = new Map();
+
+    staffDayMap.forEach((day) => {
+      const guarantee = getDailyGuarantee(storeConfig, day.day_date);
+
+      let final = day.payout;
+
+      if (storeConfig?.enable_daily_guarantee) {
+        final = Math.max(day.payout, guarantee);
+      }
+
+      if (!staffMap.has(day.staff_id)) {
+        staffMap.set(day.staff_id, {
+          staff_id: day.staff_id,
+          staff_name: day.staff_name,
           jobs_count: 0,
           total_minutes: 0,
           payout_total: 0,
-        };
-
-      existing.jobs_count += 1;
-      existing.total_minutes += Number(row.duration || 0);
-      existing.payout_total += Number(row.staff_payout || 0);
-
-      if (!existing.staff_name && row.staff_name) {
-        existing.staff_name = row.staff_name;
+        });
       }
 
-      staffMap.set(key, existing);
+      const staff = staffMap.get(day.staff_id);
+
+      staff.jobs_count += day.jobs;
+      staff.total_minutes += day.minutes;
+      staff.payout_total += final;
     });
 
     let payoutRows = Array.from(staffMap.values());
 
-    payoutRows = payoutRows.filter((row) => row.jobs_count > 0);
+    /* =========================
+       FILTER
+    ========================= */
+
+    const staffLookup = new Map(
+      (staffList || []).map((s) => [s.id, s])
+    );
+
+    payoutRows = payoutRows.map((row) => ({
+      ...row,
+      ...staffLookup.get(row.staff_id),
+    }));
 
     if (activeOnly) {
-      payoutRows = payoutRows.filter((row) => row.is_active);
+      payoutRows = payoutRows.filter((r) => r.is_active);
     }
 
     if (abnOnly) {
-      payoutRows = payoutRows.filter((row) => Boolean(row.abn));
+      payoutRows = payoutRows.filter((r) => r.abn);
     }
 
-    payoutRows.sort((a, b) => a.staff_name.localeCompare(b.staff_name));
+    /* =========================
+       SUMMARY
+    ========================= */
 
     const summary = payoutRows.reduce(
       (acc, row) => {
         acc.total_staff += 1;
-        acc.total_jobs += Number(row.jobs_count || 0);
-        acc.total_minutes += Number(row.total_minutes || 0);
-        acc.total_payout += Number(row.payout_total || 0);
+        acc.total_jobs += row.jobs_count;
+        acc.total_minutes += row.total_minutes;
+        acc.total_payout += row.payout_total;
         return acc;
       },
       {
@@ -166,7 +219,7 @@ export async function GET(request, context) {
       rows: payoutRows,
     });
   } catch (error) {
-    console.error("GET /api/s/[slug]/staff/payout-summary error:", error);
+    console.error(error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

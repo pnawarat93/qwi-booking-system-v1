@@ -55,6 +55,7 @@ const EMPTY_FORM = {
   name_legal: "",
   staff_code: "",
   employment_type: "temporary",
+  payout_policy_id: "",
   start_date: "",
   end_date: "",
   abn: "",
@@ -69,6 +70,10 @@ export default function OwnerStaffPage({ params }) {
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffError, setStaffError] = useState("");
   const [staffRows, setStaffRows] = useState([]);
+
+  const [policies, setPolicies] = useState([]);
+  const [policiesLoading, setPoliciesLoading] = useState(false);
+  const [policiesError, setPoliciesError] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -94,6 +99,30 @@ export default function OwnerStaffPage({ params }) {
   const [payoutError, setPayoutError] = useState("");
   const [payoutSummary, setPayoutSummary] = useState(null);
   const [payoutRows, setPayoutRows] = useState([]);
+
+  async function fetchPolicies() {
+    try {
+      setPoliciesLoading(true);
+      setPoliciesError("");
+
+      const res = await fetch(apiPath(slug, "/payout-policies"), {
+        cache: "no-store",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load payout policies");
+      }
+
+      setPolicies(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setPoliciesError(err.message || "Could not load payout policies.");
+      setPolicies([]);
+    } finally {
+      setPoliciesLoading(false);
+    }
+  }
 
   async function fetchStaff(status = staffStatusFilter) {
     try {
@@ -162,19 +191,34 @@ export default function OwnerStaffPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
+    fetchPolicies();
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
     fetchPayoutSummary(range);
   }, [slug, range.from, range.to, range.activeOnly, range.abnOnly]);
+
+  const policiesById = useMemo(() => {
+    const map = new Map();
+    policies.forEach((policy) => {
+      map.set(String(policy.id), policy);
+    });
+    return map;
+  }, [policies]);
 
   const staffSummaryCards = useMemo(() => {
     const total = staffRows.length;
     const active = staffRows.filter((row) => row.is_active).length;
     const abnCount = staffRows.filter((row) => row.abn).length;
     const noCode = staffRows.filter((row) => !row.staff_code).length;
+    const noPolicy = staffRows.filter((row) => !row.payout_policy_id).length;
 
     return [
       summaryCard("Staff in view", total),
       summaryCard("Active", active),
       summaryCard("With ABN", abnCount),
+      summaryCard("No policy", noPolicy),
       summaryCard("No code yet", noCode),
     ];
   }, [staffRows]);
@@ -189,10 +233,7 @@ export default function OwnerStaffPage({ params }) {
         "Total Hours",
         formatMinutes(payoutSummary.total_minutes || 0)
       ),
-      summaryCard(
-        "Total Payout",
-        currency(payoutSummary.total_payout || 0)
-      ),
+      summaryCard("Total Payout", currency(payoutSummary.total_payout || 0)),
     ];
   }, [payoutSummary]);
 
@@ -210,6 +251,7 @@ export default function OwnerStaffPage({ params }) {
       name_legal: row.name_legal || "",
       staff_code: row.staff_code || "",
       employment_type: row.employment_type || "temporary",
+      payout_policy_id: row.payout_policy_id ? String(row.payout_policy_id) : "",
       start_date: safeDateInputValue(row.start_date),
       end_date: safeDateInputValue(row.end_date),
       abn: row.abn || "",
@@ -237,12 +279,17 @@ export default function OwnerStaffPage({ params }) {
 
       const method = isEdit ? "PATCH" : "POST";
 
+      const payload = {
+        ...form,
+        payout_policy_id: form.payout_policy_id || null,
+      };
+
       const res = await fetch(url, {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -265,10 +312,13 @@ export default function OwnerStaffPage({ params }) {
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-semibold text-emerald-600">Owner Dashboard</p>
+        <p className="text-sm font-semibold text-emerald-600">
+          Owner Dashboard
+        </p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900">Staff</h1>
         <p className="mt-2 text-sm text-gray-500">
-          Manage staff records and review payout totals by date range.
+          Manage staff records, assign payout policies, and review payout totals
+          by date range.
         </p>
       </section>
 
@@ -281,12 +331,12 @@ export default function OwnerStaffPage({ params }) {
             Staff Directory
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Add staff, update details later, and mark people inactive when they
-            leave.
+            Add staff, update details later, assign payment policy, and mark
+            people inactive when they leave.
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           {staffSummaryCards.map((card) => (
             <div
               key={card.title}
@@ -303,6 +353,19 @@ export default function OwnerStaffPage({ params }) {
           ))}
         </div>
 
+        {policiesError ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {policiesError}
+          </div>
+        ) : null}
+
+        {policies.length === 0 && !policiesLoading ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            No payout policies found yet. Create at least one payout policy, then
+            assign it to staff here.
+          </div>
+        ) : null}
+
         <div className="grid gap-6 lg:grid-cols-[420px,1fr]">
           <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -311,8 +374,8 @@ export default function OwnerStaffPage({ params }) {
                   {formMode === "edit" ? "Edit Staff" : "Add Staff"}
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Basic staff profile for owner use, payroll notes, and tax
-                  reference.
+                  Basic staff profile for owner use, payroll notes, tax
+                  reference, and payout policy.
                 </p>
               </div>
 
@@ -394,6 +457,34 @@ export default function OwnerStaffPage({ params }) {
                     <option value="contractor">Contractor</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <FieldLabel optional>Payout Policy</FieldLabel>
+                <select
+                  value={form.payout_policy_id || ""}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      payout_policy_id: e.target.value || "",
+                    }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
+                  disabled={policiesLoading}
+                >
+                  <option value="">
+                    {policiesLoading ? "Loading policies..." : "No policy"}
+                  </option>
+                  {policies.map((policy) => (
+                    <option key={policy.id} value={policy.id}>
+                      {policy.name}
+                      {policy.is_active === false ? " (inactive)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  Staff without a payout policy may show $0 payout in reports.
+                </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -482,8 +573,8 @@ export default function OwnerStaffPage({ params }) {
                     ? "Saving changes..."
                     : "Saving..."
                   : formMode === "edit"
-                  ? "Save changes"
-                  : "Save new staff"}
+                    ? "Save changes"
+                    : "Save new staff"}
               </button>
             </form>
           </div>
@@ -491,7 +582,9 @@ export default function OwnerStaffPage({ params }) {
           <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Staff List</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Staff List
+                </h3>
                 <p className="mt-1 text-sm text-gray-500">
                   Store records for this team.
                 </p>
@@ -538,6 +631,7 @@ export default function OwnerStaffPage({ params }) {
                         <th className="px-4 py-3 font-medium">Staff</th>
                         <th className="px-4 py-3 font-medium">Code</th>
                         <th className="px-4 py-3 font-medium">Employment</th>
+                        <th className="px-4 py-3 font-medium">Payout Policy</th>
                         <th className="px-4 py-3 font-medium">ABN</th>
                         <th className="px-4 py-3 font-medium">Start</th>
                         <th className="px-4 py-3 font-medium">Status</th>
@@ -548,46 +642,63 @@ export default function OwnerStaffPage({ params }) {
                     </thead>
 
                     <tbody className="divide-y divide-gray-200 bg-white">
-                      {staffRows.map((row) => (
-                        <tr key={row.id} className="text-sm text-gray-700">
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-900">
-                              {row.name_display || row.name || "-"}
-                            </div>
-                            <div className="mt-1 text-xs text-gray-500">
-                              Legal: {row.name_legal || "-"}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">{row.staff_code || "-"}</td>
-                          <td className="px-4 py-4">
-                            {formatEmploymentType(row.employment_type)}
-                          </td>
-                          <td className="px-4 py-4">{row.abn || "-"}</td>
-                          <td className="px-4 py-4">
-                            {safeDateInputValue(row.start_date) || "-"}
-                          </td>
-                          <td className="px-4 py-4">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                                row.is_active
-                                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
-                                  : "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200"
-                              }`}
-                            >
-                              {row.is_active ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => startEditStaff(row)}
-                              className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {staffRows.map((row) => {
+                        const policy = row.payout_policy_id
+                          ? policiesById.get(String(row.payout_policy_id))
+                          : null;
+
+                        return (
+                          <tr key={row.id} className="text-sm text-gray-700">
+                            <td className="px-4 py-4">
+                              <div className="font-medium text-gray-900">
+                                {row.name_display || row.name || "-"}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                Legal: {row.name_legal || "-"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">{row.staff_code || "-"}</td>
+                            <td className="px-4 py-4">
+                              {formatEmploymentType(row.employment_type)}
+                            </td>
+                            <td className="px-4 py-4">
+                              {policy ? (
+                                <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                                  {policy.name}
+                                </span>
+                              ) : (
+                                <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                                  No policy
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">{row.abn || "-"}</td>
+                            <td className="px-4 py-4">
+                              {safeDateInputValue(row.start_date) || "-"}
+                            </td>
+                            <td className="px-4 py-4">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                  row.is_active
+                                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
+                                    : "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200"
+                                }`}
+                              >
+                                {row.is_active ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => startEditStaff(row)}
+                                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

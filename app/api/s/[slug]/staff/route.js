@@ -47,11 +47,6 @@ export async function GET(request, context) {
       query = query.eq("is_active", true);
     } else if (status === "inactive") {
       query = query.eq("is_active", false);
-    } else if (status !== "all") {
-      return NextResponse.json(
-        { error: "Invalid status. Use all, active, or inactive." },
-        { status: 400 }
-      );
     }
 
     const { data, error } = await query;
@@ -62,7 +57,7 @@ export async function GET(request, context) {
 
     return NextResponse.json(Array.isArray(data) ? data : []);
   } catch (error) {
-    console.error("GET /api/s/[slug]/staff error:", error);
+    console.error("GET staff error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -77,36 +72,22 @@ export async function POST(request, context) {
 
     const body = await request.json();
 
-    const name_display = String(body.name_display || "").trim();
-    const name_legal = normalizeNullableText(body.name_legal);
-    const staff_code = normalizeNullableText(body.staff_code);
-    const employment_type = String(body.employment_type || "temporary").trim();
-    const start_date = body.start_date || null;
-    const end_date = body.end_date || null;
-    const abn = normalizeNullableText(body.abn);
-    const tfn = normalizeNullableText(body.tfn);
-    const is_active =
-      typeof body.is_active === "boolean" ? body.is_active : true;
-
-    if (!name_display) {
-      return NextResponse.json(
-        { error: "name_display is required" },
-        { status: 400 }
-      );
-    }
-
     const payload = {
-      name: name_legal || name_display,
+      name: body.name_display,
       role: "staff",
-      name_display,
-      name_legal,
-      staff_code,
-      is_active,
-      start_date,
-      end_date,
-      abn,
-      tfn,
-      employment_type,
+      name_display: body.name_display,
+      name_legal: normalizeNullableText(body.name_legal),
+      staff_code: normalizeNullableText(body.staff_code),
+      employment_type: body.employment_type || "temporary",
+      start_date: body.start_date || null,
+      end_date: body.end_date || null,
+      abn: normalizeNullableText(body.abn),
+      tfn: normalizeNullableText(body.tfn),
+      is_active: body.is_active ?? true,
+
+      // ✅ NEW
+      payout_policy_id: body.payout_policy_id || null,
+
       store_id: store.id,
     };
 
@@ -117,19 +98,12 @@ export async function POST(request, context) {
       .single();
 
     if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json(
-          { error: "This staff code is already in use." },
-          { status: 400 }
-        );
-      }
-
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("POST /api/s/[slug]/staff error:", error);
+    console.error("POST staff error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
