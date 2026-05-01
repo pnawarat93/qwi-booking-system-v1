@@ -42,7 +42,6 @@ export default function StoreAdminPage() {
     activeBookings: [],
     inactiveBookings: [],
     unassignedBookings: [],
-    // ✅ เพิ่มตัวนี้
     missingAssignedPaidBookings: [],
   });
 
@@ -75,18 +74,60 @@ export default function StoreAdminPage() {
     setSelectedDate((prev) => prev || getTodayInTimeZone(storeTimeZone));
   }, [storeTimeZone]);
 
+  async function loadStoreDayForDate(dateToLoad) {
+    if (!store?.slug || !dateToLoad) return null;
+
+    setLoadingStoreDay(true);
+
+    try {
+      const res = await fetch(
+        storeApiUrl(
+          store.slug,
+          `/store-day?date=${dateToLoad}&t=${Date.now()}`
+        ),
+        {
+          cache: "no-store",
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load store day");
+      }
+
+      const nextStoreDay = data?.store_day || null;
+      setStoreDay(nextStoreDay);
+
+      return nextStoreDay;
+    } catch (error) {
+      console.error("Failed to load store day:", error);
+      setStoreDay(null);
+      return null;
+    } finally {
+      setLoadingStoreDay(false);
+    }
+  }
+
   useEffect(() => {
     let isMounted = true;
 
-    async function loadStoreDay() {
+    async function run() {
       if (!store?.slug || !selectedDate) return;
 
-      try {
-        setLoadingStoreDay(true);
+      setLoadingStoreDay(true);
 
+      try {
         const res = await fetch(
-          storeApiUrl(store.slug, `/store-day?date=${selectedDate}`)
+          storeApiUrl(
+            store.slug,
+            `/store-day?date=${selectedDate}&t=${Date.now()}`
+          ),
+          {
+            cache: "no-store",
+          }
         );
+
         const data = await res.json();
 
         if (!res.ok) {
@@ -108,7 +149,7 @@ export default function StoreAdminPage() {
       }
     }
 
-    loadStoreDay();
+    run();
 
     return () => {
       isMounted = false;
@@ -130,7 +171,6 @@ export default function StoreAdminPage() {
 
   const unassignedCount = trayData.unassignedBookings?.length || 0;
 
-  // ✅ เพิ่ม count ใหม่
   const missingAssignedPaidCount =
     trayData.missingAssignedPaidBookings?.length || 0;
 
@@ -143,8 +183,15 @@ export default function StoreAdminPage() {
     setGridRefreshToken((prev) => prev + 1);
   }
 
-  function handleStartedDay(startedStoreDay) {
-    setStoreDay(startedStoreDay || null);
+  async function handleStartedDay(startedStoreDay) {
+    const nextStoreDay =
+      startedStoreDay?.store_day || startedStoreDay || null;
+
+    if (nextStoreDay) {
+      setStoreDay(nextStoreDay);
+    }
+
+    await loadStoreDayForDate(selectedDate);
     refreshGridNow();
   }
 
@@ -183,7 +230,6 @@ export default function StoreAdminPage() {
         />
       </div>
 
-      {/* ✅ Unassigned (pending only) */}
       {unassignedCount > 0 && (
         <div className="sticky top-[146px] z-20 shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -208,7 +254,6 @@ export default function StoreAdminPage() {
         </div>
       )}
 
-      {/* ✅ NEW: Paid alert */}
       {missingAssignedPaidCount > 0 && (
         <div className="sticky top-[146px] z-20 shrink-0 border-b border-blue-200 bg-blue-50 px-4 py-3">
           <div className="text-sm text-blue-800">
@@ -318,6 +363,7 @@ export default function StoreAdminPage() {
           onClose={() => setShowEndDayReport(false)}
           onFinish={() => {
             setShowEndDayReport(false);
+            loadStoreDayForDate(selectedDate);
             refreshGridNow();
           }}
         />

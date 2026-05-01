@@ -2,6 +2,152 @@ import { supabase } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 import { resolveStoreFromParams } from "@/lib/storeResolver";
 
+const DEFAULT_DAILY_GUARANTEE_CONFIG = {
+  mon: 0,
+  tue: 0,
+  wed: 0,
+  thu: 0,
+  fri: 0,
+  sat: 0,
+  sun: 0,
+};
+
+function getDayKey(dateStr) {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return map[day];
+}
+
+function getDailyGuarantee(storeConfig, dateStr) {
+  if (!storeConfig?.enable_daily_guarantee) return 0;
+
+  const config = {
+    ...DEFAULT_DAILY_GUARANTEE_CONFIG,
+    ...(storeConfig.daily_guarantee_config || {}),
+  };
+
+  const key = getDayKey(dateStr);
+  return Number(config[key] || 0);
+}
+
+function getWeekdayFromDate(dateString) {
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (Number.isNaN(utcDate.getTime())) return null;
+  return utcDate.getUTCDay();
+}
+
+async function getEffectiveStaffForDate(storeId, date) {
+  const weekday = getWeekdayFromDate(date);
+
+  if (weekday === null) {
+    throw new Error("Invalid date format");
+  }
+
+  const [{ data: rosterRows, error: rosterError }, { data: overrideRows, error: overrideError }] =
+    await Promise.all([
+      supabase
+        .from("staff_rosters")
+        .select(`
+          id,
+          store_id,
+          staff_id,
+          weekday,
+          is_working,
+          display_order,
+          is_active,
+          staff (
+            id,
+            name,
+            name_display,
+            is_active,
+            store_id
+          )
+        `)
+        .eq("store_id", storeId)
+        .eq("weekday", weekday)
+        .eq("is_active", true),
+
+      supabase
+        .from("staff_shift_overrides")
+        .select(`
+          id,
+          store_id,
+          staff_id,
+          override_date,
+          is_working,
+          display_order,
+          staff (
+            id,
+            name,
+            name_display,
+            is_active,
+            store_id
+          )
+        `)
+        .eq("store_id", storeId)
+        .eq("override_date", date),
+    ]);
+
+  if (rosterError) throw new Error(rosterError.message);
+  if (overrideError) throw new Error(overrideError.message);
+
+  const staffMap = new Map();
+
+  (Array.isArray(rosterRows) ? rosterRows : []).forEach((row) => {
+    const member = Array.isArray(row.staff) ? row.staff[0] : row.staff;
+
+    if (!member) return;
+    if (member.store_id !== storeId) return;
+    if (member.is_active === false) return;
+
+    staffMap.set(String(row.staff_id), {
+      id: row.staff_id,
+      name: member.name,
+      name_display: member.name_display,
+      is_working: row.is_working,
+      display_order: row.display_order ?? 0,
+      source: "roster",
+    });
+  });
+
+  (Array.isArray(overrideRows) ? overrideRows : []).forEach((row) => {
+    const member = Array.isArray(row.staff) ? row.staff[0] : row.staff;
+    const existing = staffMap.get(String(row.staff_id));
+
+    if (!member) return;
+    if (member.store_id !== storeId) return;
+    if (member.is_active === false) return;
+
+    staffMap.set(String(row.staff_id), {
+      id: row.staff_id,
+      name: member.name,
+      name_display: member.name_display,
+      is_working: row.is_working,
+      display_order:
+        row.display_order !== null && row.display_order !== undefined
+          ? row.display_order
+          : existing?.display_order ?? 0,
+      source: "override",
+    });
+  });
+
+  return Array.from(staffMap.values())
+    .filter((staff) => staff.is_working === true)
+    .sort((a, b) => {
+      const aOrder = a.display_order ?? 0;
+      const bOrder = b.display_order ?? 0;
+
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      const aName = a.name_display || a.name || "";
+      const bName = b.name_display || b.name || "";
+      return aName.localeCompare(bName);
+    });
+}
+
 function sumPaymentRows(rows) {
   return rows.reduce(
     (acc, row) => {
@@ -69,7 +215,9 @@ function getJobServiceDuration(job) {
 }
 
 function getJobStaffPayoutFixed(job) {
-  return Number(job.staff_payout_snapshot ?? job.services?.staff_payout_fixed ?? 0);
+  return Number(
+    job.staff_payout_snapshot ?? job.services?.staff_payout_fixed ?? 0
+  );
 }
 
 function computePayoutForJob({ job, paymentRow, refundRows, policiesById }) {
@@ -170,6 +318,8 @@ export async function POST(request, context) {
 
     const [
       { data: storeDay, error: storeDayError },
+      { data: existingReport, error: existingReportError },
+      { data: storeConfig, error: storeConfigError },
       { data: jobs, error: jobsError },
     ] = await Promise.all([
       supabase
@@ -189,6 +339,19 @@ export async function POST(request, context) {
         .eq("store_id", store.id)
         .eq("day_date", date)
         .maybeSingle(),
+
+      supabase
+        .from("store_day_reports")
+        .select("id, closed_at")
+        .eq("store_id", store.id)
+        .eq("day_date", date)
+        .maybeSingle(),
+
+      supabase
+        .from("stores")
+        .select("enable_daily_guarantee, daily_guarantee_config")
+        .eq("id", store.id)
+        .single(),
 
       supabase
         .from("jobs")
@@ -232,8 +395,43 @@ export async function POST(request, context) {
       return NextResponse.json({ error: storeDayError.message }, { status: 500 });
     }
 
+    if (existingReportError) {
+      return NextResponse.json(
+        { error: existingReportError.message },
+        { status: 500 }
+      );
+    }
+
+    if (storeConfigError) {
+      return NextResponse.json(
+        { error: storeConfigError.message },
+        { status: 500 }
+      );
+    }
+
     if (jobsError) {
       return NextResponse.json({ error: jobsError.message }, { status: 500 });
+    }
+
+    if (!storeDay) {
+      return NextResponse.json(
+        { error: "Store day not found. Please open the day first." },
+        { status: 404 }
+      );
+    }
+
+    if (storeDay.closed_at || storeDay.is_open === false) {
+      return NextResponse.json(
+        { error: "This day is already closed and cannot be completed again." },
+        { status: 409 }
+      );
+    }
+
+    if (existingReport) {
+      return NextResponse.json(
+        { error: "End day report already exists. This report cannot be overwritten." },
+        { status: 409 }
+      );
     }
 
     const safeJobs = Array.isArray(jobs) ? jobs : [];
@@ -397,6 +595,17 @@ export async function POST(request, context) {
 
     const staffPayoutMap = new Map();
 
+    const workingStaff = await getEffectiveStaffForDate(store.id, date);
+
+    workingStaff.forEach((staff) => {
+      staffPayoutMap.set(String(staff.id), {
+        staff_id: staff.id,
+        staff_name: staff.name_display || staff.name || "Unknown staff",
+        payout_total: 0,
+        guarantee_top_up: 0,
+      });
+    });
+
     safeJobs.forEach((job) => {
       const staffId = job.staff?.id;
       if (!staffId) return;
@@ -406,6 +615,7 @@ export async function POST(request, context) {
           staff_id: staffId,
           staff_name: job.staff?.name_display || job.staff?.name || "Unknown staff",
           payout_total: 0,
+          guarantee_top_up: 0,
         });
       }
     });
@@ -487,6 +697,17 @@ export async function POST(request, context) {
       };
     });
 
+    const dailyGuarantee = getDailyGuarantee(storeConfig, date);
+
+    if (storeConfig?.enable_daily_guarantee) {
+      staffPayoutMap.forEach((entry) => {
+        const calculated = roundMoney(entry.payout_total || 0);
+        const finalPayout = Math.max(calculated, dailyGuarantee);
+        entry.payout_total = roundMoney(finalPayout);
+        entry.guarantee_top_up = roundMoney(finalPayout - calculated);
+      });
+    }
+
     const totalStaffPayout = roundMoney(
       Array.from(staffPayoutMap.values()).reduce(
         (sum, row) => sum + Number(row.payout_total || 0),
@@ -556,26 +777,12 @@ export async function POST(request, context) {
 
     const { data: reportRow, error: reportError } = await supabase
       .from("store_day_reports")
-      .upsert(reportPayload, {
-        onConflict: "store_id,day_date",
-      })
+      .insert(reportPayload)
       .select()
       .single();
 
     if (reportError) {
       return NextResponse.json({ error: reportError.message }, { status: 500 });
-    }
-
-    const { error: deleteRowsError } = await supabase
-      .from("store_day_report_rows")
-      .delete()
-      .eq("store_day_report_id", reportRow.id);
-
-    if (deleteRowsError) {
-      return NextResponse.json(
-        { error: deleteRowsError.message },
-        { status: 500 }
-      );
     }
 
     if (rowPayloads.length > 0) {

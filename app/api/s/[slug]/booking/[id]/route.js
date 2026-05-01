@@ -35,6 +35,55 @@ function normalizeTime(value) {
   return String(value).substring(0, 8);
 }
 
+async function getStoreDayLockStatus(storeId, date) {
+  if (!storeId || !date) {
+    return {
+      locked: false,
+      reason: null,
+    };
+  }
+
+  const [
+    { data: storeDay, error: storeDayError },
+    { data: existingReport, error: reportError },
+  ] = await Promise.all([
+    supabase
+      .from("store_days")
+      .select("id, store_id, day_date, is_open, closed_at")
+      .eq("store_id", storeId)
+      .eq("day_date", date)
+      .maybeSingle(),
+
+    supabase
+      .from("store_day_reports")
+      .select("id, store_id, day_date, closed_at")
+      .eq("store_id", storeId)
+      .eq("day_date", date)
+      .maybeSingle(),
+  ]);
+
+  if (storeDayError) {
+    throw new Error(storeDayError.message);
+  }
+
+  if (reportError) {
+    throw new Error(reportError.message);
+  }
+
+  if (storeDay?.closed_at || existingReport) {
+    return {
+      locked: true,
+      reason:
+        "This day has already been closed. Booking changes are locked after End Day.",
+    };
+  }
+
+  return {
+    locked: false,
+    reason: null,
+  };
+}
+
 async function getEffectiveStaffForDate(storeId, date) {
   const weekday = getWeekdayFromDate(date);
 
@@ -259,6 +308,37 @@ export async function PATCH(request, context) {
         { error: "Booking not found" },
         { status: 404 }
       );
+    }
+
+    const currentDayLock = await getStoreDayLockStatus(
+      store.id,
+      existingBooking.date
+    );
+
+    if (currentDayLock.locked) {
+      return NextResponse.json(
+        { error: currentDayLock.reason },
+        { status: 423 }
+      );
+    }
+
+    const targetDate =
+      body.date !== undefined && body.date !== null && body.date !== ""
+        ? body.date
+        : existingBooking.date;
+
+    if (targetDate && targetDate !== existingBooking.date) {
+      const targetDayLock = await getStoreDayLockStatus(store.id, targetDate);
+
+      if (targetDayLock.locked) {
+        return NextResponse.json(
+          {
+            error:
+              "Target date has already been closed. Booking cannot be moved into a closed day.",
+          },
+          { status: 423 }
+        );
+      }
     }
 
     const updatePayload = {};

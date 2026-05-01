@@ -17,6 +17,143 @@ function totalAmount(row) {
   );
 }
 
+/* =========================
+   LOCK AFTER END DAY
+========================= */
+
+async function getStoreDayLockStatus(storeId, date) {
+  if (!storeId || !date) {
+    return {
+      locked: false,
+      reason: null,
+    };
+  }
+
+  const [
+    { data: storeDay, error: storeDayError },
+    { data: existingReport, error: reportError },
+  ] = await Promise.all([
+    supabase
+      .from("store_days")
+      .select("id, store_id, day_date, is_open, closed_at")
+      .eq("store_id", storeId)
+      .eq("day_date", date)
+      .maybeSingle(),
+
+    supabase
+      .from("store_day_reports")
+      .select("id, store_id, day_date, closed_at")
+      .eq("store_id", storeId)
+      .eq("day_date", date)
+      .maybeSingle(),
+  ]);
+
+  if (storeDayError) {
+    throw new Error(storeDayError.message);
+  }
+
+  if (reportError) {
+    throw new Error(reportError.message);
+  }
+
+  if (storeDay?.closed_at || existingReport) {
+    return {
+      locked: true,
+      reason:
+        "This day has already been closed. Payment changes are locked after End Day.",
+    };
+  }
+
+  return {
+    locked: false,
+    reason: null,
+  };
+}
+
+async function getJobDateForPaymentTarget({ storeId, job_id, jobgroup_id }) {
+  if (jobgroup_id) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("date")
+      .eq("store_id", storeId)
+      .eq("job_group_id", jobgroup_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data?.date || null;
+  }
+
+  if (job_id) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("date")
+      .eq("store_id", storeId)
+      .eq("id", job_id)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data?.date || null;
+  }
+
+  return null;
+}
+
+async function getPaymentTargetDate({ storeId, payment }) {
+  if (!payment) return null;
+
+  return await getJobDateForPaymentTarget({
+    storeId,
+    job_id: payment.job_id,
+    jobgroup_id: payment.job_group_id,
+  });
+}
+
+async function assertPaymentTargetIsNotLocked({ storeId, job_id, jobgroup_id }) {
+  const targetDate = await getJobDateForPaymentTarget({
+    storeId,
+    job_id,
+    jobgroup_id,
+  });
+
+  const lock = await getStoreDayLockStatus(storeId, targetDate);
+
+  if (lock.locked) {
+    return {
+      locked: true,
+      error: lock.reason,
+    };
+  }
+
+  return {
+    locked: false,
+    error: null,
+  };
+}
+
+async function assertPaymentRowIsNotLocked({ storeId, payment }) {
+  const targetDate = await getPaymentTargetDate({ storeId, payment });
+  const lock = await getStoreDayLockStatus(storeId, targetDate);
+
+  if (lock.locked) {
+    return {
+      locked: true,
+      error: lock.reason,
+    };
+  }
+
+  return {
+    locked: false,
+    error: null,
+  };
+}
+
 async function getLatestActivePayment({ storeId, job_id, jobgroup_id }) {
   let query = supabase
     .from("payments")
@@ -159,6 +296,18 @@ export async function POST(request, context) {
         );
       }
 
+      const parentLock = await assertPaymentRowIsNotLocked({
+        storeId: store.id,
+        payment: parentPayment,
+      });
+
+      if (parentLock.locked) {
+        return NextResponse.json(
+          { error: parentLock.error || "This day is closed. Cannot refund." },
+          { status: 423 }
+        );
+      }
+
       if (parentPayment.transaction_type !== "payment") {
         return NextResponse.json(
           { error: "Refund must reference a payment transaction" },
@@ -260,6 +409,23 @@ export async function POST(request, context) {
       );
     }
 
+    const paymentTargetLock = await assertPaymentTargetIsNotLocked({
+      storeId: store.id,
+      job_id,
+      jobgroup_id,
+    });
+
+    if (paymentTargetLock.locked) {
+      return NextResponse.json(
+        {
+          error:
+            paymentTargetLock.error ||
+            "This day is closed. Cannot record payment.",
+        },
+        { status: 423 }
+      );
+    }
+
     const { data: existingPayment, error: existingPaymentError } =
       await getLatestActivePayment({
         storeId: store.id,
@@ -355,9 +521,13 @@ export async function POST(request, context) {
     );
   } catch (error) {
     console.error("POST /api/s/[slug]/payments error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Server error" },
+      { status: 500 }
+    );
   }
 }
+
 export async function PATCH(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -382,6 +552,37 @@ export async function PATCH(request, context) {
       return NextResponse.json(
         { error: "Missing payment_id" },
         { status: 400 }
+      );
+    }
+
+    const { data: existingPayment, error: existingPaymentError } =
+      await supabase
+        .from("payments")
+        .select("*")
+        .eq("id", payment_id)
+        .eq("transaction_type", "payment")
+        .eq("store_id", store.id)
+        .single();
+
+    if (existingPaymentError) {
+      return NextResponse.json(
+        { error: existingPaymentError.message },
+        { status: 500 }
+      );
+    }
+
+    const paymentLock = await assertPaymentRowIsNotLocked({
+      storeId: store.id,
+      payment: existingPayment,
+    });
+
+    if (paymentLock.locked) {
+      return NextResponse.json(
+        {
+          error:
+            paymentLock.error || "This day is closed. Cannot edit payment.",
+        },
+        { status: 423 }
       );
     }
 
@@ -423,7 +624,10 @@ export async function PATCH(request, context) {
     );
   } catch (error) {
     console.error("PATCH /api/s/[slug]/payments error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Server error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -453,6 +657,21 @@ export async function DELETE(request, context) {
 
     if (fetchError) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    }
+
+    const paymentLock = await assertPaymentRowIsNotLocked({
+      storeId: store.id,
+      payment: paymentRow,
+    });
+
+    if (paymentLock.locked) {
+      return NextResponse.json(
+        {
+          error:
+            paymentLock.error || "This day is closed. Cannot void payment.",
+        },
+        { status: 423 }
+      );
     }
 
     if (paymentRow.transaction_type !== "payment") {
@@ -534,6 +753,9 @@ export async function DELETE(request, context) {
     );
   } catch (error) {
     console.error("DELETE /api/s/[slug]/payments error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Server error" },
+      { status: 500 }
+    );
   }
 }

@@ -56,6 +56,18 @@ export default function OwnerSettingsPage() {
     daily_guarantee_config: DEFAULT_DAILY_GUARANTEE_CONFIG,
   });
 
+  const [payoutPolicies, setPayoutPolicies] = useState([]);
+  const [loadingPayoutPolicies, setLoadingPayoutPolicies] = useState(false);
+  const [savingPayoutPolicy, setSavingPayoutPolicy] = useState(false);
+  const [payoutPolicyForm, setPayoutPolicyForm] = useState({
+    name: "",
+    payout_type: "fixed_per_job",
+    fixed_amount: "",
+    percent: "",
+    hourly_rate: "",
+    refund_behavior: "exclude_full",
+  });
+
   const [loading, setLoading] = useState(true);
   const [savingStore, setSavingStore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -93,9 +105,30 @@ export default function OwnerSettingsPage() {
     }
   }
 
+  async function loadPayoutPolicies() {
+    try {
+      setLoadingPayoutPolicies(true);
+
+      const res = await fetch(apiPath(store.slug, "/payout-policies"));
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load payout policies");
+      }
+
+      setPayoutPolicies(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(error.message || "Failed to load payout policies");
+    } finally {
+      setLoadingPayoutPolicies(false);
+    }
+  }
+
   useEffect(() => {
     if (!store.slug) return;
     loadStoreInfo();
+    loadPayoutPolicies();
   }, [store.slug]);
 
   const bookingLink = useMemo(() => {
@@ -149,6 +182,52 @@ export default function OwnerSettingsPage() {
       setErrorMessage(error.message || "Could not save store settings");
     } finally {
       setSavingStore(false);
+    }
+  }
+
+  async function handleCreatePayoutPolicy() {
+    try {
+      setSavingPayoutPolicy(true);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const res = await fetch(apiPath(store.slug, "/payout-policies"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: payoutPolicyForm.name.trim(),
+          payout_type: payoutPolicyForm.payout_type,
+          fixed_amount: Number(payoutPolicyForm.fixed_amount || 0),
+          percent: Number(payoutPolicyForm.percent || 0),
+          hourly_rate: Number(payoutPolicyForm.hourly_rate || 0),
+          refund_behavior: payoutPolicyForm.refund_behavior,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to create payout policy");
+      }
+
+      setPayoutPolicyForm({
+        name: "",
+        payout_type: "fixed_per_job",
+        fixed_amount: "",
+        percent: "",
+        hourly_rate: "",
+        refund_behavior: "exclude_full",
+      });
+
+      await loadPayoutPolicies();
+      setSuccessMessage("Payout policy created");
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(error.message || "Could not create payout policy");
+    } finally {
+      setSavingPayoutPolicy(false);
     }
   }
 
@@ -442,6 +521,213 @@ export default function OwnerSettingsPage() {
               This link is created from your onboarding setup and cannot be
               changed here.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100">
+            <ShieldCheck className="h-5 w-5 text-gray-700" />
+          </div>
+
+          <div className="w-full">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Payout Policies
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Create payout rules for staff. After creating a policy, assign it
+              to each staff member on the Staff page.
+            </p>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Policy name
+                </label>
+                <input
+                  value={payoutPolicyForm.name}
+                  onChange={(e) =>
+                    setPayoutPolicyForm((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                  placeholder="Standard therapist rate"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Payout type
+                </label>
+                <select
+                  value={payoutPolicyForm.payout_type}
+                  onChange={(e) =>
+                    setPayoutPolicyForm((prev) => ({
+                      ...prev,
+                      payout_type: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                >
+                  <option value="fixed_per_job">Fixed per job</option>
+                  <option value="percent">Percent of payment</option>
+                  <option value="per_hour">Per hour</option>
+                </select>
+              </div>
+
+              {payoutPolicyForm.payout_type === "fixed_per_job" ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Fixed amount
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={payoutPolicyForm.fixed_amount}
+                    onChange={(e) =>
+                      setPayoutPolicyForm((prev) => ({
+                        ...prev,
+                        fixed_amount: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                    placeholder="50"
+                  />
+                </div>
+              ) : null}
+
+              {payoutPolicyForm.payout_type === "percent" ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Percent
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={payoutPolicyForm.percent}
+                    onChange={(e) =>
+                      setPayoutPolicyForm((prev) => ({
+                        ...prev,
+                        percent: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                    placeholder="40"
+                  />
+                </div>
+              ) : null}
+
+              {payoutPolicyForm.payout_type === "per_hour" ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Hourly rate
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={payoutPolicyForm.hourly_rate}
+                    onChange={(e) =>
+                      setPayoutPolicyForm((prev) => ({
+                        ...prev,
+                        hourly_rate: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                    placeholder="50"
+                  />
+                </div>
+              ) : null}
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Refund behavior
+                </label>
+                <select
+                  value={payoutPolicyForm.refund_behavior}
+                  onChange={(e) =>
+                    setPayoutPolicyForm((prev) => ({
+                      ...prev,
+                      refund_behavior: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                >
+                  <option value="exclude_full">Use net amount after refund</option>
+                  <option value="full_pay">Pay based on original payment</option>
+                  <option value="prorate">Prorate by remaining payment</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCreatePayoutPolicy}
+              disabled={savingPayoutPolicy || !payoutPolicyForm.name.trim()}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {savingPayoutPolicy ? "Creating..." : "Create payout policy"}
+            </button>
+
+            <div className="mt-6 space-y-3">
+              {loadingPayoutPolicies ? (
+                <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
+                  Loading payout policies...
+                </div>
+              ) : payoutPolicies.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
+                  No payout policies yet.
+                </div>
+              ) : (
+                payoutPolicies.map((policy) => (
+                  <div
+                    key={policy.id}
+                    className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {policy.name}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {policy.payout_type}
+                          {policy.payout_type === "fixed_per_job"
+                            ? ` · $${Number(policy.fixed_amount || 0).toFixed(
+                                2
+                              )} per job`
+                            : ""}
+                          {policy.payout_type === "percent"
+                            ? ` · ${Number(policy.percent || 0)}%`
+                            : ""}
+                          {policy.payout_type === "per_hour"
+                            ? ` · $${Number(policy.hourly_rate || 0).toFixed(
+                                2
+                              )} per hour`
+                            : ""}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
+                          policy.is_active
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
+                            : "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200"
+                        }`}
+                      >
+                        {policy.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </section>
