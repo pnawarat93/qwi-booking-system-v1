@@ -43,6 +43,12 @@ export async function POST(request, context) {
         { status: 401 }
       );
     }
+    if (!owner.email_verified_at) {
+      return NextResponse.json(
+        { error: "Please verify your email before logging in" },
+        { status: 403 }
+      );
+    }
 
     // 3. Verify this owner actually owns the requested store
     // Comparing the owner.id with store.owner_id
