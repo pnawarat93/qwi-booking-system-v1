@@ -23,6 +23,11 @@ function formatEmploymentType(value) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getRoleLabel(policy) {
+  if (!policy) return "";
+  return policy.role_name || policy.name || "Role";
+}
+
 function formatMinutes(totalMinutes) {
   const mins = Number(totalMinutes || 0);
   const hours = Math.floor(mins / 60);
@@ -111,13 +116,13 @@ export default function OwnerStaffPage({ params }) {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to load payout policies");
+        throw new Error(data?.error || "Failed to load employment roles");
       }
 
       setPolicies(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      setPoliciesError(err.message || "Could not load payout policies.");
+      setPoliciesError(err.message || "Could not load employment roles.");
       setPolicies([]);
     } finally {
       setPoliciesLoading(false);
@@ -212,13 +217,13 @@ export default function OwnerStaffPage({ params }) {
     const active = staffRows.filter((row) => row.is_active).length;
     const abnCount = staffRows.filter((row) => row.abn).length;
     const noCode = staffRows.filter((row) => !row.staff_code).length;
-    const noPolicy = staffRows.filter((row) => !row.payout_policy_id).length;
+    const noRole = staffRows.filter((row) => !row.payout_policy_id).length;
 
     return [
       summaryCard("Staff in view", total),
       summaryCard("Active", active),
       summaryCard("With ABN", abnCount),
-      summaryCard("No policy", noPolicy),
+      summaryCard("No role", noRole),
       summaryCard("No code yet", noCode),
     ];
   }, [staffRows]);
@@ -272,6 +277,10 @@ export default function OwnerStaffPage({ params }) {
       setSaving(true);
       setStaffError("");
 
+      if (!form.payout_policy_id) {
+        throw new Error("Please select an employment role for this staff member.");
+      }
+
       const isEdit = formMode === "edit" && editingId;
       const url = isEdit
         ? apiPath(slug, `/staff/${editingId}`)
@@ -317,7 +326,7 @@ export default function OwnerStaffPage({ params }) {
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900">Staff</h1>
         <p className="mt-2 text-sm text-gray-500">
-          Manage staff records, assign payout policies, and review payout totals
+          Manage staff records, assign employment roles, and review payout totals
           by date range.
         </p>
       </section>
@@ -331,8 +340,8 @@ export default function OwnerStaffPage({ params }) {
             Staff Directory
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Add staff, update details later, assign payment policy, and mark
-            people inactive when they leave.
+            Add staff, update details later, assign their employment role, and
+            mark people inactive when they leave.
           </p>
         </div>
 
@@ -361,8 +370,8 @@ export default function OwnerStaffPage({ params }) {
 
         {policies.length === 0 && !policiesLoading ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            No payout policies found yet. Create at least one payout policy, then
-            assign it to staff here.
+            No employment roles found yet. Create at least one role in
+            Employment Roles & Payout before adding staff.
           </div>
         ) : null}
 
@@ -375,7 +384,7 @@ export default function OwnerStaffPage({ params }) {
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
                   Basic staff profile for owner use, payroll notes, tax
-                  reference, and payout policy.
+                  reference, and employment role.
                 </p>
               </div>
 
@@ -439,53 +448,36 @@ export default function OwnerStaffPage({ params }) {
                 </div>
 
                 <div>
-                  <FieldLabel>Employment type</FieldLabel>
+                  <FieldLabel>Employment Role *</FieldLabel>
                   <select
-                    value={form.employment_type}
+                    value={form.payout_policy_id || ""}
                     onChange={(e) =>
                       setForm((prev) => ({
                         ...prev,
-                        employment_type: e.target.value,
+                        payout_policy_id: e.target.value || "",
                       }))
                     }
                     className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
+                    disabled={policiesLoading}
+                    required
                   >
-                    <option value="temporary">Temporary</option>
-                    <option value="casual">Casual</option>
-                    <option value="part_time">Part-time</option>
-                    <option value="full_time">Full-time</option>
-                    <option value="contractor">Contractor</option>
+                    <option value="">
+                      {policiesLoading ? "Loading roles..." : "Select role"}
+                    </option>
+                    {policies.map((policy) => (
+                      <option key={policy.id} value={policy.id}>
+                        {getRoleLabel(policy)}
+                        {policy.is_active === false ? " (inactive)" : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <FieldLabel optional>Payout Policy</FieldLabel>
-                <select
-                  value={form.payout_policy_id || ""}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      payout_policy_id: e.target.value || "",
-                    }))
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
-                  disabled={policiesLoading}
-                >
-                  <option value="">
-                    {policiesLoading ? "Loading policies..." : "No policy"}
-                  </option>
-                  {policies.map((policy) => (
-                    <option key={policy.id} value={policy.id}>
-                      {policy.name}
-                      {policy.is_active === false ? " (inactive)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-2 text-xs text-gray-500">
-                  Staff without a payout policy may show $0 payout in reports.
-                </p>
-              </div>
+              <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                Role controls how payout is calculated. Create or edit roles in
+                Employment Roles & Payout.
+              </p>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -630,8 +622,7 @@ export default function OwnerStaffPage({ params }) {
                       <tr>
                         <th className="px-4 py-3 font-medium">Staff</th>
                         <th className="px-4 py-3 font-medium">Code</th>
-                        <th className="px-4 py-3 font-medium">Employment</th>
-                        <th className="px-4 py-3 font-medium">Payout Policy</th>
+                        <th className="px-4 py-3 font-medium">Role</th>
                         <th className="px-4 py-3 font-medium">ABN</th>
                         <th className="px-4 py-3 font-medium">Start</th>
                         <th className="px-4 py-3 font-medium">Status</th>
@@ -659,16 +650,13 @@ export default function OwnerStaffPage({ params }) {
                             </td>
                             <td className="px-4 py-4">{row.staff_code || "-"}</td>
                             <td className="px-4 py-4">
-                              {formatEmploymentType(row.employment_type)}
-                            </td>
-                            <td className="px-4 py-4">
                               {policy ? (
                                 <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                                  {policy.name}
+                                  {getRoleLabel(policy)}
                                 </span>
                               ) : (
                                 <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
-                                  No policy
+                                  No role
                                 </span>
                               )}
                             </td>
@@ -821,7 +809,7 @@ export default function OwnerStaffPage({ params }) {
                     <tr>
                       <th className="px-4 py-3 font-medium">Staff</th>
                       <th className="px-4 py-3 font-medium">Code</th>
-                      <th className="px-4 py-3 font-medium">Employment</th>
+                      <th className="px-4 py-3 font-medium">Role</th>
                       <th className="px-4 py-3 font-medium">ABN</th>
                       <th className="px-4 py-3 font-medium">Jobs</th>
                       <th className="px-4 py-3 font-medium">Hours</th>
@@ -837,7 +825,10 @@ export default function OwnerStaffPage({ params }) {
                         </td>
                         <td className="px-4 py-4">{row.staff_code || "-"}</td>
                         <td className="px-4 py-4">
-                          {formatEmploymentType(row.employment_type)}
+                          {row.role_name ||
+                            row.payout_role_name ||
+                            row.payout_policy_name ||
+                            formatEmploymentType(row.employment_type)}
                         </td>
                         <td className="px-4 py-4">{row.abn || "-"}</td>
                         <td className="px-4 py-4">{row.jobs_count || 0}</td>

@@ -488,7 +488,9 @@ export async function POST(request, context) {
 
     // 8) Insert jobs with service snapshots
     const rowsToInsert = assignedStaffIds.map((staffId) => {
-      const wasRequested = selectedFreeStaffIds.includes(staffId);
+      const wasRequested = is_walk_in
+        ? false
+        : selectedFreeStaffIds.includes(staffId);
 
       return {
         customer_name,

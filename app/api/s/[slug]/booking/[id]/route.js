@@ -392,6 +392,14 @@ export async function PATCH(request, context) {
       updatePayload.status = normalizeStatus(body.status);
     }
 
+    if (
+      updatePayload.status !== undefined &&
+      ["cancelled", "no_show"].includes(normalizeStatus(updatePayload.status))
+    ) {
+      updatePayload.requested_staff_id = null;
+      updatePayload.is_staff_requested = false;
+    }
+
     if (body.is_walk_in !== undefined) {
       updatePayload.is_walk_in = Boolean(body.is_walk_in);
     }
@@ -409,6 +417,7 @@ export async function PATCH(request, context) {
     const mergedTime = mergedBooking.time;
     const mergedStaffId = mergedBooking.staff_id;
     const mergedServiceId = Number(mergedBooking.service_id);
+    const mergedStatus = normalizeStatus(mergedBooking.status);
 
     if (!mergedDate || !mergedTime || !mergedServiceId) {
       return NextResponse.json(
@@ -473,7 +482,15 @@ export async function PATCH(request, context) {
       );
     }
 
-    if (mergedStaffId !== null && mergedStaffId !== undefined) {
+    const statusDoesNotRequireStaff = ["cancelled", "no_show"].includes(
+      mergedStatus
+    );
+
+    if (
+      !statusDoesNotRequireStaff &&
+      mergedStaffId !== null &&
+      mergedStaffId !== undefined
+    ) {
       const effectiveStaff = await getEffectiveStaffForDate(store.id, mergedDate);
 
       const selectedStaff = effectiveStaff.find(
@@ -497,10 +514,7 @@ export async function PATCH(request, context) {
         );
       }
 
-      if (
-        shiftEnd !== null &&
-        targetStart + effectiveDuration > shiftEnd
-      ) {
+      if (shiftEnd !== null && targetStart + effectiveDuration > shiftEnd) {
         return NextResponse.json(
           { error: "Selected staff is not available at this time" },
           { status: 400 }

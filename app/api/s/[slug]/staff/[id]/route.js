@@ -30,6 +30,27 @@ function normalizeNullableDate(value) {
   return text || null;
 }
 
+async function getRoleById(storeId, payoutPolicyId) {
+  if (!payoutPolicyId) return null;
+
+  const { data, error } = await supabase
+    .from("store_payout_policies")
+    .select("id, name, role_name, payout_type, is_active")
+    .eq("store_id", storeId)
+    .eq("id", payoutPolicyId)
+    .single();
+
+  if (error) return null;
+  return data || null;
+}
+
+function normalizeStaffRow(row, role = null) {
+  return {
+    ...row,
+    role_name: role?.role_name || role?.name || null,
+  };
+}
+
 export async function PATCH(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -59,6 +80,26 @@ export async function PATCH(request, context) {
       );
     }
 
+    const payoutPolicyId = body.payout_policy_id
+      ? Number(body.payout_policy_id)
+      : null;
+
+    if (!payoutPolicyId) {
+      return NextResponse.json(
+        { error: "Employment role is required" },
+        { status: 400 }
+      );
+    }
+
+    const role = await getRoleById(store.id, payoutPolicyId);
+
+    if (!role) {
+      return NextResponse.json(
+        { error: "Selected employment role does not exist" },
+        { status: 400 }
+      );
+    }
+
     const payload = {
       name: name_legal || name_display,
       name_display,
@@ -69,9 +110,8 @@ export async function PATCH(request, context) {
       end_date: normalizeNullableDate(body.end_date),
       abn: normalizeNullableText(body.abn),
       tfn: normalizeNullableText(body.tfn),
-      is_active:
-        typeof body.is_active === "boolean" ? body.is_active : true,
-      payout_policy_id: body.payout_policy_id || null,
+      is_active: typeof body.is_active === "boolean" ? body.is_active : true,
+      payout_policy_id: payoutPolicyId,
     };
 
     const { data, error } = await supabase
@@ -97,7 +137,7 @@ export async function PATCH(request, context) {
       return NextResponse.json({ error: "Staff not found" }, { status: 404 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(normalizeStaffRow(data, role));
   } catch (error) {
     console.error("PATCH /api/s/[slug]/staff/[id] error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

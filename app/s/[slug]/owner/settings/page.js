@@ -44,6 +44,10 @@ function normalizeDailyGuaranteeConfig(value) {
   };
 }
 
+function getRoleName(policy) {
+  return policy?.role_name || policy?.name || "Role";
+}
+
 export default function OwnerSettingsPage() {
   const store = useStore();
 
@@ -60,12 +64,10 @@ export default function OwnerSettingsPage() {
   const [loadingPayoutPolicies, setLoadingPayoutPolicies] = useState(false);
   const [savingPayoutPolicy, setSavingPayoutPolicy] = useState(false);
   const [payoutPolicyForm, setPayoutPolicyForm] = useState({
-    name: "",
+    role_name: "",
     payout_type: "fixed_per_job",
     fixed_amount: "",
     percent: "",
-    hourly_rate: "",
-    refund_behavior: "exclude_full",
   });
 
   const [loading, setLoading] = useState(true);
@@ -113,13 +115,13 @@ export default function OwnerSettingsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to load payout policies");
+        throw new Error(data?.error || "Failed to load employment roles");
       }
 
       setPayoutPolicies(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error(error);
-      setErrorMessage(error.message || "Failed to load payout policies");
+      setErrorMessage(error.message || "Failed to load employment roles");
     } finally {
       setLoadingPayoutPolicies(false);
     }
@@ -191,41 +193,59 @@ export default function OwnerSettingsPage() {
       setErrorMessage("");
       setSuccessMessage("");
 
+      const roleName = payoutPolicyForm.role_name.trim();
+
+      if (!roleName) {
+        throw new Error("Role name is required");
+      }
+
+      if (
+        payoutPolicyForm.payout_type === "percent" &&
+        Number(payoutPolicyForm.percent || 0) <= 0
+      ) {
+        throw new Error("Percent must be greater than 0");
+      }
+
       const res = await fetch(apiPath(store.slug, "/payout-policies"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: payoutPolicyForm.name.trim(),
+          role_name: roleName,
+          name: roleName,
           payout_type: payoutPolicyForm.payout_type,
-          fixed_amount: Number(payoutPolicyForm.fixed_amount || 0),
-          percent: Number(payoutPolicyForm.percent || 0),
-          hourly_rate: Number(payoutPolicyForm.hourly_rate || 0),
-          refund_behavior: payoutPolicyForm.refund_behavior,
+          fixed_amount:
+            payoutPolicyForm.payout_type === "fixed_per_job"
+              ? null
+              : null,
+          percent:
+            payoutPolicyForm.payout_type === "percent"
+              ? Number(payoutPolicyForm.percent || 0)
+              : null,
+          hourly_rate: null,
+          refund_behavior: "exclude_full",
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data?.error || "Failed to create payout policy");
+        throw new Error(data?.error || "Failed to create employment role");
       }
 
       setPayoutPolicyForm({
-        name: "",
+        role_name: "",
         payout_type: "fixed_per_job",
         fixed_amount: "",
         percent: "",
-        hourly_rate: "",
-        refund_behavior: "exclude_full",
       });
 
       await loadPayoutPolicies();
-      setSuccessMessage("Payout policy created");
+      setSuccessMessage("Employment role created");
     } catch (error) {
       console.error(error);
-      setErrorMessage(error.message || "Could not create payout policy");
+      setErrorMessage(error.message || "Could not create employment role");
     } finally {
       setSavingPayoutPolicy(false);
     }
@@ -263,7 +283,8 @@ export default function OwnerSettingsPage() {
           Store Settings
         </h1>
         <p className="mt-2 text-sm text-gray-500">
-          Update your store details and access your customer booking link.
+          Update your store details, booking link, daily guarantee, and staff
+          employment roles.
         </p>
       </section>
 
@@ -388,7 +409,7 @@ export default function OwnerSettingsPage() {
             <p className="mt-1 text-sm text-gray-500">
               Optional minimum daily payout for staff. If a staff member earns
               less than the daily guarantee, payout reports can use the guarantee
-              amount later.
+              amount for that day.
             </p>
 
             {loading ? (
@@ -414,46 +435,47 @@ export default function OwnerSettingsPage() {
                   </span>
                 </label>
 
-                <div
-                  className={`mt-5 grid gap-4 md:grid-cols-2 ${
-                    storeInfo.enable_daily_guarantee ? "" : "opacity-50"
-                  }`}
-                >
-                  {GUARANTEE_DAYS.map((day) => (
-                    <div key={day.key}>
-                      <label className="mb-2 block text-sm font-medium text-gray-700">
-                        {day.label}
-                      </label>
+                {storeInfo.enable_daily_guarantee ? (
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    {GUARANTEE_DAYS.map((day) => (
+                      <div key={day.key}>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                          {day.label}
+                        </label>
 
-                      <div className="relative">
-                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                          $
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          disabled={!storeInfo.enable_daily_guarantee}
-                          value={
-                            normalizeDailyGuaranteeConfig(
-                              storeInfo.daily_guarantee_config
-                            )[day.key]
-                          }
-                          onChange={(e) =>
-                            updateDailyGuaranteeDay(day.key, e.target.value)
-                          }
-                          className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-4 text-sm disabled:bg-gray-50"
-                          placeholder="0"
-                        />
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                            $
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={
+                              normalizeDailyGuaranteeConfig(
+                                storeInfo.daily_guarantee_config
+                              )[day.key]
+                            }
+                            onChange={(e) =>
+                              updateDailyGuaranteeDay(day.key, e.target.value)
+                            }
+                            className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-4 text-sm"
+                            placeholder="0"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                    Daily guarantee is disabled. Front desk guarantee fields and
+                    end-day guarantee top-up will be hidden.
+                  </div>
+                )}
 
                 <p className="mt-3 text-xs text-gray-500">
-                  Example: Mon–Thu 150, Fri 180, Sat–Sun 200. This setting is
-                  saved now; payout calculation will be connected in the next
-                  step.
+                  Example: Mon–Thu 150, Fri 180, Sat–Sun 200. Staff added during
+                  the day can still use the default value or a same-day override.
                 </p>
 
                 <button
@@ -533,29 +555,33 @@ export default function OwnerSettingsPage() {
 
           <div className="w-full">
             <h2 className="text-lg font-semibold text-gray-900">
-              Payout Policies
+              Employment Roles & Payout
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Create payout rules for staff. After creating a policy, assign it
-              to each staff member on the Staff page.
+              Create roles for your staff. Each role controls the base payout
+              calculation. Staff can be assigned to a role on the Staff page.
             </p>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Policy name
+                  Role name
                 </label>
                 <input
-                  value={payoutPolicyForm.name}
+                  value={payoutPolicyForm.role_name}
                   onChange={(e) =>
                     setPayoutPolicyForm((prev) => ({
                       ...prev,
-                      name: e.target.value,
+                      role_name: e.target.value,
                     }))
                   }
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                  placeholder="Standard therapist rate"
+                  placeholder="Senior therapist"
                 />
+                <p className="mt-2 text-xs text-gray-500">
+                  This is the role staff will select, such as Junior Therapist,
+                  Senior Therapist, or Weekend Casual.
+                </p>
               </div>
 
               <div>
@@ -568,35 +594,35 @@ export default function OwnerSettingsPage() {
                     setPayoutPolicyForm((prev) => ({
                       ...prev,
                       payout_type: e.target.value,
+                      percent:
+                        e.target.value === "percent" ? prev.percent : "",
+                      fixed_amount:
+                        e.target.value === "fixed_per_job"
+                          ? prev.fixed_amount
+                          : "",
                     }))
                   }
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
                 >
-                  <option value="fixed_per_job">Fixed per job</option>
+                  <option value="fixed_per_job">
+                    Fixed per service payout
+                  </option>
                   <option value="percent">Percent of payment</option>
-                  <option value="per_hour">Per hour</option>
                 </select>
               </div>
 
               {payoutPolicyForm.payout_type === "fixed_per_job" ? (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Fixed amount
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={payoutPolicyForm.fixed_amount}
-                    onChange={(e) =>
-                      setPayoutPolicyForm((prev) => ({
-                        ...prev,
-                        fixed_amount: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                    placeholder="50"
-                  />
+                <div className="md:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-900">
+                  <p className="font-medium">Fixed per service payout</p>
+                  <p className="mt-1">
+                    This role uses the payout amount already configured on each
+                    service. For example, a 60-minute massage service can have
+                    its own staff payout amount.
+                  </p>
+                  <p className="mt-2 text-xs text-blue-700">
+                    No amount is needed here. Edit service payout amounts on the
+                    Services page.
+                  </p>
                 </div>
               ) : null}
 
@@ -620,70 +646,37 @@ export default function OwnerSettingsPage() {
                     className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
                     placeholder="40"
                   />
+                  <p className="mt-2 text-xs text-gray-500">
+                    Example: 40 means this role gets 40% of the paid service
+                    amount.
+                  </p>
                 </div>
               ) : null}
-
-              {payoutPolicyForm.payout_type === "per_hour" ? (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Hourly rate
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={payoutPolicyForm.hourly_rate}
-                    onChange={(e) =>
-                      setPayoutPolicyForm((prev) => ({
-                        ...prev,
-                        hourly_rate: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                    placeholder="50"
-                  />
-                </div>
-              ) : null}
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Refund behavior
-                </label>
-                <select
-                  value={payoutPolicyForm.refund_behavior}
-                  onChange={(e) =>
-                    setPayoutPolicyForm((prev) => ({
-                      ...prev,
-                      refund_behavior: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                >
-                  <option value="exclude_full">Use net amount after refund</option>
-                  <option value="full_pay">Pay based on original payment</option>
-                  <option value="prorate">Prorate by remaining payment</option>
-                </select>
-              </div>
             </div>
 
             <button
               type="button"
               onClick={handleCreatePayoutPolicy}
-              disabled={savingPayoutPolicy || !payoutPolicyForm.name.trim()}
+              disabled={
+                savingPayoutPolicy ||
+                !payoutPolicyForm.role_name.trim() ||
+                (payoutPolicyForm.payout_type === "percent" &&
+                  Number(payoutPolicyForm.percent || 0) <= 0)
+              }
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
-              {savingPayoutPolicy ? "Creating..." : "Create payout policy"}
+              {savingPayoutPolicy ? "Creating..." : "Create role"}
             </button>
 
             <div className="mt-6 space-y-3">
               {loadingPayoutPolicies ? (
                 <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
-                  Loading payout policies...
+                  Loading employment roles...
                 </div>
               ) : payoutPolicies.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
-                  No payout policies yet.
+                  No employment roles yet.
                 </div>
               ) : (
                 payoutPolicies.map((policy) => (
@@ -694,22 +687,19 @@ export default function OwnerSettingsPage() {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-medium text-gray-900">
-                          {policy.name}
+                          {getRoleName(policy)}
                         </p>
                         <p className="mt-1 text-xs text-gray-500">
-                          {policy.payout_type}
                           {policy.payout_type === "fixed_per_job"
-                            ? ` · $${Number(policy.fixed_amount || 0).toFixed(
-                                2
-                              )} per job`
+                            ? "Fixed per service payout"
                             : ""}
                           {policy.payout_type === "percent"
-                            ? ` · ${Number(policy.percent || 0)}%`
+                            ? `${Number(policy.percent || 0)}% of payment`
                             : ""}
                           {policy.payout_type === "per_hour"
-                            ? ` · $${Number(policy.hourly_rate || 0).toFixed(
-                                2
-                              )} per hour`
+                            ? `Hourly payout hidden for V1 · $${Number(
+                                policy.hourly_rate || 0
+                              ).toFixed(2)} per hour`
                             : ""}
                         </p>
                       </div>

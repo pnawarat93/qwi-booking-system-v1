@@ -174,6 +174,58 @@ async function getLatestActivePayment({ storeId, job_id, jobgroup_id }) {
   return { data, error };
 }
 
+async function updateBookingStatusAfterRefund({ storeId, parentPayment }) {
+  const { data: refundRows, error: refundError } = await supabase
+    .from("payments")
+    .select("*")
+    .eq("store_id", storeId)
+    .eq("transaction_type", "refund")
+    .eq("status", "active")
+    .eq("parent_payment_id", parentPayment.id);
+
+  if (refundError) {
+    throw new Error(refundError.message);
+  }
+
+  const refundedTotal = (refundRows || []).reduce(
+    (sum, row) => sum + totalAmount(row),
+    0
+  );
+
+  const paymentTotal = totalAmount(parentPayment);
+  const fullyRefunded = refundedTotal >= paymentTotal && paymentTotal > 0;
+
+  if (fullyRefunded) {
+    if (parentPayment.job_group_id) {
+      const { error } = await supabase
+        .from("jobs")
+        .update({ status: "cancelled" })
+        .eq("job_group_id", parentPayment.job_group_id)
+        .eq("store_id", storeId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    } else if (parentPayment.job_id) {
+      const { error } = await supabase
+        .from("jobs")
+        .update({ status: "cancelled" })
+        .eq("id", parentPayment.job_id)
+        .eq("store_id", storeId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    }
+  }
+
+  return {
+    refundedTotal,
+    paymentTotal,
+    fullyRefunded,
+  };
+}
+
 export async function GET(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -395,8 +447,13 @@ export async function POST(request, context) {
         );
       }
 
+      const refundSummary = await updateBookingStatusAfterRefund({
+        storeId: store.id,
+        parentPayment,
+      });
+
       return NextResponse.json(
-        { message: "Refund recorded", data: refundRow },
+        { message: "Refund recorded", data: refundRow, refundSummary },
         { status: 201 }
       );
     }

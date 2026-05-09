@@ -82,6 +82,7 @@ export async function GET(request, context) {
           end_time,
           display_order,
           note,
+          daily_guarantee_override,
           staff (
             id,
             name,
@@ -125,6 +126,7 @@ export async function GET(request, context) {
         end_time: normalizeTime(row.end_time),
         display_order: row.display_order ?? 0,
         note: row.note || null,
+        daily_guarantee_override: null,
         source: "roster",
         roster_id: row.id,
         override_id: null,
@@ -154,6 +156,11 @@ export async function GET(request, context) {
             ? row.display_order
             : existing?.display_order ?? 0,
         note: row.note || existing?.note || null,
+        daily_guarantee_override:
+          row.daily_guarantee_override !== null &&
+          row.daily_guarantee_override !== undefined
+            ? Number(row.daily_guarantee_override)
+            : null,
         source: "override",
         roster_id: existing?.roster_id ?? null,
         override_id: row.id,
@@ -163,10 +170,16 @@ export async function GET(request, context) {
     let effectiveStaff = Array.from(mergedMap.values());
 
     if (!includeAll) {
-      effectiveStaff = effectiveStaff.filter((row) => row.is_working === true);
+      effectiveStaff = effectiveStaff.filter(
+        (row) => row.is_working === true
+      );
     }
 
     effectiveStaff.sort((a, b) => {
+      if (a.is_working !== b.is_working) {
+        return a.is_working ? -1 : 1;
+      }
+
       const aOrder = a.display_order ?? 0;
       const bOrder = b.display_order ?? 0;
 
@@ -174,6 +187,7 @@ export async function GET(request, context) {
 
       const aName = a.name_display || a.name || "";
       const bName = b.name_display || b.name || "";
+
       return aName.localeCompare(bName);
     });
 
@@ -189,6 +203,10 @@ export async function GET(request, context) {
     );
   } catch (error) {
     console.error("GET /api/s/[slug]/effective-staff error:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    );
   }
 }

@@ -62,6 +62,19 @@ function totalPaymentAmount(payment) {
   );
 }
 
+function getServicePrice(booking) {
+  return Number(
+    booking?.service_price_snapshot ??
+      booking?.services?.price ??
+      booking?.price ??
+      0
+  );
+}
+
+function handleNumberWheel(event) {
+  event.currentTarget.blur();
+}
+
 export default function BookingDetailsModal({
   booking,
   open,
@@ -101,7 +114,6 @@ export default function BookingDetailsModal({
     other: 0,
   });
 
-  const [paymentScope, setPaymentScope] = useState("job");
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showRefundForm, setShowRefundForm] = useState(false);
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
@@ -128,9 +140,17 @@ export default function BookingDetailsModal({
     setFormData({
       customer_name: booking.customer_name || "",
       customer_phone: booking.customer_phone || "",
-      service_name: booking.services?.name || booking.service_name || "",
+      service_name:
+        booking.service_name_snapshot ||
+        booking.services?.name ||
+        booking.service_name ||
+        "",
       time: booking.time?.substring(0, 5) || "",
-      duration: booking.duration ?? booking.services?.duration ?? 30,
+      duration:
+        booking.service_duration_snapshot ??
+        booking.duration ??
+        booking.services?.duration ??
+        30,
       status: booking.status?.toLowerCase() || "pending",
       notes: booking.notes || "",
       staff_id: booking.staff_id ? String(booking.staff_id) : "",
@@ -156,7 +176,6 @@ export default function BookingDetailsModal({
 
     setShowPaymentForm(false);
     setShowRefundForm(false);
-    setPaymentScope("job");
     setExistingPayment(null);
     setRefundRows([]);
     setRefundedTotal(0);
@@ -262,12 +281,18 @@ export default function BookingDetailsModal({
   }, [availableStaffOptions, booking]);
 
   const isGroupBooking = Boolean(booking?.job_group_id);
+  const isWalkInBooking = Boolean(booking?.is_walk_in);
   const isRequestedStaffBooking = Boolean(
-    booking?.requested_staff_id || booking?.is_staff_requested
+    !isWalkInBooking && (booking?.requested_staff_id || booking?.is_staff_requested)
   );
 
   const originalStaffId = booking?.staff_id ? String(booking.staff_id) : "";
   const staffChanged = String(formData.staff_id || "") !== originalStaffId;
+
+  const servicePrice = getServicePrice(booking);
+  const refundDraftTotal = totalPaymentAmount(refundInfo);
+  const paidTotal = totalPaymentAmount(existingPayment);
+  const hasFullyRefunded = remainingRefundable <= 0 && refundedTotal > 0;
 
   const isDirty = useMemo(() => {
     if (!booking) return false;
@@ -276,24 +301,36 @@ export default function BookingDetailsModal({
       formData.customer_name !== (booking.customer_name || "") ||
       formData.customer_phone !== (booking.customer_phone || "") ||
       formData.service_name !==
-      (booking.services?.name || booking.service_name || "") ||
+        (booking.service_name_snapshot ||
+          booking.services?.name ||
+          booking.service_name ||
+          "") ||
       formData.time !== (booking.time?.substring(0, 5) || "") ||
       Number(formData.duration) !==
-      Number(booking.duration ?? booking.services?.duration ?? 30) ||
+        Number(
+          booking.service_duration_snapshot ??
+            booking.duration ??
+            booking.services?.duration ??
+            30
+        ) ||
       formData.status !== (booking.status?.toLowerCase() || "pending") ||
       formData.notes !== (booking.notes || "") ||
       String(formData.staff_id || "") !== String(booking.staff_id || "")
     );
   }, [booking, formData]);
 
-  const refundDraftTotal = totalPaymentAmount(refundInfo);
-  const hasFullyRefunded = remainingRefundable <= 0 && refundedTotal > 0;
-
   if (!open || !booking) return null;
 
   function updateField(field, value) {
     setSaveError("");
     setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }
+
+  function updatePaymentField(field, value) {
+    setPaymentInfo((prev) => ({
       ...prev,
       [field]: value,
     }));
@@ -319,9 +356,19 @@ export default function BookingDetailsModal({
     if (nextStatus === "paid") {
       setShowPaymentForm(true);
       setShowRefundForm(false);
-    } else {
-      setShowPaymentForm(false);
+      return;
     }
+
+    if (nextStatus === "cancelled" && existingPayment && !hasFullyRefunded) {
+      setShowRefundForm(true);
+      setShowPaymentForm(false);
+      setSaveError(
+        "This booking has an active payment. Please refund or void payment before cancelling."
+      );
+      return;
+    }
+
+    setShowPaymentForm(false);
   }
 
   async function reloadPaymentState() {
@@ -388,9 +435,8 @@ export default function BookingDetailsModal({
         return;
       }
 
-      const payload =
-        paymentScope === "group" && booking.job_group_id
-          ? {
+      const payload = booking.job_group_id
+        ? {
             jobgroup_id: booking.job_group_id,
             cash: paymentInfo.cash,
             card: paymentInfo.card,
@@ -401,7 +447,7 @@ export default function BookingDetailsModal({
             reference_code: paymentInfo.reference_code,
             notes: "Created from booking details modal",
           }
-          : {
+        : {
             job_id: booking.id,
             cash: paymentInfo.cash,
             card: paymentInfo.card,
@@ -451,6 +497,7 @@ export default function BookingDetailsModal({
       setIsRecordingPayment(false);
     }
   }
+
   async function handleRefund() {
     if (!existingPayment?.id) {
       alert("No active payment found to refund.");
@@ -471,9 +518,17 @@ export default function BookingDetailsModal({
       return;
     }
 
+    const willFullyRefund =
+      refundDraftTotal >= remainingRefundable && remainingRefundable > 0;
+
     const confirmed = window.confirm(
-      `Confirm refund of $${refundDraftTotal.toFixed(2)}?`
+      willFullyRefund
+        ? `Confirm full refund of $${refundDraftTotal.toFixed(
+            2
+          )}? This booking will be marked as cancelled.`
+        : `Confirm refund of $${refundDraftTotal.toFixed(2)}?`
     );
+
     if (!confirmed) return;
 
     setIsRefunding(true);
@@ -513,7 +568,17 @@ export default function BookingDetailsModal({
       });
 
       setShowRefundForm(false);
-      alert("Refund recorded");
+
+      if (data?.refundSummary?.fullyRefunded) {
+        setFormData((prev) => ({
+          ...prev,
+          status: "cancelled",
+        }));
+        alert("Full refund recorded. Booking has been cancelled.");
+      } else {
+        alert("Refund recorded");
+      }
+
       onRefresh?.();
     } catch (err) {
       alert(err.message || "Failed to record refund");
@@ -608,6 +673,18 @@ export default function BookingDetailsModal({
         return;
       }
 
+      if (
+        formData.status === "cancelled" &&
+        existingPayment &&
+        remainingRefundable > 0
+      ) {
+        setSaveError(
+          "This booking still has refundable payment. Please refund or void payment before cancelling."
+        );
+        setShowRefundForm(true);
+        return;
+      }
+
       setIsSavingChanges(true);
 
       await onSave?.({
@@ -659,6 +736,12 @@ export default function BookingDetailsModal({
               </span>
             )}
 
+            {isWalkInBooking && (
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                Walk-in
+              </span>
+            )}
+
             {isRequestedStaffBooking && (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
                 Requested staff booking
@@ -668,6 +751,12 @@ export default function BookingDetailsModal({
             {currentStaffMissing && (
               <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
                 Needs reassignment
+              </span>
+            )}
+
+            {hasFullyRefunded && (
+              <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">
+                Fully refunded
               </span>
             )}
           </div>
@@ -750,6 +839,7 @@ export default function BookingDetailsModal({
                   min="5"
                   step="5"
                   value={formData.duration}
+                  onWheel={handleNumberWheel}
                   onChange={(e) => updateField("duration", e.target.value)}
                   className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
                 />
@@ -777,10 +867,11 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("pending")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "pending"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "pending"
                         ? "border-blue-300 bg-blue-50 text-blue-700"
                         : "border-gray-200 text-gray-700"
-                      }`}
+                    }`}
                   >
                     Pending
                   </button>
@@ -788,10 +879,11 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("paid")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "paid"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "paid"
                         ? "border-green-300 bg-green-50 text-green-700"
                         : "border-gray-200 text-gray-700"
-                      }`}
+                    }`}
                   >
                     Paid
                   </button>
@@ -799,10 +891,11 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("cancelled")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "cancelled"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "cancelled"
                         ? "border-red-300 bg-red-50 text-red-700"
                         : "border-gray-200 text-gray-700"
-                      }`}
+                    }`}
                   >
                     Cancelled
                   </button>
@@ -810,10 +903,11 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => handleStatusChange("no_show")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${formData.status === "no_show"
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      formData.status === "no_show"
                         ? "border-gray-400 bg-gray-100 text-gray-700"
                         : "border-gray-200 text-gray-700"
-                      }`}
+                    }`}
                   >
                     No-show
                   </button>
@@ -837,8 +931,8 @@ export default function BookingDetailsModal({
 
                 {isGroupBooking && (
                   <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-700">
-                    This booking is part of a group booking. Check linked jobs
-                    before changing staff.
+                    This booking is part of a group booking. Payments and refunds
+                    are handled at group level.
                   </div>
                 )}
               </div>
@@ -863,6 +957,7 @@ export default function BookingDetailsModal({
               shown here.
             </p>
           </section>
+
           <section className="rounded-xl border bg-white p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900">
@@ -870,9 +965,14 @@ export default function BookingDetailsModal({
               </h3>
               {isGroupBooking && (
                 <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-                  Group booking
+                  Group-level payment
                 </span>
               )}
+            </div>
+
+            <div className="mt-3 rounded-lg border bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Service price: ${servicePrice.toFixed(2)}
+              {isGroupBooking ? " · group payment will cover linked jobs" : ""}
             </div>
 
             {loadingPayment ? (
@@ -913,7 +1013,7 @@ export default function BookingDetailsModal({
 
                 <div className="grid grid-cols-1 gap-2 text-sm">
                   <div className="rounded-lg border bg-white px-3 py-2 font-medium text-gray-800">
-                    Paid total: ${totalPaymentAmount(existingPayment).toFixed(2)}
+                    Paid total: ${paidTotal.toFixed(2)}
                   </div>
                   <div className="rounded-lg border bg-blue-50 px-3 py-2 font-medium text-blue-800">
                     Refunded total: ${refundedTotal.toFixed(2)}
@@ -962,8 +1062,8 @@ export default function BookingDetailsModal({
                     {hasFullyRefunded
                       ? "Fully refunded"
                       : showRefundForm
-                        ? "Cancel refund"
-                        : "Refund"}
+                      ? "Cancel refund"
+                      : "Refund"}
                   </button>
 
                   <button
@@ -996,35 +1096,10 @@ export default function BookingDetailsModal({
 
             {showPaymentForm && (
               <div className="mt-4 space-y-4 rounded-xl border border-green-100 bg-green-50/30 p-4">
-                {booking.job_group_id && (
-                  <div className="space-y-3 rounded-lg bg-white/70 p-4">
-                    <p className="text-sm font-medium text-gray-800">
-                      Choose payment scope
-                    </p>
-
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentScope("job")}
-                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "job"
-                            ? "border-blue-300 bg-blue-50 text-blue-700"
-                            : "border-gray-200 text-gray-700"
-                          }`}
-                      >
-                        Pay this job only
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setPaymentScope("group")}
-                        className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "group"
-                            ? "border-green-300 bg-green-50 text-green-700"
-                            : "border-gray-200 text-gray-700"
-                          }`}
-                      >
-                        Pay whole group
-                      </button>
-                    </div>
+                {isGroupBooking && (
+                  <div className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-violet-700">
+                    This is a group booking. Payment will be recorded against
+                    the whole group to prevent duplicate payment records.
                   </div>
                 )}
 
@@ -1036,8 +1111,9 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={paymentInfo.cash}
+                      onWheel={handleNumberWheel}
                       onChange={(e) =>
-                        setPaymentInfo({ ...paymentInfo, cash: e.target.value })
+                        updatePaymentField("cash", e.target.value)
                       }
                       className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
                       placeholder="0.00"
@@ -1051,8 +1127,9 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={paymentInfo.card}
+                      onWheel={handleNumberWheel}
                       onChange={(e) =>
-                        setPaymentInfo({ ...paymentInfo, card: e.target.value })
+                        updatePaymentField("card", e.target.value)
                       }
                       className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
                       placeholder="0.00"
@@ -1066,8 +1143,9 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={paymentInfo.hicaps}
+                      onWheel={handleNumberWheel}
                       onChange={(e) =>
-                        setPaymentInfo({ ...paymentInfo, hicaps: e.target.value })
+                        updatePaymentField("hicaps", e.target.value)
                       }
                       className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
                       placeholder="0.00"
@@ -1081,11 +1159,9 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={paymentInfo.transfer}
+                      onWheel={handleNumberWheel}
                       onChange={(e) =>
-                        setPaymentInfo({
-                          ...paymentInfo,
-                          transfer: e.target.value,
-                        })
+                        updatePaymentField("transfer", e.target.value)
                       }
                       className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
                       placeholder="0.00"
@@ -1099,8 +1175,9 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={paymentInfo.other}
+                      onWheel={handleNumberWheel}
                       onChange={(e) =>
-                        setPaymentInfo({ ...paymentInfo, other: e.target.value })
+                        updatePaymentField("other", e.target.value)
                       }
                       className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
                       placeholder="0.00"
@@ -1115,10 +1192,7 @@ export default function BookingDetailsModal({
                       type="text"
                       value={paymentInfo.reference_code}
                       onChange={(e) =>
-                        setPaymentInfo({
-                          ...paymentInfo,
-                          reference_code: e.target.value,
-                        })
+                        updatePaymentField("reference_code", e.target.value)
                       }
                       className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
                       placeholder="Voucher / bank ref / PayID"
@@ -1134,10 +1208,7 @@ export default function BookingDetailsModal({
                     rows={2}
                     value={paymentInfo.staff_note}
                     onChange={(e) =>
-                      setPaymentInfo({
-                        ...paymentInfo,
-                        staff_note: e.target.value,
-                      })
+                      updatePaymentField("staff_note", e.target.value)
                     }
                     className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
                     placeholder="Voucher details, transfer time, bank used, split payment note, etc."
@@ -1155,8 +1226,8 @@ export default function BookingDetailsModal({
                       ? "Updating..."
                       : "Recording..."
                     : existingPayment
-                      ? "Update payment"
-                      : "Finalize & Record Payment"}
+                    ? "Update payment"
+                    : "Finalize & Record Payment"}
                 </button>
               </div>
             )}
@@ -1179,6 +1250,7 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={refundInfo.cash}
+                      onWheel={handleNumberWheel}
                       onChange={(e) => updateRefundField("cash", e.target.value)}
                       className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
                       placeholder="0.00"
@@ -1192,6 +1264,7 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={refundInfo.card}
+                      onWheel={handleNumberWheel}
                       onChange={(e) => updateRefundField("card", e.target.value)}
                       className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
                       placeholder="0.00"
@@ -1205,6 +1278,7 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={refundInfo.hicaps}
+                      onWheel={handleNumberWheel}
                       onChange={(e) =>
                         updateRefundField("hicaps", e.target.value)
                       }
@@ -1220,6 +1294,7 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={refundInfo.transfer}
+                      onWheel={handleNumberWheel}
                       onChange={(e) =>
                         updateRefundField("transfer", e.target.value)
                       }
@@ -1235,6 +1310,7 @@ export default function BookingDetailsModal({
                     <input
                       type="number"
                       value={refundInfo.other}
+                      onWheel={handleNumberWheel}
                       onChange={(e) => updateRefundField("other", e.target.value)}
                       className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
                       placeholder="0.00"
@@ -1306,4 +1382,4 @@ export default function BookingDetailsModal({
       </div>
     </div>
   );
-} 
+}

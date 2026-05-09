@@ -6,37 +6,6 @@ function isValidDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 }
 
-/* =========================
-   DAILY GUARANTEE
-========================= */
-
-const DEFAULT_DAILY_GUARANTEE_CONFIG = {
-  mon: 0,
-  tue: 0,
-  wed: 0,
-  thu: 0,
-  fri: 0,
-  sat: 0,
-  sun: 0,
-};
-
-function getDayKey(dateStr) {
-  const d = new Date(dateStr);
-  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-  return map[d.getDay()];
-}
-
-function getDailyGuarantee(store, dateStr) {
-  if (!store?.enable_daily_guarantee) return 0;
-
-  const config = {
-    ...DEFAULT_DAILY_GUARANTEE_CONFIG,
-    ...(store.daily_guarantee_config || {}),
-  };
-
-  return Number(config[getDayKey(dateStr)] || 0);
-}
-
 export async function GET(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -65,136 +34,138 @@ export async function GET(request, context) {
       );
     }
 
-    /* =========================
-       GET STORE CONFIG
-    ========================= */
+    const [{ data: staffList }, { data: rows }] = await Promise.all([
+      supabase
+        .from("staff")
+        .select(`
+          id,
+          name,
+          name_display,
+          staff_code,
+          is_active,
+          employment_type,
+          payout_policy_id,
+          abn
+        `)
+        .eq("store_id", store.id),
 
-    const { data: storeConfig } = await supabase
-      .from("stores")
-      .select("enable_daily_guarantee, daily_guarantee_config")
-      .eq("id", store.id)
-      .single();
+      supabase
+        .from("store_day_report_rows")
+        .select(`
+          day_date,
+          staff_id,
+          staff_name,
+          duration,
+          staff_payout,
+          payout_role_name,
+          payout_final
+        `)
+        .eq("store_id", store.id)
+        .gte("day_date", from)
+        .lte("day_date", to),
+    ]);
 
-    /* =========================
-       GET DATA
-    ========================= */
+    const staffPolicyIds = [
+      ...new Set(
+        (staffList || [])
+          .map((staff) => staff.payout_policy_id)
+          .filter(Boolean)
+      ),
+    ];
 
-    const [{ data: staffList }, { data: rows }] =
-      await Promise.all([
-        supabase
-          .from("staff")
-          .select(`
-            id,
-            name,
-            name_display,
-            staff_code,
-            is_active,
-            employment_type,
-            abn
-          `)
-          .eq("store_id", store.id),
+    let policyMap = new Map();
 
-        supabase
-          .from("store_day_report_rows")
-          .select(`
-            day_date,
-            staff_id,
-            staff_name,
-            duration,
-            staff_payout
-          `)
-          .eq("store_id", store.id)
-          .gte("day_date", from)
-          .lte("day_date", to),
-      ]);
+    if (staffPolicyIds.length > 0) {
+      const { data: policies } = await supabase
+        .from("store_payout_policies")
+        .select("id, name, role_name")
+        .eq("store_id", store.id)
+        .in("id", staffPolicyIds);
 
-    /* =========================
-       GROUP BY STAFF + DAY
-    ========================= */
+      policyMap = new Map(
+        (policies || []).map((policy) => [
+          String(policy.id),
+          policy,
+        ])
+      );
+    }
 
-    const staffDayMap = new Map();
+    const staffLookup = new Map(
+      (staffList || []).map((staff) => {
+        const policy = staff.payout_policy_id
+          ? policyMap.get(String(staff.payout_policy_id))
+          : null;
+
+        return [
+          staff.id,
+          {
+            ...staff,
+            role_name: policy?.role_name || policy?.name || null,
+          },
+        ];
+      })
+    );
+
+    const staffMap = new Map();
 
     (rows || []).forEach((row) => {
       if (!row.staff_id) return;
 
-      const key = `${row.staff_id}_${row.day_date}`;
+      if (!staffMap.has(row.staff_id)) {
+        const staff = staffLookup.get(row.staff_id) || {};
 
-      if (!staffDayMap.has(key)) {
-        staffDayMap.set(key, {
+        staffMap.set(row.staff_id, {
           staff_id: row.staff_id,
-          staff_name: row.staff_name,
-          day_date: row.day_date,
-          payout: 0,
-          minutes: 0,
-          jobs: 0,
-        });
-      }
-
-      const entry = staffDayMap.get(key);
-
-      entry.payout += Number(row.staff_payout || 0);
-      entry.minutes += Number(row.duration || 0);
-      entry.jobs += 1;
-    });
-
-    /* =========================
-       APPLY GUARANTEE PER DAY
-    ========================= */
-
-    const staffMap = new Map();
-
-    staffDayMap.forEach((day) => {
-      const guarantee = getDailyGuarantee(storeConfig, day.day_date);
-
-      let final = day.payout;
-
-      if (storeConfig?.enable_daily_guarantee) {
-        final = Math.max(day.payout, guarantee);
-      }
-
-      if (!staffMap.has(day.staff_id)) {
-        staffMap.set(day.staff_id, {
-          staff_id: day.staff_id,
-          staff_name: day.staff_name,
+          staff_name:
+            row.staff_name ||
+            staff.name_display ||
+            staff.name ||
+            "-",
+          staff_code: staff.staff_code || "-",
+          is_active: staff.is_active,
+          employment_type: staff.employment_type,
+          payout_policy_id: staff.payout_policy_id,
+          role_name:
+            row.payout_role_name ||
+            staff.role_name ||
+            null,
+          abn: staff.abn || "",
           jobs_count: 0,
           total_minutes: 0,
           payout_total: 0,
         });
       }
 
-      const staff = staffMap.get(day.staff_id);
+      const entry = staffMap.get(row.staff_id);
 
-      staff.jobs_count += day.jobs;
-      staff.total_minutes += day.minutes;
-      staff.payout_total += final;
+      entry.jobs_count += 1;
+      entry.total_minutes += Number(row.duration || 0);
+
+      /*
+        IMPORTANT:
+        This summary must read from completed end-day snapshots only.
+        Do not recalculate guarantee, role, service payout, refund behavior,
+        or adjustments here, otherwise old reports can change after owner
+        edits settings later.
+      */
+      entry.payout_total += Number(
+        row.payout_final ?? row.staff_payout ?? 0
+      );
+
+      if (!entry.role_name && row.payout_role_name) {
+        entry.role_name = row.payout_role_name;
+      }
     });
 
     let payoutRows = Array.from(staffMap.values());
 
-    /* =========================
-       FILTER
-    ========================= */
-
-    const staffLookup = new Map(
-      (staffList || []).map((s) => [s.id, s])
-    );
-
-    payoutRows = payoutRows.map((row) => ({
-      ...row,
-      ...staffLookup.get(row.staff_id),
-    }));
-
     if (activeOnly) {
-      payoutRows = payoutRows.filter((r) => r.is_active);
+      payoutRows = payoutRows.filter((row) => row.is_active);
     }
 
     if (abnOnly) {
-      payoutRows = payoutRows.filter((r) => r.abn);
+      payoutRows = payoutRows.filter((row) => row.abn);
     }
-
-    /* =========================
-       SUMMARY
-    ========================= */
 
     const summary = payoutRows.reduce(
       (acc, row) => {
@@ -219,7 +190,7 @@ export async function GET(request, context) {
       rows: payoutRows,
     });
   } catch (error) {
-    console.error(error);
+    console.error("GET staff payout summary error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
