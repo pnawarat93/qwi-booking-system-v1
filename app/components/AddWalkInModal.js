@@ -49,6 +49,7 @@ export default function AddWalkInModal({
   const [saving, setSaving] = useState(false);
 
   const sydneyToday = useMemo(() => getSydneyTodayDate(), []);
+
   const initialDefaultTime = useMemo(() => {
     return selectedDate === sydneyToday ? getSydneyRoundedNowTime() : "09:00";
   }, [selectedDate, sydneyToday]);
@@ -60,8 +61,6 @@ export default function AddWalkInModal({
     staff_id: "",
     date: selectedDate,
     time: initialDefaultTime,
-    party_size: 1,
-    status: "pending",
     is_walk_in: true,
   });
 
@@ -78,8 +77,6 @@ export default function AddWalkInModal({
       staff_id: "",
       date: selectedDate,
       time: nextDefaultTime,
-      party_size: 1,
-      status: "pending",
       is_walk_in: true,
     });
   }, [open, selectedDate, sydneyToday]);
@@ -91,12 +88,13 @@ export default function AddWalkInModal({
       setLoadingOptions(true);
 
       try {
-        const [servicesRes, hoursRes, staffRes, bookingsRes] = await Promise.all([
-          fetch(apiPath(storeSlug, "/services")),
-          fetch(apiPath(storeSlug, `/business-hours?date=${formData.date}`)),
-          fetch(apiPath(storeSlug, `/effective-staff?date=${formData.date}`)),
-          fetch(apiPath(storeSlug, `/booking?date=${formData.date}`)),
-        ]);
+        const [servicesRes, hoursRes, staffRes, bookingsRes] =
+          await Promise.all([
+            fetch(apiPath(storeSlug, "/services")),
+            fetch(apiPath(storeSlug, `/business-hours?date=${formData.date}`)),
+            fetch(apiPath(storeSlug, `/effective-staff?date=${formData.date}`)),
+            fetch(apiPath(storeSlug, `/booking?date=${formData.date}`)),
+          ]);
 
         const servicesData = await servicesRes.json();
         const hoursData = await hoursRes.json();
@@ -109,12 +107,14 @@ export default function AddWalkInModal({
         if (hoursData?.is_open === false) {
           setEffectiveStaff([]);
           setBookings([]);
+
           setFormData((prev) => ({
             ...prev,
             staff_id: "",
             time:
               prev.date === sydneyToday ? getSydneyRoundedNowTime() : "09:00",
           }));
+
           return;
         }
 
@@ -183,7 +183,7 @@ export default function AddWalkInModal({
     if (businessHours?.is_open === false) return [];
 
     if (!selectedService || !formData.time) {
-      return effectiveStaff;
+      return [];
     }
 
     const targetStart = timeToMinutes(formData.time);
@@ -191,7 +191,7 @@ export default function AddWalkInModal({
     const openMinutes = timeToMinutes(businessHours?.open_time);
     const closeMinutes = timeToMinutes(businessHours?.close_time);
 
-    if (targetStart === null) return effectiveStaff;
+    if (targetStart === null) return [];
 
     if (openMinutes !== null && targetStart < openMinutes) return [];
     if (closeMinutes !== null && targetStart + targetDuration > closeMinutes) {
@@ -250,6 +250,23 @@ export default function AddWalkInModal({
     }
   }, [availableStaffList, formData.staff_id]);
 
+  useEffect(() => {
+    if (availableStaffList.length !== 1) return;
+
+    const onlyStaff = availableStaffList[0];
+
+    setFormData((prev) => {
+      if (String(prev.staff_id) === String(onlyStaff.id)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        staff_id: String(onlyStaff.id),
+      };
+    });
+  }, [availableStaffList]);
+
   if (!open) return null;
 
   function updateField(field, value) {
@@ -276,14 +293,14 @@ export default function AddWalkInModal({
 
     try {
       const payload = {
-        customer_name: formData.customer_name,
-        customer_phone: formData.customer_phone,
+        customer_name: formData.customer_name || "Walk-in",
+        customer_phone: formData.customer_phone || "",
         service_id: Number(formData.service_id),
         staff_id: Number(formData.staff_id),
         date: formData.date,
         time: formData.time,
-        party_size: Number(formData.party_size),
-        status: formData.status,
+        party_size: 1,
+        status: "pending",
         is_walk_in: true,
       };
 
@@ -298,7 +315,9 @@ export default function AddWalkInModal({
       const createdBooking = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(createdBooking?.error || "Failed to create walk-in booking");
+        throw new Error(
+          createdBooking?.error || "Failed to create walk-in booking"
+        );
       }
 
       onCreated?.(createdBooking);
@@ -316,9 +335,11 @@ export default function AddWalkInModal({
       <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Add walk-in</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Add walk-in
+            </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Quick add for today’s grid
+              Add one walk-in customer to the schedule.
             </p>
           </div>
 
@@ -372,7 +393,7 @@ export default function AddWalkInModal({
                 value={formData.customer_phone}
                 onChange={(e) => updateField("customer_phone", e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
-                placeholder="Optional for now"
+                placeholder="Optional"
               />
             </div>
 
@@ -382,7 +403,13 @@ export default function AddWalkInModal({
               </label>
               <select
                 value={formData.service_id}
-                onChange={(e) => updateField("service_id", e.target.value)}
+                onChange={(e) => {
+                  updateField("service_id", e.target.value);
+                  setFormData((prev) => ({
+                    ...prev,
+                    staff_id: "",
+                  }));
+                }}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 disabled={loadingOptions || businessHours?.is_open === false}
               >
@@ -393,41 +420,6 @@ export default function AddWalkInModal({
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Staff
-              </label>
-              <select
-                value={formData.staff_id}
-                onChange={(e) => updateField("staff_id", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                disabled={loadingOptions || businessHours?.is_open === false}
-              >
-                <option value="">Select staff</option>
-                {availableStaffList.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.name}
-                    {staff.staff_code ? ` (${staff.staff_code})` : ""}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Shows only staff working on this date and free at this time.
-              </p>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Date
-              </label>
-              <input
-                type="date"
-                value={formData.date}
-                onChange={(e) => updateField("date", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              />
             </div>
 
             <div>
@@ -444,31 +436,60 @@ export default function AddWalkInModal({
               />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium text-gray-700">
-                Party size
+                Staff
               </label>
-              <input
-                type="number"
-                min="1"
-                value={formData.party_size}
-                onChange={(e) => updateField("party_size", e.target.value)}
+              <select
+                value={formData.staff_id}
+                onChange={(e) => updateField("staff_id", e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
-              />
+                disabled={
+                  loadingOptions ||
+                  businessHours?.is_open === false ||
+                  !formData.service_id ||
+                  !formData.time
+                }
+              >
+                <option value="">
+                  {!formData.service_id
+                    ? "Select service first"
+                    : !formData.time
+                      ? "Select time first"
+                      : availableStaffList.length === 0
+                        ? "No staff available"
+                        : "Select staff"}
+                </option>
+
+                {availableStaffList.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                    {staff.staff_code ? ` (${staff.staff_code})` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Staff options are calculated from the selected service and time.
+              </p>
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
-                Status
+                Date
               </label>
-              <select
-                value={formData.status}
-                onChange={(e) => updateField("status", e.target.value)}
+              <input
+                type="date"
+                value={formData.date}
+                onChange={(e) => updateField("date", e.target.value)}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
-              >
-                <option value="pending">pending</option>
-                <option value="paid">paid</option>
-              </select>
+              />
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
+              <p className="font-medium text-gray-800">One person per walk-in</p>
+              <p className="mt-1 text-xs">
+                If two people arrive together, add the second walk-in separately.
+              </p>
             </div>
           </div>
 

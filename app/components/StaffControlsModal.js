@@ -12,6 +12,10 @@ function normalizeTime(value, fallback = "09:00") {
   return String(value).substring(0, 5);
 }
 
+function handleNumberWheel(event) {
+  event.currentTarget.blur();
+}
+
 function getDefaultGuaranteeForDate(storeConfig, selectedDate) {
   if (!storeConfig?.enable_daily_guarantee) return 0;
 
@@ -36,6 +40,7 @@ export default function StaffControlsModal({
   const [effectiveStaff, setEffectiveStaff] = useState([]);
   const [businessHours, setBusinessHours] = useState(null);
   const [storeInfo, setStoreInfo] = useState(null);
+  const [payoutRoles, setPayoutRoles] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [savingIds, setSavingIds] = useState(new Set());
@@ -46,7 +51,7 @@ export default function StaffControlsModal({
 
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
-  const [newEmploymentType, setNewEmploymentType] = useState("temporary");
+  const [newRoleId, setNewRoleId] = useState("");
   const [newGuaranteeOverride, setNewGuaranteeOverride] = useState("");
   const [isCreatingStaff, setIsCreatingStaff] = useState(false);
 
@@ -55,31 +60,40 @@ export default function StaffControlsModal({
     setErrorMessage("");
 
     try {
-      const [staffRes, effectiveRes, hoursRes, storeRes] =
-        await Promise.all([
-          fetch(apiPath(storeSlug, "/staff")),
+      const [
+        staffRes,
+        effectiveRes,
+        hoursRes,
+        storeRes,
+        payoutRolesRes,
+      ] = await Promise.all([
+        fetch(apiPath(storeSlug, "/staff")),
 
-          fetch(
-            apiPath(
-              storeSlug,
-              `/effective-staff?date=${selectedDate}&include_all=true`
-            )
-          ),
+        fetch(
+          apiPath(
+            storeSlug,
+            `/effective-staff?date=${selectedDate}&include_all=true`
+          )
+        ),
 
-          fetch(
-            apiPath(
-              storeSlug,
-              `/business-hours?date=${selectedDate}`
-            )
-          ),
+        fetch(
+          apiPath(
+            storeSlug,
+            `/business-hours?date=${selectedDate}`
+          )
+        ),
 
-          fetch(apiPath(storeSlug, "/store")),
-        ]);
+        fetch(apiPath(storeSlug, "/store")),
+
+        fetch(apiPath(storeSlug, "/payout-policies")),
+      ]);
 
       const staffData = await staffRes.json();
       const effectiveData = await effectiveRes.json();
       const hoursData = await hoursRes.json();
       const storeData = await storeRes.json();
+      const payoutRolesData =
+        await payoutRolesRes.json();
 
       if (!staffRes.ok) {
         throw new Error(staffData?.error || "Failed to load staff");
@@ -101,7 +115,15 @@ export default function StaffControlsModal({
         throw new Error(storeData?.error || "Failed to load store");
       }
 
+      if (!payoutRolesRes.ok) {
+        throw new Error(
+          payoutRolesData?.error ||
+            "Failed to load payout roles"
+        );
+      }
+
       setAllStaff(Array.isArray(staffData) ? staffData : []);
+
       setEffectiveStaff(
         Array.isArray(effectiveData?.items)
           ? effectiveData.items
@@ -109,7 +131,16 @@ export default function StaffControlsModal({
       );
 
       setBusinessHours(hoursData || null);
+
       setStoreInfo(storeData || null);
+
+      setPayoutRoles(
+        Array.isArray(payoutRolesData)
+          ? payoutRolesData.filter(
+              (role) => role.is_active !== false
+            )
+          : []
+      );
     } catch (err) {
       console.error("Failed to load staff controls:", err);
 
@@ -117,6 +148,7 @@ export default function StaffControlsModal({
       setEffectiveStaff([]);
       setBusinessHours(null);
       setStoreInfo(null);
+      setPayoutRoles([]);
 
       setErrorMessage(
         err.message || "Failed to load staff controls"
@@ -592,8 +624,10 @@ export default function StaffControlsModal({
               newStaffCode.trim() ||
               null,
 
-            employment_type:
-              newEmploymentType,
+            payout_policy_id:
+              newRoleId
+                ? Number(newRoleId)
+                : null,
           }),
         }
       );
@@ -661,10 +695,7 @@ export default function StaffControlsModal({
 
       setNewStaffName("");
       setNewStaffCode("");
-      setNewEmploymentType(
-        "temporary"
-      );
-
+      setNewRoleId("");
       setNewGuaranteeOverride("");
 
       setShowQuickAdd(false);
@@ -830,9 +861,7 @@ export default function StaffControlsModal({
                                   "No staff code"}
                               </span>
 
-                              <span>
-                                •
-                              </span>
+                              <span>•</span>
 
                               <span>
                                 {normalizeTime(
@@ -846,9 +875,7 @@ export default function StaffControlsModal({
                                 )}
                               </span>
 
-                              <span>
-                                •
-                              </span>
+                              <span>•</span>
 
                               <span className="capitalize">
                                 {
@@ -874,10 +901,8 @@ export default function StaffControlsModal({
                                   placeholder={String(
                                     defaultGuarantee
                                   )}
-                                  onWheel={(
-                                    e
-                                  ) =>
-                                    e.currentTarget.blur()
+                                  onWheel={
+                                    handleNumberWheel
                                   }
                                   onChange={(
                                     e
@@ -1099,33 +1124,46 @@ export default function StaffControlsModal({
 
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">
-                      Employment type
+                      Staff role
                     </label>
 
                     <select
-                      value={
-                        newEmploymentType
-                      }
+                      value={newRoleId}
                       onChange={(e) =>
-                        setNewEmploymentType(
+                        setNewRoleId(
                           e.target
                             .value
                         )
                       }
                       className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
                     >
-                      <option value="temporary">
-                        temporary
+                      <option value="">
+                        No role selected
                       </option>
 
-                      <option value="casual">
-                        casual
-                      </option>
-
-                      <option value="permanent">
-                        permanent
-                      </option>
+                      {payoutRoles.map(
+                        (role) => (
+                          <option
+                            key={
+                              role.id
+                            }
+                            value={
+                              role.id
+                            }
+                          >
+                            {role.role_name ||
+                              role.name}
+                          </option>
+                        )
+                      )}
                     </select>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                      Optional.
+                      Staff payout
+                      will use this
+                      role.
+                    </p>
                   </div>
 
                   {enableDailyGuarantee && (
@@ -1140,8 +1178,8 @@ export default function StaffControlsModal({
                         value={
                           newGuaranteeOverride
                         }
-                        onWheel={(e) =>
-                          e.currentTarget.blur()
+                        onWheel={
+                          handleNumberWheel
                         }
                         onChange={(e) =>
                           setNewGuaranteeOverride(

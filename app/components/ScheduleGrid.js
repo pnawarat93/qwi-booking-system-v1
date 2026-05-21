@@ -18,7 +18,10 @@ const UNASSIGNED_COLUMN_WIDTH = 180;
 
 const ACTIVE_GRID_STATUSES = ["pending", "paid"];
 const INACTIVE_DAY_STATUSES = ["cancelled", "no_show"];
-const NEEDS_REASSIGN_PENDING_STATUSES = ["pending"];
+const NEEDS_REASSIGN_PENDING_STATUSES = [
+  "pending",
+  "paid",
+];
 const MISSING_ASSIGNED_PAID_STATUSES = ["paid"];
 
 function timeStringToHour(timeString, fallback) {
@@ -113,16 +116,16 @@ export default function ScheduleGrid({
 
       const normalizedStaff = Array.isArray(staffData?.items)
         ? staffData.items.map((staff) => ({
-            id: staff.staff_id,
-            name: staff.name_display || staff.name,
-            staff_code: staff.staff_code || null,
-            start_time: staff.start_time,
-            end_time: staff.end_time,
-            display_order: staff.display_order || 0,
-            note: staff.note || "",
-            source: staff.source || "roster",
-            is_working: staff.is_working,
-          }))
+          id: staff.staff_id,
+          name: staff.name_display || staff.name,
+          staff_code: staff.staff_code || null,
+          start_time: staff.start_time,
+          end_time: staff.end_time,
+          display_order: staff.display_order || 0,
+          note: staff.note || "",
+          source: staff.source || "roster",
+          is_working: staff.is_working,
+        }))
         : [];
 
       setStaffList(normalizedStaff);
@@ -196,20 +199,44 @@ export default function ScheduleGrid({
   }, [staffList]);
 
   const unassignedBookings = useMemo(() => {
-    const dateComparison = compareDateStrings(selectedDate, todaySydney);
+    const dateComparison = compareDateStrings(
+      selectedDate,
+      todaySydney
+    );
+
     const isPastDay = dateComparison < 0;
 
     if (isPastDay) return [];
 
     return bookings.filter((booking) => {
-      const status = booking.status?.toLowerCase();
+      const status =
+        booking.status?.toLowerCase();
 
-      if (!NEEDS_REASSIGN_PENDING_STATUSES.includes(status)) return false;
-      if (!booking.staff_id) return true;
+      // Keep active bookings visible
+      // in unassigned column so front desk
+      // can still manage them.
+      if (
+        !ACTIVE_GRID_STATUSES.includes(status)
+      ) {
+        return false;
+      }
 
-      return !workingStaffIds.has(String(booking.staff_id));
+      // No assigned staff
+      if (!booking.staff_id) {
+        return true;
+      }
+
+      // Assigned staff missing from working staff
+      return !workingStaffIds.has(
+        String(booking.staff_id)
+      );
     });
-  }, [bookings, workingStaffIds, selectedDate, todaySydney]);
+  }, [
+    bookings,
+    workingStaffIds,
+    selectedDate,
+    todaySydney,
+  ]);
 
   const missingAssignedPaidBookings = useMemo(() => {
     const dateComparison = compareDateStrings(selectedDate, todaySydney);
@@ -297,16 +324,16 @@ export default function ScheduleGrid({
     const optimisticBooking = (booking) =>
       String(booking.id) === String(updatedBooking.id)
         ? {
-            ...booking,
-            ...updatedBooking,
-            services: {
-              ...booking.services,
-              name:
-                updatedBooking.service_name ??
-                booking.services?.name ??
-                booking.service_name,
-            },
-          }
+          ...booking,
+          ...updatedBooking,
+          services: {
+            ...booking.services,
+            name:
+              updatedBooking.service_name ??
+              booking.services?.name ??
+              booking.service_name,
+          },
+        }
         : booking;
 
     setBookings((prev) => prev.map(optimisticBooking));
@@ -427,11 +454,10 @@ export default function ScheduleGrid({
               {timeSlots.map((slot) => (
                 <React.Fragment key={slot.label}>
                   <div
-                    className={`sticky left-0 z-10 flex items-center justify-end border-r px-3 text-xs ${
-                      slot.isMajor
+                    className={`sticky left-0 z-10 flex items-center justify-end border-r px-3 text-xs ${slot.isMajor
                         ? "border-t border-gray-300 bg-gray-50 text-gray-700"
                         : "border-t border-gray-100 bg-white text-gray-400"
-                    }`}
+                      }`}
                     style={{ height: SLOT_HEIGHT }}
                   >
                     <div className="pr-1">{slot.isMajor ? slot.label : ""}</div>
@@ -440,21 +466,19 @@ export default function ScheduleGrid({
                   {staffList.map((staff) => (
                     <div
                       key={`${staff.id}-${slot.label}`}
-                      className={`border-l bg-white ${
-                        slot.isMajor
+                      className={`border-l bg-white ${slot.isMajor
                           ? "border-t border-gray-300"
                           : "border-t border-gray-100"
-                      }`}
+                        }`}
                       style={{ height: SLOT_HEIGHT }}
                     />
                   ))}
 
                   <div
-                    className={`border-l border-amber-100 bg-amber-50/30 ${
-                      slot.isMajor
+                    className={`border-l border-amber-100 bg-amber-50/30 ${slot.isMajor
                         ? "border-t border-gray-300"
                         : "border-t border-gray-100"
-                    }`}
+                      }`}
                     style={{ height: SLOT_HEIGHT }}
                   />
                 </React.Fragment>
@@ -509,13 +533,15 @@ export default function ScheduleGrid({
                           notes={booking.notes}
                           is_staff_requested={Boolean(
                             booking.requested_staff_id ||
-                              booking.is_staff_requested
+                            booking.is_staff_requested
                           )}
                           requested_staff_name={
                             booking.requested_staff?.name_display ||
                             booking.requested_staff?.name ||
                             ""
                           }
+                          is_walk_in={Boolean(booking.is_walk_in)}
+                          is_unassigned={false}
                         />
                       </button>
                     );
@@ -563,13 +589,15 @@ export default function ScheduleGrid({
                         compact
                         is_staff_requested={Boolean(
                           booking.requested_staff_id ||
-                            booking.is_staff_requested
+                          booking.is_staff_requested
                         )}
                         requested_staff_name={
                           booking.requested_staff?.name_display ||
                           booking.requested_staff?.name ||
                           ""
                         }
+                        is_walk_in={Boolean(booking.is_walk_in)}
+                        is_unassigned={true}  
                       />
                     </div>
                   </button>

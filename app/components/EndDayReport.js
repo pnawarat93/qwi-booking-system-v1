@@ -33,6 +33,7 @@ export default function EndDayReport({
   const [loadError, setLoadError] = useState("");
   const [isCompleting, setIsCompleting] = useState(false);
   const [completeError, setCompleteError] = useState("");
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -82,12 +83,14 @@ export default function EndDayReport({
   }, [bookings]);
 
   const stats = summary?.stats || fallbackStats;
+
   const byMethod = summary?.byMethod || {
     cash: 0,
     card: 0,
     hicaps: 0,
     other: 0,
   };
+
   const transactions = summary?.transactions || {
     payments: { total: 0 },
     refunds: { total: 0 },
@@ -95,25 +98,36 @@ export default function EndDayReport({
     cancellationFees: { total: 0 },
     voids: { total: 0 },
   };
+
   const staffPayouts = summary?.staffPayouts || [];
 
+  const pendingBookings = useMemo(() => {
+    return bookings.filter((booking) => booking.status === "pending");
+  }, [bookings]);
+
+  const hasPendingBookings = pendingBookings.length > 0;
+
   async function handleCompleteEndDay() {
+    if (hasPendingBookings) {
+      setCompleteError(
+        "Cannot finalize day while pending bookings still exist. Please finalize all pending bookings first."
+      );
+      return;
+    }
+
     try {
       setIsCompleting(true);
       setCompleteError("");
 
-      const res = await fetch(
-        apiPath(storeSlug, "/complete-end-day"),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            date: selectedDate,
-          }),
-        }
-      );
+      const res = await fetch(apiPath(storeSlug, "/complete-end-day"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          date: selectedDate,
+        }),
+      });
 
       const data = await res.json().catch(() => null);
 
@@ -124,7 +138,7 @@ export default function EndDayReport({
       onFinish?.(data);
     } catch (error) {
       console.error(error);
-      setCompleteError(error.message || "Could not complete end of day.");
+      setCompleteError(error.message || "Could not finalize day.");
     } finally {
       setIsCompleting(false);
     }
@@ -135,6 +149,7 @@ export default function EndDayReport({
       <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
         <div className="relative shrink-0 bg-[#4A3A34] p-6 text-white">
           <button
+            type="button"
             onClick={onClose}
             disabled={isCompleting}
             className="absolute right-6 top-6 text-white/40 transition hover:text-white disabled:opacity-40"
@@ -147,8 +162,9 @@ export default function EndDayReport({
           </div>
 
           <h2 className="text-3xl font-bold">End of Day Report</h2>
+
           <p className="mt-1 text-white/70">
-            Summary for {selectedDate || "today"}
+            Review today&apos;s records before closing store operations.
           </p>
         </div>
 
@@ -169,14 +185,71 @@ export default function EndDayReport({
                 </div>
               )}
 
+              {hasPendingBookings && (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-full bg-amber-100 p-2 text-amber-700">
+                      <AlertCircle size={18} />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg font-bold text-amber-900">
+                        Pending bookings still exist
+                      </h3>
+
+                      <p className="mt-1 text-sm text-amber-800">
+                        All active bookings must be finalized before the store
+                        can be closed. Please mark each pending booking as paid,
+                        cancelled, or no-show first.
+                      </p>
+
+                      <div className="mt-4 overflow-hidden rounded-2xl border border-amber-200 bg-white">
+                        <div className="divide-y divide-amber-100">
+                          {pendingBookings.map((booking) => (
+                            <div
+                              key={booking.id}
+                              className="flex items-center justify-between gap-4 px-4 py-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-gray-900">
+                                  {booking.customer_name || "Walk-in"}
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-500">
+                                  {String(booking.time || "").substring(0, 5)} •{" "}
+                                  {booking.services?.name ||
+                                    booking.service_name_snapshot ||
+                                    booking.service_name ||
+                                    "Service"}
+                                </p>
+                              </div>
+
+                              <span className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800">
+                                Pending
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-amber-700">
+                        Finalize these bookings first to continue.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <CheckCircle size={16} className="text-emerald-500" />
+
                     <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
                       Paid Jobs
                     </span>
                   </div>
+
                   <p className="text-3xl font-black text-[#4A3A34]">
                     {stats.paidJobs} / {stats.totalJobs}
                   </p>
@@ -185,10 +258,12 @@ export default function EndDayReport({
                 <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <TrendingUp size={16} className="text-[#C87D87]" />
+
                     <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
                       Net Revenue
                     </span>
                   </div>
+
                   <p className="text-3xl font-black text-[#4A3A34]">
                     {currency(stats.netRevenue)}
                   </p>
@@ -197,10 +272,12 @@ export default function EndDayReport({
                 <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <Banknote size={16} className="text-blue-600" />
+
                     <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
                       Total Staff Payout
                     </span>
                   </div>
+
                   <p className="text-3xl font-black text-[#4A3A34]">
                     {currency(stats.totalStaffPayout)}
                   </p>
@@ -209,10 +286,12 @@ export default function EndDayReport({
                 <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <AlertCircle size={16} className="text-amber-600" />
+
                     <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
                       Store Keeps
                     </span>
                   </div>
+
                   <p className="text-3xl font-black text-[#4A3A34]">
                     {currency(stats.storeKeeps)}
                   </p>
@@ -231,8 +310,10 @@ export default function EndDayReport({
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-700">
                           <Banknote size={16} />
                         </div>
+
                         <span className="font-bold text-gray-700">Cash</span>
                       </div>
+
                       <span className="text-lg font-black text-[#4A3A34]">
                         {currency(byMethod.cash)}
                       </span>
@@ -243,8 +324,10 @@ export default function EndDayReport({
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700">
                           <CreditCard size={16} />
                         </div>
+
                         <span className="font-bold text-gray-700">Card</span>
                       </div>
+
                       <span className="text-lg font-black text-[#4A3A34]">
                         {currency(byMethod.card)}
                       </span>
@@ -255,8 +338,10 @@ export default function EndDayReport({
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-700">
                           <Landmark size={16} />
                         </div>
+
                         <span className="font-bold text-gray-700">Hicaps</span>
                       </div>
+
                       <span className="text-lg font-black text-[#4A3A34]">
                         {currency(byMethod.hicaps)}
                       </span>
@@ -267,8 +352,10 @@ export default function EndDayReport({
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-700">
                           <AlertCircle size={16} />
                         </div>
+
                         <span className="font-bold text-gray-700">Other</span>
                       </div>
+
                       <span className="text-lg font-black text-[#4A3A34]">
                         {currency(byMethod.other)}
                       </span>
@@ -279,10 +366,12 @@ export default function EndDayReport({
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 text-white shadow-sm">
                           <AlertCircle size={18} />
                         </div>
+
                         <span className="font-bold text-amber-700">
                           Outstanding (Unpaid)
                         </span>
                       </div>
+
                       <span className="text-lg font-black text-amber-900">
                         {currency(stats.outstanding)}
                       </span>
@@ -347,6 +436,7 @@ export default function EndDayReport({
                           <th className="px-4 py-3">Payout</th>
                         </tr>
                       </thead>
+
                       <tbody>
                         {staffPayouts.length === 0 ? (
                           <tr>
@@ -366,24 +456,31 @@ export default function EndDayReport({
                               <td className="px-4 py-3 font-medium text-gray-900">
                                 {staff.staff_name}
                               </td>
+
                               <td className="px-4 py-3 text-gray-600">
                                 {staff.policy_name || "No policy"}
                               </td>
+
                               <td className="px-4 py-3 text-gray-600">
                                 {staff.paid_jobs_count}
                               </td>
+
                               <td className="px-4 py-3 text-gray-600">
                                 {staff.fully_refunded_jobs_count}
                               </td>
+
                               <td className="px-4 py-3 text-gray-600">
                                 {currency(staff.gross_sales)}
                               </td>
+
                               <td className="px-4 py-3 text-gray-600">
                                 {currency(staff.refunds)}
                               </td>
+
                               <td className="px-4 py-3 text-gray-600">
                                 {currency(staff.effective_sales)}
                               </td>
+
                               <td className="px-4 py-3 font-semibold text-[#4A3A34]">
                                 {currency(staff.payout_total)}
                               </td>
@@ -402,22 +499,80 @@ export default function EndDayReport({
         <div className="shrink-0 border-t border-gray-100 bg-white p-6">
           <div className="flex gap-4">
             <button
+              type="button"
               onClick={onClose}
               disabled={isCompleting}
               className="flex-1 rounded-2xl border border-gray-100 py-4 font-bold text-gray-400 transition hover:bg-gray-50 disabled:opacity-50"
             >
               Back to Grid
             </button>
+
             <button
-              onClick={handleCompleteEndDay}
-              disabled={loading || isCompleting || !!loadError}
-              className="flex-[1.5] rounded-2xl bg-[#C87D87] py-4 font-bold text-white shadow-lg transition hover:bg-[#B8707A] disabled:opacity-50"
+              type="button"
+              onClick={() => {
+                if (hasPendingBookings) return;
+                setCompleteError("");
+                setShowFinalizeConfirm(true);
+              }}
+              disabled={loading || isCompleting || !!loadError || hasPendingBookings}
+              className="flex-[1.5] rounded-2xl bg-[#C87D87] py-4 font-bold text-white shadow-lg transition hover:bg-[#B8707A] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isCompleting ? "Completing..." : "Complete End of Day"}
+              {isCompleting
+                ? "Finalizing..."
+                : hasPendingBookings
+                ? "Pending Bookings Exist"
+                : "Finalize Day"}
             </button>
           </div>
         </div>
       </div>
+
+      {showFinalizeConfirm && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700">
+              <AlertCircle size={22} />
+            </div>
+
+            <h3 className="mt-4 text-center text-xl font-bold text-gray-900">
+              Finalize and lock this day?
+            </h3>
+
+            <p className="mt-2 text-center text-sm text-gray-500">
+              After this day is finalized, front desk can no longer edit
+              bookings, payments, refunds, staff assignment, or notes for this
+              date.
+            </p>
+
+            <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+              This action cannot be changed from the front desk.
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowFinalizeConfirm(false)}
+                disabled={isCompleting}
+                className="flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Go back
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowFinalizeConfirm(false);
+                  await handleCompleteEndDay();
+                }}
+                disabled={isCompleting}
+                className="flex-[1.4] rounded-2xl bg-[#C87D87] px-4 py-3 text-sm font-bold text-white hover:bg-[#B8707A] disabled:opacity-50"
+              >
+                Yes, finalize day
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

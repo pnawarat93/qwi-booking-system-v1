@@ -46,50 +46,53 @@ async function getEffectiveStaffForDate(storeId, date) {
     throw new Error("Invalid date format");
   }
 
-  const [{ data: rosterRows, error: rosterError }, { data: overrideRows, error: overrideError }] =
-    await Promise.all([
-      supabase
-        .from("staff_rosters")
-        .select(`
+  const [
+    { data: rosterRows, error: rosterError },
+    { data: overrideRows, error: overrideError },
+  ] = await Promise.all([
+    supabase
+      .from("staff_rosters")
+      .select(`
+        id,
+        store_id,
+        staff_id,
+        weekday,
+        is_working,
+        display_order,
+        is_active,
+        staff (
           id,
-          store_id,
-          staff_id,
-          weekday,
-          is_working,
-          display_order,
+          name,
+          name_display,
           is_active,
-          staff (
-            id,
-            name,
-            name_display,
-            is_active,
-            store_id
-          )
-        `)
-        .eq("store_id", storeId)
-        .eq("weekday", weekday)
-        .eq("is_active", true),
+          store_id
+        )
+      `)
+      .eq("store_id", storeId)
+      .eq("weekday", weekday)
+      .eq("is_active", true),
 
-      supabase
-        .from("staff_shift_overrides")
-        .select(`
+    supabase
+      .from("staff_shift_overrides")
+      .select(`
+        id,
+        store_id,
+        staff_id,
+        override_date,
+        is_working,
+        display_order,
+        daily_guarantee_override,
+        staff (
           id,
-          store_id,
-          staff_id,
-          override_date,
-          is_working,
-          display_order,
-          staff (
-            id,
-            name,
-            name_display,
-            is_active,
-            store_id
-          )
-        `)
-        .eq("store_id", storeId)
-        .eq("override_date", date),
-    ]);
+          name,
+          name_display,
+          is_active,
+          store_id
+        )
+      `)
+      .eq("store_id", storeId)
+      .eq("override_date", date),
+  ]);
 
   if (rosterError) throw new Error(rosterError.message);
   if (overrideError) throw new Error(overrideError.message);
@@ -131,6 +134,11 @@ async function getEffectiveStaffForDate(storeId, date) {
           ? row.display_order
           : existing?.display_order ?? 0,
       source: "override",
+      daily_guarantee_override:
+        row.daily_guarantee_override !== null &&
+        row.daily_guarantee_override !== undefined
+          ? Number(row.daily_guarantee_override)
+          : null,
     });
   });
 
@@ -429,12 +437,40 @@ export async function POST(request, context) {
 
     if (existingReport) {
       return NextResponse.json(
-        { error: "End day report already exists. This report cannot be overwritten." },
+        {
+          error:
+            "End day report already exists. This report cannot be overwritten.",
+        },
         { status: 409 }
       );
     }
 
     const safeJobs = Array.isArray(jobs) ? jobs : [];
+
+    const pendingBookings = safeJobs.filter(
+      (job) => job.status === "pending"
+    );
+
+    if (pendingBookings.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot finalize day while pending bookings still exist. Please finalize all pending bookings first.",
+          code: "PENDING_BOOKINGS_EXIST",
+          pending_count: pendingBookings.length,
+          pending_bookings: pendingBookings.map((job) => ({
+            id: job.id,
+            customer_name: job.customer_name || "Customer",
+            customer_phone: job.customer_phone || "",
+            time: job.time ? String(job.time).substring(0, 5) : "",
+            service_name: getJobServiceName(job) || "Service",
+            staff_name: job.staff?.name_display || job.staff?.name || "",
+            status: job.status,
+          })),
+        },
+        { status: 400 }
+      );
+    }
 
     const policyIds = [
       ...new Set(
@@ -452,6 +488,7 @@ export async function POST(request, context) {
           id,
           store_id,
           name,
+          role_name,
           payout_type,
           fixed_amount,
           percent,
@@ -558,7 +595,9 @@ export async function POST(request, context) {
     const totalJobs = safeJobs.length;
     const paidJobs = safeJobs.filter((job) => job.status === "paid").length;
     const pendingJobs = safeJobs.filter((job) => job.status === "pending").length;
-    const cancelledJobs = safeJobs.filter((job) => job.status === "cancelled").length;
+    const cancelledJobs = safeJobs.filter(
+      (job) => job.status === "cancelled"
+    ).length;
     const noShowJobs = safeJobs.filter((job) => job.status === "no_show").length;
 
     const outstanding = safeJobs
@@ -613,7 +652,8 @@ export async function POST(request, context) {
       if (!staffPayoutMap.has(String(staffId))) {
         staffPayoutMap.set(String(staffId), {
           staff_id: staffId,
-          staff_name: job.staff?.name_display || job.staff?.name || "Unknown staff",
+          staff_name:
+            job.staff?.name_display || job.staff?.name || "Unknown staff",
           payout_total: 0,
           guarantee_top_up: 0,
         });
@@ -690,6 +730,9 @@ export async function POST(request, context) {
         payment_total: roundMoney(payoutResult.paymentTotal || 0),
         refund_total: roundMoney(payoutResult.refundedTotal || 0),
         effective_total: roundMoney(payoutResult.effectiveAmount || 0),
+        payout_role_name:
+          payoutResult.policy?.role_name || payoutResult.policy?.name || null,
+        payout_final: roundMoney(payoutResult.payout || 0),
         staff_payout: roundMoney(payoutResult.payout || 0),
         payment_staff_note: paymentRow?.staff_note || null,
         payment_reference_code: paymentRow?.reference_code || null,
@@ -697,13 +740,27 @@ export async function POST(request, context) {
       };
     });
 
-    const dailyGuarantee = getDailyGuarantee(storeConfig, date);
-
     if (storeConfig?.enable_daily_guarantee) {
       staffPayoutMap.forEach((entry) => {
+        const workingStaffEntry = workingStaff.find(
+          (staff) => String(staff.id) === String(entry.staff_id)
+        );
+
+        const overrideGuarantee = workingStaffEntry?.daily_guarantee_override;
+
+        const defaultGuarantee = getDailyGuarantee(storeConfig, date);
+
+        const effectiveGuarantee =
+          overrideGuarantee !== null && overrideGuarantee !== undefined
+            ? Number(overrideGuarantee)
+            : defaultGuarantee;
+
         const calculated = roundMoney(entry.payout_total || 0);
-        const finalPayout = Math.max(calculated, dailyGuarantee);
+
+        const finalPayout = Math.max(calculated, effectiveGuarantee);
+
         entry.payout_total = roundMoney(finalPayout);
+
         entry.guarantee_top_up = roundMoney(finalPayout - calculated);
       });
     }

@@ -235,7 +235,8 @@ export async function GET(request, context) {
 
     const { searchParams } = new URL(request.url);
     const job_id = searchParams.get("job_id");
-    const jobgroup_id = searchParams.get("jobgroup_id");
+    const jobgroup_id =
+      searchParams.get("jobgroup_id") || searchParams.get("job_group_id");
 
     if (!job_id && !jobgroup_id) {
       return NextResponse.json(
@@ -306,6 +307,8 @@ export async function POST(request, context) {
     const {
       job_id,
       jobgroup_id,
+      job_group_id,
+      payment_scope,
       cash,
       card,
       hicaps,
@@ -317,6 +320,14 @@ export async function POST(request, context) {
       transaction_type = "payment",
       parent_payment_id,
     } = body;
+
+    const incomingJobGroupId = jobgroup_id || job_group_id || null;
+
+    const isGroupPayment =
+      payment_scope === "group" || (!job_id && incomingJobGroupId);
+
+    const targetJobId = isGroupPayment ? null : job_id || null;
+    const targetJobGroupId = isGroupPayment ? incomingJobGroupId : null;
 
     // REFUND FLOW
     if (transaction_type === "refund") {
@@ -357,6 +368,13 @@ export async function POST(request, context) {
         return NextResponse.json(
           { error: parentLock.error || "This day is closed. Cannot refund." },
           { status: 423 }
+        );
+      }
+
+      if (parentPayment.transaction_type === "void") {
+        return NextResponse.json(
+          { error: "Cannot refund void transaction" },
+          { status: 400 }
         );
       }
 
@@ -459,7 +477,7 @@ export async function POST(request, context) {
     }
 
     // NORMAL PAYMENT FLOW
-    if (!job_id && !jobgroup_id) {
+    if (!targetJobId && !targetJobGroupId) {
       return NextResponse.json(
         { error: "Missing job_id or jobgroup_id" },
         { status: 400 }
@@ -468,8 +486,8 @@ export async function POST(request, context) {
 
     const paymentTargetLock = await assertPaymentTargetIsNotLocked({
       storeId: store.id,
-      job_id,
-      jobgroup_id,
+      job_id: targetJobId,
+      jobgroup_id: targetJobGroupId,
     });
 
     if (paymentTargetLock.locked) {
@@ -486,8 +504,8 @@ export async function POST(request, context) {
     const { data: existingPayment, error: existingPaymentError } =
       await getLatestActivePayment({
         storeId: store.id,
-        job_id,
-        jobgroup_id,
+        job_id: targetJobId,
+        jobgroup_id: targetJobGroupId,
       });
 
     if (existingPaymentError) {
@@ -508,8 +526,8 @@ export async function POST(request, context) {
     }
 
     const paymentPayload = {
-      job_id: job_id || null,
-      job_group_id: jobgroup_id || null,
+      job_id: targetJobId,
+      job_group_id: targetJobGroupId,
       cash: normalizeNumber(cash),
       card: normalizeNumber(card),
       hicaps: normalizeNumber(hicaps),
@@ -538,17 +556,26 @@ export async function POST(request, context) {
       .single();
 
     if (paymentError) {
+      if (paymentError.code === "23505") {
+        return NextResponse.json(
+          {
+            error: "Active payment already exists for this booking",
+          },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json(
         { error: paymentError.message },
         { status: 500 }
       );
     }
 
-    if (jobgroup_id) {
+    if (targetJobGroupId) {
       const { error: updateGroupError } = await supabase
         .from("jobs")
         .update({ status: "paid" })
-        .eq("job_group_id", jobgroup_id)
+        .eq("job_group_id", targetJobGroupId)
         .eq("store_id", store.id);
 
       if (updateGroupError) {
@@ -557,11 +584,11 @@ export async function POST(request, context) {
           { status: 500 }
         );
       }
-    } else if (job_id) {
+    } else if (targetJobId) {
       const { error: updateJobError } = await supabase
         .from("jobs")
         .update({ status: "paid" })
-        .eq("id", job_id)
+        .eq("id", targetJobId)
         .eq("store_id", store.id);
 
       if (updateJobError) {
@@ -643,6 +670,13 @@ export async function PATCH(request, context) {
       );
     }
 
+    if (existingPayment.status !== "active") {
+      return NextResponse.json(
+        { error: "Cannot edit inactive payment" },
+        { status: 400 }
+      );
+    }
+
     const updatePayload = {
       cash: normalizeNumber(cash),
       card: normalizeNumber(card),
@@ -667,6 +701,7 @@ export async function PATCH(request, context) {
       .update(updatePayload)
       .eq("id", payment_id)
       .eq("transaction_type", "payment")
+      .eq("status", "active")
       .eq("store_id", store.id)
       .select("*")
       .single();
@@ -734,6 +769,13 @@ export async function DELETE(request, context) {
     if (paymentRow.transaction_type !== "payment") {
       return NextResponse.json(
         { error: "Only payment transactions can be voided here" },
+        { status: 400 }
+      );
+    }
+
+    if (paymentRow.status !== "active") {
+      return NextResponse.json(
+        { error: "Payment is already inactive" },
         { status: 400 }
       );
     }

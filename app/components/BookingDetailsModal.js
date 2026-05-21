@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { storeApiUrl } from "@/lib/storeApi";
 
 function apiPath(slug, path) {
@@ -65,14 +66,27 @@ function totalPaymentAmount(payment) {
 function getServicePrice(booking) {
   return Number(
     booking?.service_price_snapshot ??
-      booking?.services?.price ??
-      booking?.price ??
-      0
+    booking?.services?.price ??
+    booking?.price ??
+    0
   );
 }
 
 function handleNumberWheel(event) {
   event.currentTarget.blur();
+}
+
+function setFullPaymentToMethod(method, amount, setPaymentInfo) {
+  const safeAmount = Number(amount || 0);
+
+  setPaymentInfo((prev) => ({
+    ...prev,
+    cash: method === "cash" ? safeAmount : 0,
+    card: method === "card" ? safeAmount : 0,
+    hicaps: method === "hicaps" ? safeAmount : 0,
+    transfer: method === "transfer" ? safeAmount : 0,
+    other: method === "other" ? safeAmount : 0,
+  }));
 }
 
 export default function BookingDetailsModal({
@@ -126,6 +140,9 @@ export default function BookingDetailsModal({
   const [isVoidingPayment, setIsVoidingPayment] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [isSavingChanges, setIsSavingChanges] = useState(false);
+  const [paymentScope, setPaymentScope] = useState("single");
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const paymentSectionRef = useRef(null);
 
   const customerBookingNote =
     booking?.customer_note ||
@@ -180,6 +197,8 @@ export default function BookingDetailsModal({
     setRefundRows([]);
     setRefundedTotal(0);
     setRemainingRefundable(0);
+    setPaymentScope("single");
+    setIsEditingDetails(false);
     setSaveError("");
     setIsSavingChanges(false);
   }, [booking]);
@@ -191,7 +210,7 @@ export default function BookingDetailsModal({
       try {
         setLoadingPayment(true);
 
-        const query = booking.job_group_id
+        const query = booking.job_group_id && paymentScope === "group"
           ? apiPath(storeSlug, `/payments?jobgroup_id=${booking.job_group_id}`)
           : apiPath(storeSlug, `/payments?job_id=${booking.id}`);
 
@@ -218,6 +237,17 @@ export default function BookingDetailsModal({
             reference_code: result.payment.reference_code || "",
           });
         }
+        else {
+          setPaymentInfo({
+            cash: 0,
+            card: 0,
+            hicaps: 0,
+            transfer: 0,
+            other: 0,
+            staff_note: "",
+            reference_code: "",
+          });
+        }
       } catch (error) {
         console.error(error);
         setExistingPayment(null);
@@ -230,7 +260,7 @@ export default function BookingDetailsModal({
     }
 
     fetchExistingPayment();
-  }, [open, booking, storeSlug]);
+  }, [open, booking, storeSlug, paymentScope]);
 
   const assignableStaff = useMemo(() => {
     if (!booking) return [];
@@ -280,18 +310,39 @@ export default function BookingDetailsModal({
     );
   }, [availableStaffOptions, booking]);
 
+  const groupBookings = useMemo(() => {
+    if (!booking?.job_group_id) return [];
+    return allBookings.filter(
+      (item) => String(item.job_group_id) === String(booking.job_group_id)
+    );
+  }, [allBookings, booking?.job_group_id]);
+
+  const groupTotalPrice = useMemo(
+    () => groupBookings.reduce((sum, item) => sum + getServicePrice(item), 0),
+    [groupBookings]
+  );
+
   const isGroupBooking = Boolean(booking?.job_group_id);
   const isWalkInBooking = Boolean(booking?.is_walk_in);
   const isRequestedStaffBooking = Boolean(
-    !isWalkInBooking && (booking?.requested_staff_id || booking?.is_staff_requested)
+    !isWalkInBooking &&
+    (booking?.requested_staff_id || booking?.is_staff_requested)
   );
 
   const originalStaffId = booking?.staff_id ? String(booking.staff_id) : "";
   const staffChanged = String(formData.staff_id || "") !== originalStaffId;
 
   const servicePrice = getServicePrice(booking);
+  const selectedPaymentPrice = isGroupBooking && paymentScope === "group"
+    ? groupTotalPrice
+    : servicePrice;
   const refundDraftTotal = totalPaymentAmount(refundInfo);
   const paidTotal = totalPaymentAmount(existingPayment);
+  const remainingAmount = Math.max(selectedPaymentPrice - paidTotal, 0);
+  const paymentDraftTotal = totalPaymentAmount(paymentInfo);
+  const paymentTargetAmount = existingPayment ? remainingAmount : selectedPaymentPrice;
+  const remainingAfterDraft = Math.max(selectedPaymentPrice - paymentDraftTotal, 0);
+  const overpaymentAmount = Math.max(paymentDraftTotal - selectedPaymentPrice, 0);
   const hasFullyRefunded = remainingRefundable <= 0 && refundedTotal > 0;
 
   const isDirty = useMemo(() => {
@@ -301,18 +352,18 @@ export default function BookingDetailsModal({
       formData.customer_name !== (booking.customer_name || "") ||
       formData.customer_phone !== (booking.customer_phone || "") ||
       formData.service_name !==
-        (booking.service_name_snapshot ||
-          booking.services?.name ||
-          booking.service_name ||
-          "") ||
+      (booking.service_name_snapshot ||
+        booking.services?.name ||
+        booking.service_name ||
+        "") ||
       formData.time !== (booking.time?.substring(0, 5) || "") ||
       Number(formData.duration) !==
-        Number(
-          booking.service_duration_snapshot ??
-            booking.duration ??
-            booking.services?.duration ??
-            30
-        ) ||
+      Number(
+        booking.service_duration_snapshot ??
+        booking.duration ??
+        booking.services?.duration ??
+        30
+      ) ||
       formData.status !== (booking.status?.toLowerCase() || "pending") ||
       formData.notes !== (booking.notes || "") ||
       String(formData.staff_id || "") !== String(booking.staff_id || "")
@@ -343,6 +394,17 @@ export default function BookingDetailsModal({
     }));
   }
 
+  function clearPaymentAmounts() {
+    setPaymentInfo((prev) => ({
+      ...prev,
+      cash: 0,
+      card: 0,
+      hicaps: 0,
+      transfer: 0,
+      other: 0,
+    }));
+  }
+
   function handleStatusChange(nextStatus) {
     if (!STATUS_OPTIONS.includes(nextStatus)) return;
 
@@ -356,6 +418,9 @@ export default function BookingDetailsModal({
     if (nextStatus === "paid") {
       setShowPaymentForm(true);
       setShowRefundForm(false);
+      setTimeout(() => {
+        paymentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
       return;
     }
 
@@ -372,7 +437,7 @@ export default function BookingDetailsModal({
   }
 
   async function reloadPaymentState() {
-    const query = booking.job_group_id
+    const query = booking.job_group_id && paymentScope === "group"
       ? apiPath(storeSlug, `/payments?jobgroup_id=${booking.job_group_id}`)
       : apiPath(storeSlug, `/payments?job_id=${booking.id}`);
 
@@ -431,33 +496,39 @@ export default function BookingDetailsModal({
         });
 
         onRefresh?.();
+
+        toast.success(
+          existingPayment
+            ? "Payment updated successfully"
+            : "Payment recorded successfully"
+        );
         onClose?.();
         return;
       }
 
-      const payload = booking.job_group_id
+      const payload = paymentScope === "group"
         ? {
-            jobgroup_id: booking.job_group_id,
-            cash: paymentInfo.cash,
-            card: paymentInfo.card,
-            hicaps: paymentInfo.hicaps,
-            transfer: paymentInfo.transfer,
-            other: paymentInfo.other,
-            staff_note: paymentInfo.staff_note,
-            reference_code: paymentInfo.reference_code,
-            notes: "Created from booking details modal",
-          }
+          jobgroup_id: booking.job_group_id,
+          cash: paymentInfo.cash,
+          card: paymentInfo.card,
+          hicaps: paymentInfo.hicaps,
+          transfer: paymentInfo.transfer,
+          other: paymentInfo.other,
+          staff_note: paymentInfo.staff_note,
+          reference_code: paymentInfo.reference_code,
+          notes: "Created from booking details modal",
+        }
         : {
-            job_id: booking.id,
-            cash: paymentInfo.cash,
-            card: paymentInfo.card,
-            hicaps: paymentInfo.hicaps,
-            transfer: paymentInfo.transfer,
-            other: paymentInfo.other,
-            staff_note: paymentInfo.staff_note,
-            reference_code: paymentInfo.reference_code,
-            notes: "Created from booking details modal",
-          };
+          job_id: booking.id,
+          cash: paymentInfo.cash,
+          card: paymentInfo.card,
+          hicaps: paymentInfo.hicaps,
+          transfer: paymentInfo.transfer,
+          other: paymentInfo.other,
+          staff_note: paymentInfo.staff_note,
+          reference_code: paymentInfo.reference_code,
+          notes: "Created from booking details modal",
+        };
 
       const response = await fetch(apiPath(storeSlug, "/payments"), {
         method: "POST",
@@ -490,9 +561,10 @@ export default function BookingDetailsModal({
       setExistingPayment(result?.data || null);
 
       onRefresh?.();
+      toast.success("Payment recorded successfully");
       onClose?.();
     } catch (error) {
-      alert(error.message || "Failed to record payment");
+      toast.error(error.message || "Failed to record payment");
     } finally {
       setIsRecordingPayment(false);
     }
@@ -500,17 +572,17 @@ export default function BookingDetailsModal({
 
   async function handleRefund() {
     if (!existingPayment?.id) {
-      alert("No active payment found to refund.");
+      toast.error("No active payment found to refund.");
       return;
     }
 
     if (refundDraftTotal <= 0) {
-      alert("Refund amount must be greater than 0.");
+      toast.error("Refund amount must be greater than 0.");
       return;
     }
 
     if (refundDraftTotal > remainingRefundable) {
-      alert(
+      toast.error(
         `Refund exceeds remaining refundable amount. Remaining: $${remainingRefundable.toFixed(
           2
         )}`
@@ -524,8 +596,8 @@ export default function BookingDetailsModal({
     const confirmed = window.confirm(
       willFullyRefund
         ? `Confirm full refund of $${refundDraftTotal.toFixed(
-            2
-          )}? This booking will be marked as cancelled.`
+          2
+        )}? This booking will be marked as cancelled.`
         : `Confirm refund of $${refundDraftTotal.toFixed(2)}?`
     );
 
@@ -574,14 +646,14 @@ export default function BookingDetailsModal({
           ...prev,
           status: "cancelled",
         }));
-        alert("Full refund recorded. Booking has been cancelled.");
+        toast.success("Full refund recorded. Booking has been cancelled.");
       } else {
-        alert("Refund recorded");
+        toast.success("Refund recorded");
       }
 
       onRefresh?.();
     } catch (err) {
-      alert(err.message || "Failed to record refund");
+      toast.error(err.message || "Failed to record refund");
     } finally {
       setIsRefunding(false);
     }
@@ -638,9 +710,11 @@ export default function BookingDetailsModal({
       setShowRefundForm(false);
 
       onRefresh?.();
+      toast.success("Payment voided");
+
       onClose?.();
     } catch (error) {
-      alert(error.message || "Failed to void payment");
+      toast.error(error.message || "Failed to void payment");
     } finally {
       setIsVoidingPayment(false);
     }
@@ -698,9 +772,14 @@ export default function BookingDetailsModal({
         notes: formData.notes,
         staff_id: formData.staff_id ? Number(formData.staff_id) : null,
       });
+      toast.success("Booking changes saved successfully.");
+      onRefresh?.();
+      onClose?.();
+
     } catch (error) {
       console.error(error);
       setSaveError(error.message || "Could not save booking changes.");
+      toast.error("Could not save booking changes.");
     } finally {
       setIsSavingChanges(false);
     }
@@ -769,151 +848,160 @@ export default function BookingDetailsModal({
         </div>
 
         <div className="space-y-5 overflow-y-auto px-6 py-6">
-          <section className="rounded-xl border bg-gray-50 p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">
-              Customer
-            </h3>
-
-            <div className="grid gap-4 md:grid-cols-2">
+          <section className="rounded-2xl border border-[#E9DED8] bg-white p-4 shadow-sm">
+            <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Customer name
-                </label>
-                <input
-                  type="text"
-                  value={formData.customer_name}
-                  onChange={(e) => updateField("customer_name", e.target.value)}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
-                />
+                <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-[#B09A92]">
+                  Booking Information
+                </h3>
+                <p className="mt-1 text-xs text-[#8B7A72]">
+                  Customer, service and time details
+                </p>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Phone number
-                </label>
-                <input
-                  type="text"
-                  value={formData.customer_phone}
-                  onChange={(e) => updateField("customer_phone", e.target.value)}
-                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditingDetails((prev) => !prev)}
+                className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${isEditingDetails
+                  ? "border-[#C87D87] bg-[#FFF5F7] text-[#8B4F5A]"
+                  : "border-[#E9DED8] bg-[#FFF9F6] text-[#5B4B45] hover:bg-[#F5ECE7]"
+                  }`}
+              >
+                {isEditingDetails ? "Done Editing" : "Edit Details"}
+              </button>
             </div>
 
-            {customerBookingNote && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                  Customer note
-                </p>
-                <p className="mt-1 text-sm text-amber-900">
-                  {customerBookingNote}
-                </p>
-              </div>
-            )}
-          </section>
+            {isEditingDetails ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Customer name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.customer_name}
+                    onChange={(e) => updateField("customer_name", e.target.value)}
+                    className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                  />
+                </div>
 
-          <section className="rounded-xl border bg-white p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">
-              Booking
-            </h3>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Phone number
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.customer_phone}
+                    onChange={(e) => updateField("customer_phone", e.target.value)}
+                    className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                  />
+                </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Service name
-                </label>
-                <input
-                  type="text"
-                  value={formData.service_name}
-                  onChange={(e) => updateField("service_name", e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-                />
-              </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Service name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.service_name}
+                    onChange={(e) => updateField("service_name", e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                  />
+                </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Duration (mins)
-                </label>
-                <input
-                  type="number"
-                  min="5"
-                  step="5"
-                  value={formData.duration}
-                  onWheel={handleNumberWheel}
-                  onChange={(e) => updateField("duration", e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-                />
-              </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Duration (mins)
+                  </label>
+                  <input
+                    type="number"
+                    min="5"
+                    step="5"
+                    value={formData.duration}
+                    onWheel={handleNumberWheel}
+                    onChange={(e) => updateField("duration", e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                  />
+                </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Time
-                </label>
-                <input
-                  type="time"
-                  step="300"
-                  value={formData.time}
-                  onChange={(e) => updateField("time", e.target.value)}
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Status
-                </label>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleStatusChange("pending")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "pending"
-                        ? "border-blue-300 bg-blue-50 text-blue-700"
-                        : "border-gray-200 text-gray-700"
-                    }`}
-                  >
-                    Pending
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleStatusChange("paid")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "paid"
-                        ? "border-green-300 bg-green-50 text-green-700"
-                        : "border-gray-200 text-gray-700"
-                    }`}
-                  >
-                    Paid
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleStatusChange("cancelled")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "cancelled"
-                        ? "border-red-300 bg-red-50 text-red-700"
-                        : "border-gray-200 text-gray-700"
-                    }`}
-                  >
-                    Cancelled
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleStatusChange("no_show")}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium ${
-                      formData.status === "no_show"
-                        ? "border-gray-400 bg-gray-100 text-gray-700"
-                        : "border-gray-200 text-gray-700"
-                    }`}
-                  >
-                    No-show
-                  </button>
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Time
+                  </label>
+                  <input
+                    type="time"
+                    step="300"
+                    value={formData.time}
+                    onChange={(e) => updateField("time", e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                  />
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-2xl bg-[#FFF9F6] px-4 py-3">
+                <div className="grid gap-y-2 text-sm md:grid-cols-2 md:gap-x-6">
+                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
+                    <span className="font-semibold text-[#9A8A84]">
+                      Customer
+                    </span>
+
+                    <span className="text-right font-semibold text-[#4A3A34]">
+                      {formData.customer_name || "—"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
+                    <span className="font-semibold text-[#9A8A84]">
+                      Phone
+                    </span>
+
+                    <span className="text-right font-semibold text-[#4A3A34]">
+                      {formData.customer_phone || "—"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
+                    <span className="font-semibold text-[#9A8A84]">
+                      Service
+                    </span>
+
+                    <span className="text-right font-semibold text-[#4A3A34]">
+                      {formData.service_name || "—"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
+                    <span className="font-semibold text-[#9A8A84]">
+                      Duration
+                    </span>
+
+                    <span className="text-right font-semibold text-[#4A3A34]">
+                      {formData.duration} mins
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 py-1.5">
+                    <span className="font-semibold text-[#9A8A84]">
+                      Time
+                    </span>
+
+                    <span className="text-right font-semibold text-[#4A3A34]">
+                      {formData.time || "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+
+            {customerBookingNote && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">
+                  Customer note
+                </p>
+                <p className="mt-1 text-sm text-amber-900">{customerBookingNote}</p>
+              </div>
+            )}
           </section>
 
           <section className="rounded-xl border bg-white p-4">
@@ -958,7 +1046,54 @@ export default function BookingDetailsModal({
             </p>
           </section>
 
-          <section className="rounded-xl border bg-white p-4">
+          <section className="mt-4 rounded-2xl border border-[#E9DED8] bg-white p-4 shadow-sm">
+            <div className="mb-3">
+              <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-[#B09A92]">
+                Status
+              </h3>
+
+              <p className="mt-1 text-xs text-[#8B7A72]">
+                Update booking progress and payment flow
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {STATUS_OPTIONS.map((status) => {
+                const active = formData.status === status;
+
+                const labelMap = {
+                  pending: "Pending",
+                  paid: "Paid",
+                  cancelled: "Cancelled",
+                  no_show: "No-show",
+                };
+
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => handleStatusChange(status)}
+                    className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${active
+                        ? "border-[#C87D87] bg-[#FFF5F7] text-[#8B4F5A]"
+                        : "border-[#E9DED8] bg-[#FFFCFA] text-[#5B4B45] hover:bg-[#FFF5F7]"
+                      }`}
+                  >
+                    {labelMap[status]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {formData.status === "paid" ? (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                <p className="text-sm font-semibold text-emerald-900">
+                  Payment section is ready below
+                </p>
+              </div>
+            ) : null}
+          </section>
+
+          <section ref={paymentSectionRef} className="rounded-xl border bg-white p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900">
                 Payment information
@@ -970,9 +1105,63 @@ export default function BookingDetailsModal({
               )}
             </div>
 
-            <div className="mt-3 rounded-lg border bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Service price: ${servicePrice.toFixed(2)}
-              {isGroupBooking ? " · group payment will cover linked jobs" : ""}
+            {isGroupBooking && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-gray-500">Payment scope:</span>
+                <button
+                  type="button"
+                  onClick={() => setPaymentScope("single")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "single"
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-gray-200 text-gray-700"
+                    }`}
+                >
+                  This booking only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentScope("group")}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "group"
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-gray-200 text-gray-700"
+                    }`}
+                >
+                  Whole group
+                </button>
+              </div>
+            )}
+
+            <div className="mt-3 space-y-2 rounded-lg border bg-amber-50 px-3 py-3 text-sm text-amber-900">
+              <div className="flex items-center justify-between">
+                <span>Selected amount</span>
+                <span className="font-semibold">
+                  ${selectedPaymentPrice.toFixed(2)}
+                </span>
+              </div>
+
+              {existingPayment && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span>Paid so far</span>
+                    <span className="font-semibold text-green-700">
+                      ${paidTotal.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span>Remaining</span>
+                    <span className="font-semibold text-amber-800">
+                      ${remainingAmount.toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {isGroupBooking && (
+                <p className="border-t border-amber-200 pt-2 text-xs text-amber-700">
+                  Group payment will cover linked bookings.
+                </p>
+              )}
             </div>
 
             {loadingPayment ? (
@@ -1062,8 +1251,8 @@ export default function BookingDetailsModal({
                     {hasFullyRefunded
                       ? "Fully refunded"
                       : showRefundForm
-                      ? "Cancel refund"
-                      : "Refund"}
+                        ? "Cancel refund"
+                        : "Refund"}
                   </button>
 
                   <button
@@ -1102,6 +1291,76 @@ export default function BookingDetailsModal({
                     the whole group to prevent duplicate payment records.
                   </div>
                 )}
+
+                <div className="rounded-lg border border-green-200 bg-white px-3 py-3 text-sm text-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span>Suggested amount</span>
+                    <span className="font-semibold text-gray-900">
+                      ${paymentTargetAmount.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+                    <span>
+                      {existingPayment
+                        ? "Remaining after current payment"
+                        : "Service price"}
+                    </span>
+                    <span>${paymentTargetAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFullPaymentToMethod(
+                        "cash",
+                        paymentTargetAmount,
+                        setPaymentInfo
+                      )
+                    }
+                    className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                  >
+                    {existingPayment ? "Remaining Cash" : "Full Cash"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFullPaymentToMethod(
+                        "card",
+                        paymentTargetAmount,
+                        setPaymentInfo
+                      )
+                    }
+                    className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                  >
+                    {existingPayment ? "Remaining Card" : "Full Card"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFullPaymentToMethod(
+                        "transfer",
+                        paymentTargetAmount,
+                        setPaymentInfo
+                      )
+                    }
+                    className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                  >
+                    Transfer
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={clearPaymentAmounts}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Clear
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1200,6 +1459,31 @@ export default function BookingDetailsModal({
                   </div>
                 </div>
 
+                <div className="rounded-lg border bg-white px-3 py-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Entered total</span>
+                    <span className="font-semibold text-gray-900">
+                      ${paymentDraftTotal.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {overpaymentAmount > 0 ? (
+                    <div className="mt-1 flex items-center justify-between text-red-700">
+                      <span>Overpayment</span>
+                      <span className="font-semibold">
+                        ${overpaymentAmount.toFixed(2)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-1 flex items-center justify-between text-amber-700">
+                      <span>Remaining after this payment</span>
+                      <span className="font-semibold">
+                        ${remainingAfterDraft.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600">
                     Staff note
@@ -1218,7 +1502,7 @@ export default function BookingDetailsModal({
                 <button
                   type="button"
                   onClick={handleRecordPayment}
-                  disabled={isRecordingPayment}
+                  disabled={isRecordingPayment || paymentDraftTotal <= 0}
                   className="w-full rounded-lg bg-green-600 py-3 text-sm font-bold uppercase tracking-widest text-white shadow-lg shadow-green-200 transition-all hover:bg-green-700 disabled:opacity-50"
                 >
                   {isRecordingPayment
@@ -1226,8 +1510,8 @@ export default function BookingDetailsModal({
                       ? "Updating..."
                       : "Recording..."
                     : existingPayment
-                    ? "Update payment"
-                    : "Finalize & Record Payment"}
+                      ? "Update payment"
+                      : "Finalize & Record Payment"}
                 </button>
               </div>
             )}

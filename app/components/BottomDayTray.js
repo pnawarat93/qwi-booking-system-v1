@@ -1,5 +1,26 @@
 "use client";
 
+function StatPill({ label, value, color, onClick }) {
+  const content = (
+    <div
+      className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${color}`}
+    >
+      <span>{label}</span>
+      <span className="ml-1.5 font-black">{value}</span>
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="text-left">
+        {content}
+      </button>
+    );
+  }
+
+  return content;
+}
+
 export default function BottomDayTray({
   selectedDate,
   totalBookings = 0,
@@ -13,81 +34,57 @@ export default function BottomDayTray({
   onOpenEndDay,
   storeDay,
 }) {
-  const isStoreDayStarted = Boolean(storeDay?.is_open);
+  const inactiveCount = cancelledCount + noShowCount;
 
   return (
-    <section className="shrink-0 border-t bg-white sticky bottom-0 z-10">
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-        <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700">
-          <span className="font-semibold text-gray-900">Total</span>:{" "}
-          {totalBookings}
+    <div className="border-t border-[#E9DED8] bg-[#FFF9F6]/95 px-5 py-2.5 backdrop-blur">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatPill
+            label="Active"
+            value={activeCount}
+            color="border-amber-200 bg-amber-50 text-amber-800"
+          />
+
+          <StatPill
+            label="Total"
+            value={totalBookings}
+            color="border-[#E9DED8] bg-white text-[#4A3A34]"
+          />
+
+          <StatPill
+            label="Inactive"
+            value={inactiveCount}
+            color="border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
+            onClick={onOpenInactive}
+          />
+
+          <StatPill
+            label="Unassigned"
+            value={unassignedCount}
+            color="border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+            onClick={onOpenUnassigned}
+          />
         </div>
 
-        <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700">
-          <span className="font-semibold text-gray-900">Active</span>:{" "}
-          {activeCount}
-        </div>
-
-        <button
-          type="button"
-          onClick={onOpenInactive}
-          className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-        >
-          <span className="font-semibold text-gray-900">Cancelled</span>:{" "}
-          {cancelledCount}
-          <span className="mx-1 text-gray-300">|</span>
-          <span className="font-semibold text-gray-900">No-show</span>:{" "}
-          {noShowCount}
-        </button>
-
-        <button
-          type="button"
-          onClick={onOpenUnassigned}
-          className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-        >
-          <span className="font-semibold text-gray-900">Unassigned</span>:{" "}
-          {unassignedCount}
-        </button>
-
-        <div className="ml-auto flex items-center gap-3">
-          <div
-            className={`rounded-lg border px-3 py-2 text-sm ${
-              isStoreDayStarted
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-amber-200 bg-amber-50 text-amber-800"
-            }`}
-          >
-            {isStoreDayStarted ? (
-              <>
-                <span className="font-semibold">Start till</span>: $
-                {Number(storeDay?.start_till || 0).toFixed(2)}
-              </>
-            ) : (
-              <span className="font-semibold">Day not started</span>
-            )}
-          </div>
-
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onOpenStaffControls}
-            className="rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            className="rounded-full border border-[#E9DED8] bg-white px-5 py-2.5 text-sm font-semibold text-[#5B4B45] transition hover:border-[#D8B6BD] hover:bg-[#FFF5F7] hover:text-[#4A3A34] hover:shadow-sm"
           >
-            Staff controls
+            Staff Controls
           </button>
 
           <button
             type="button"
             onClick={onOpenEndDay}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+            className="rounded-full bg-[#4A3A34] px-5 py-2.5 text-sm font-semibold shadow-sm text-white transition hover:-translate-y-px hover:bg-[#5A4740] hover:shadow-md"
           >
-            End day
+            End of Day Report
           </button>
         </div>
       </div>
-
-      <div className="border-t px-4 py-2 text-xs text-gray-500">
-        {selectedDate}
-      </div>
-    </section>
+    </div>
   );
 }

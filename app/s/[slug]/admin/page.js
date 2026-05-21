@@ -30,6 +30,64 @@ function getTodayInTimeZone(timeZone = "Australia/Sydney") {
   return formatter.format(new Date());
 }
 
+function formatClosedAt(value, timeZone = "Australia/Sydney") {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleString("en-AU", {
+    timeZone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function ClosedDayState({ dateLabel, closedAtLabel, isTodaySelected }) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center bg-gray-50 px-4 py-10">
+      <div className="w-full max-w-xl rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl">
+          ✓
+        </div>
+
+        <h2 className="mt-5 text-2xl font-semibold text-gray-900">
+          Store closed for this day
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-500">
+          All records for {dateLabel} have been finalized and saved.
+        </p>
+
+        {closedAtLabel ? (
+          <p className="mt-3 text-sm font-medium text-green-700">
+            Closed at {closedAtLabel}
+          </p>
+        ) : null}
+
+        <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-left text-sm text-gray-600">
+          <p className="font-semibold text-gray-900">This day is locked.</p>
+
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            <li>Bookings can no longer be edited from front desk.</li>
+            <li>Payments and refunds are locked after closing.</li>
+            <li>Historical records are available from Owner Reports.</li>
+          </ul>
+        </div>
+
+        <p className="mt-5 text-xs text-gray-400">
+          Use the date selector above to move to another day.
+          {isTodaySelected ? " A new day can be started tomorrow." : ""}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function StoreAdminPage() {
   const store = useStore();
   const storeTimeZone = store.timezone || "Australia/Sydney";
@@ -139,6 +197,7 @@ export default function StoreAdminPage() {
         }
       } catch (error) {
         console.error("Failed to load store day:", error);
+
         if (isMounted) {
           setStoreDay(null);
         }
@@ -175,9 +234,18 @@ export default function StoreAdminPage() {
     trayData.missingAssignedPaidBookings?.length || 0;
 
   const isTodaySelected = selectedDate === todayInStoreTz;
-  const isStoreDayStarted = Boolean(storeDay?.is_open);
+
+  const isStoreDayClosed = Boolean(storeDay?.closed_at) || storeDay?.is_open === false;
+
+  const isStoreDayStarted = Boolean(storeDay?.is_open) && !isStoreDayClosed;
+
   const shouldBlockTodayOps =
-    isTodaySelected && !loadingStoreDay && !isStoreDayStarted;
+    isTodaySelected &&
+    !loadingStoreDay &&
+    !storeDay &&
+    !isStoreDayClosed;
+
+  const closedAtLabel = formatClosedAt(storeDay?.closed_at, storeTimeZone);
 
   function refreshGridNow() {
     setGridRefreshToken((prev) => prev + 1);
@@ -209,6 +277,11 @@ export default function StoreAdminPage() {
     refreshGridNow();
   }
 
+  function guardClosedDay(action) {
+    if (isStoreDayClosed) return;
+    action();
+  }
+
   return (
     <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white">
       <div className="sticky top-0 z-40 shrink-0 border-b bg-white">
@@ -225,12 +298,34 @@ export default function StoreAdminPage() {
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           dateLabel={dateLabel}
-          onOpenWalkIn={() => setShowWalkInModal(true)}
-          onOpenNewBooking={() => setShowNewBookingModal(true)}
+          onOpenWalkIn={() =>
+            guardClosedDay(() => setShowWalkInModal(true))
+          }
+          onOpenNewBooking={() =>
+            guardClosedDay(() => setShowNewBookingModal(true))
+          }
         />
       </div>
 
-      {unassignedCount > 0 && (
+      {isStoreDayClosed ? (
+        <div className="shrink-0 border-b border-green-200 bg-green-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-green-800">
+              <span className="font-semibold">Store closed</span>
+              <span className="ml-2 text-green-700">
+                Today&apos;s records are finalized. Front desk actions are
+                locked for this date.
+              </span>
+            </div>
+
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
+              Finalized
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      {!isStoreDayClosed && unassignedCount > 0 && (
         <div className="sticky top-[146px] z-20 shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-amber-800">
@@ -254,7 +349,7 @@ export default function StoreAdminPage() {
         </div>
       )}
 
-      {missingAssignedPaidCount > 0 && (
+      {!isStoreDayClosed && missingAssignedPaidCount > 0 && (
         <div className="sticky top-[146px] z-20 shrink-0 border-b border-blue-200 bg-blue-50 px-4 py-3">
           <div className="text-sm text-blue-800">
             <span className="font-semibold">
@@ -270,41 +365,55 @@ export default function StoreAdminPage() {
       )}
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        <ScheduleGrid
-          selectedDate={selectedDate}
-          onDataChange={setTrayData}
-          refreshToken={gridRefreshToken}
-          externalSelectedBooking={bookingToOpenFromUnassigned}
-          onExternalBookingHandled={() =>
-            setBookingToOpenFromUnassigned(null)
-          }
-          storeSlug={store.slug}
-        />
+        {loadingStoreDay ? (
+          <div className="flex h-full items-center justify-center bg-gray-50 text-sm text-gray-500">
+            Loading day status...
+          </div>
+        ) : isStoreDayClosed ? (
+          <ClosedDayState
+            dateLabel={dateLabel}
+            closedAtLabel={closedAtLabel}
+            isTodaySelected={isTodaySelected}
+          />
+        ) : (
+          <ScheduleGrid
+            selectedDate={selectedDate}
+            onDataChange={setTrayData}
+            refreshToken={gridRefreshToken}
+            externalSelectedBooking={bookingToOpenFromUnassigned}
+            onExternalBookingHandled={() =>
+              setBookingToOpenFromUnassigned(null)
+            }
+            storeSlug={store.slug}
+          />
+        )}
       </div>
 
-      <div className="shrink-0 border-t bg-white">
-        <BottomDayTray
-          selectedDate={selectedDate}
-          totalBookings={trayData.bookings?.length || 0}
-          activeCount={trayData.activeBookings?.length || 0}
-          cancelledCount={
-            trayData.inactiveBookings?.filter(
-              (booking) => booking.status?.toLowerCase() === "cancelled"
-            ).length || 0
-          }
-          noShowCount={
-            trayData.inactiveBookings?.filter(
-              (booking) => booking.status?.toLowerCase() === "no_show"
-            ).length || 0
-          }
-          unassignedCount={trayData.unassignedBookings?.length || 0}
-          onOpenInactive={() => setShowInactiveBookingsModal(true)}
-          onOpenUnassigned={() => setShowUnassignedBookingsModal(true)}
-          onOpenStaffControls={() => setShowStaffControlsModal(true)}
-          onOpenEndDay={() => setShowEndDayReport(true)}
-          storeDay={storeDay}
-        />
-      </div>
+      {!isStoreDayClosed && (
+        <div className="shrink-0 border-t bg-white">
+          <BottomDayTray
+            selectedDate={selectedDate}
+            totalBookings={trayData.bookings?.length || 0}
+            activeCount={trayData.activeBookings?.length || 0}
+            cancelledCount={
+              trayData.inactiveBookings?.filter(
+                (booking) => booking.status?.toLowerCase() === "cancelled"
+              ).length || 0
+            }
+            noShowCount={
+              trayData.inactiveBookings?.filter(
+                (booking) => booking.status?.toLowerCase() === "no_show"
+              ).length || 0
+            }
+            unassignedCount={trayData.unassignedBookings?.length || 0}
+            onOpenInactive={() => setShowInactiveBookingsModal(true)}
+            onOpenUnassigned={() => setShowUnassignedBookingsModal(true)}
+            onOpenStaffControls={() => setShowStaffControlsModal(true)}
+            onOpenEndDay={() => setShowEndDayReport(true)}
+            storeDay={storeDay}
+          />
+        </div>
+      )}
 
       <StartDayModal
         open={shouldBlockTodayOps}
@@ -316,7 +425,7 @@ export default function StoreAdminPage() {
       />
 
       <AddWalkInModal
-        open={showWalkInModal}
+        open={!isStoreDayClosed && showWalkInModal}
         selectedDate={selectedDate}
         onClose={() => setShowWalkInModal(false)}
         onCreated={handleWalkInCreated}
@@ -324,7 +433,7 @@ export default function StoreAdminPage() {
       />
 
       <NewBookingModal
-        open={showNewBookingModal}
+        open={!isStoreDayClosed && showNewBookingModal}
         selectedDate={selectedDate}
         onClose={() => setShowNewBookingModal(false)}
         onCreated={handleNewBookingCreated}
@@ -332,13 +441,13 @@ export default function StoreAdminPage() {
       />
 
       <InactiveBookingsModal
-        open={showInactiveBookingsModal}
+        open={!isStoreDayClosed && showInactiveBookingsModal}
         bookings={trayData.inactiveBookings || []}
         onClose={() => setShowInactiveBookingsModal(false)}
       />
 
       <UnassignedBookingsModal
-        open={showUnassignedBookingsModal}
+        open={!isStoreDayClosed && showUnassignedBookingsModal}
         bookings={trayData.unassignedBookings || []}
         onClose={() => setShowUnassignedBookingsModal(false)}
         onOpenBooking={(booking) => {
@@ -348,14 +457,14 @@ export default function StoreAdminPage() {
       />
 
       <StaffControlsModal
-        open={showStaffControlsModal}
+        open={!isStoreDayClosed && showStaffControlsModal}
         onClose={() => setShowStaffControlsModal(false)}
         selectedDate={selectedDate}
         storeSlug={store.slug}
         onUpdated={handleStaffControlsUpdated}
       />
 
-      {showEndDayReport && (
+      {showEndDayReport && !isStoreDayClosed && (
         <EndDayReport
           bookings={trayData.bookings || []}
           selectedDate={selectedDate}
