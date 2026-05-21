@@ -20,9 +20,8 @@ const ACTIVE_GRID_STATUSES = ["pending", "paid"];
 const INACTIVE_DAY_STATUSES = ["cancelled", "no_show"];
 const NEEDS_REASSIGN_PENDING_STATUSES = [
   "pending",
-  "paid",
 ];
-const MISSING_ASSIGNED_PAID_STATUSES = ["paid"];
+const MISSING_ASSIGNED_PAID_STATUSES = [];
 
 function timeStringToHour(timeString, fallback) {
   if (!timeString) return fallback;
@@ -225,11 +224,20 @@ export default function ScheduleGrid({
       if (!booking.staff_id) {
         return true;
       }
+      // Only pending bookings should become
+      // operationally unassigned when staff
+      // is no longer working today.
+      if (
+        status === "pending" &&
+        booking.staff_id &&
+        !workingStaffIds.has(
+          String(booking.staff_id)
+        )
+      ) {
+        return true;
+      }
 
-      // Assigned staff missing from working staff
-      return !workingStaffIds.has(
-        String(booking.staff_id)
-      );
+      return false;
     });
   }, [
     bookings,
@@ -455,8 +463,8 @@ export default function ScheduleGrid({
                 <React.Fragment key={slot.label}>
                   <div
                     className={`sticky left-0 z-10 flex items-center justify-end border-r px-3 text-xs ${slot.isMajor
-                        ? "border-t border-gray-300 bg-gray-50 text-gray-700"
-                        : "border-t border-gray-100 bg-white text-gray-400"
+                      ? "border-t border-gray-300 bg-gray-50 text-gray-700"
+                      : "border-t border-gray-100 bg-white text-gray-400"
                       }`}
                     style={{ height: SLOT_HEIGHT }}
                   >
@@ -467,8 +475,8 @@ export default function ScheduleGrid({
                     <div
                       key={`${staff.id}-${slot.label}`}
                       className={`border-l bg-white ${slot.isMajor
-                          ? "border-t border-gray-300"
-                          : "border-t border-gray-100"
+                        ? "border-t border-gray-300"
+                        : "border-t border-gray-100"
                         }`}
                       style={{ height: SLOT_HEIGHT }}
                     />
@@ -476,8 +484,8 @@ export default function ScheduleGrid({
 
                   <div
                     className={`border-l border-amber-100 bg-amber-50/30 ${slot.isMajor
-                        ? "border-t border-gray-300"
-                        : "border-t border-gray-100"
+                      ? "border-t border-gray-300"
+                      : "border-t border-gray-100"
                       }`}
                     style={{ height: SLOT_HEIGHT }}
                   />
@@ -597,7 +605,7 @@ export default function ScheduleGrid({
                           ""
                         }
                         is_walk_in={Boolean(booking.is_walk_in)}
-                        is_unassigned={true}  
+                        is_unassigned={true}
                       />
                     </div>
                   </button>
