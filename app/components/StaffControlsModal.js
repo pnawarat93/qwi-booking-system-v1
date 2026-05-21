@@ -118,7 +118,7 @@ export default function StaffControlsModal({
       if (!payoutRolesRes.ok) {
         throw new Error(
           payoutRolesData?.error ||
-            "Failed to load payout roles"
+          "Failed to load payout roles"
         );
       }
 
@@ -137,8 +137,8 @@ export default function StaffControlsModal({
       setPayoutRoles(
         Array.isArray(payoutRolesData)
           ? payoutRolesData.filter(
-              (role) => role.is_active !== false
-            )
+            (role) => role.is_active !== false
+          )
           : []
       );
     } catch (err) {
@@ -198,7 +198,7 @@ export default function StaffControlsModal({
 
         display_order:
           s.display_order !== undefined &&
-          s.display_order !== null
+            s.display_order !== null
             ? s.display_order
             : index + 1,
 
@@ -208,7 +208,7 @@ export default function StaffControlsModal({
 
         daily_guarantee_override:
           s.daily_guarantee_override !== null &&
-          s.daily_guarantee_override !== undefined
+            s.daily_guarantee_override !== undefined
             ? Number(s.daily_guarantee_override)
             : null,
       }))
@@ -291,7 +291,7 @@ export default function StaffControlsModal({
     if (!res.ok) {
       throw new Error(
         data?.error ||
-          "Failed to update staff override"
+        "Failed to update staff override"
       );
     }
 
@@ -309,16 +309,16 @@ export default function StaffControlsModal({
 
         start_time: staff.is_working
           ? `${normalizeTime(
-              staff.start_time,
-              defaultStartTime
-            )}:00`
+            staff.start_time,
+            defaultStartTime
+          )}:00`
           : null,
 
         end_time: staff.is_working
           ? `${normalizeTime(
-              staff.end_time,
-              defaultEndTime
-            )}:00`
+            staff.end_time,
+            defaultEndTime
+          )}:00`
           : null,
 
         display_order: index + 1,
@@ -326,14 +326,14 @@ export default function StaffControlsModal({
         daily_guarantee_override:
           enableDailyGuarantee
             ? staff.daily_guarantee_override !==
-                null &&
+              null &&
               staff.daily_guarantee_override !==
-                undefined &&
+              undefined &&
               staff.daily_guarantee_override !==
-                ""
+              ""
               ? Number(
-                  staff.daily_guarantee_override
-                )
+                staff.daily_guarantee_override
+              )
               : null
             : null,
       })
@@ -401,7 +401,7 @@ export default function StaffControlsModal({
 
       setErrorMessage(
         err.message ||
-          "Could not update staff order."
+        "Could not update staff order."
       );
     } finally {
       setSaving(staffId, false);
@@ -457,11 +457,29 @@ export default function StaffControlsModal({
 
       setErrorMessage(
         err.message ||
-          "Could not update staff."
+        "Could not update staff."
       );
     } finally {
       setSaving(staff.staff_id, false);
     }
+  }
+
+  function updateGuaranteeDraft(staffId, value) {
+    setEffectiveStaff((prev) =>
+      prev.map((staff) => {
+        const currentStaffId = staff.staff_id ?? staff.id;
+
+        if (String(currentStaffId) !== String(staffId)) {
+          return staff;
+        }
+
+        return {
+          ...staff,
+          daily_guarantee_override:
+            value === "" ? null : value,
+        };
+      })
+    );
   }
 
   async function updateGuarantee(
@@ -488,16 +506,16 @@ export default function StaffControlsModal({
 
         start_time: target.is_working
           ? `${normalizeTime(
-              target.start_time,
-              defaultStartTime
-            )}:00`
+            target.start_time,
+            defaultStartTime
+          )}:00`
           : null,
 
         end_time: target.is_working
           ? `${normalizeTime(
-              target.end_time,
-              defaultEndTime
-            )}:00`
+            target.end_time,
+            defaultEndTime
+          )}:00`
           : null,
 
         display_order:
@@ -520,7 +538,7 @@ export default function StaffControlsModal({
 
       setErrorMessage(
         err.message ||
-          "Could not update guarantee."
+        "Could not update guarantee."
       );
     } finally {
       setSaving(staffId, false);
@@ -585,7 +603,7 @@ export default function StaffControlsModal({
 
       setErrorMessage(
         err.message ||
-          "Could not add staff."
+        "Could not add staff."
       );
     } finally {
       setSaving(staff.id, false);
@@ -640,7 +658,7 @@ export default function StaffControlsModal({
       if (!createRes.ok) {
         throw new Error(
           createdStaff?.error ||
-            "Failed to create staff"
+          "Failed to create staff"
         );
       }
 
@@ -676,10 +694,10 @@ export default function StaffControlsModal({
             daily_guarantee_override:
               enableDailyGuarantee
                 ? newGuaranteeOverride !==
-                    ""
+                  ""
                   ? Number(
-                      newGuaranteeOverride
-                    )
+                    newGuaranteeOverride
+                  )
                   : defaultGuarantee
                 : null,
           },
@@ -707,7 +725,7 @@ export default function StaffControlsModal({
 
       setErrorMessage(
         err.message ||
-          "Could not create and add staff."
+        "Could not create and add staff."
       );
     } finally {
       setIsCreatingStaff(false);
@@ -822,11 +840,11 @@ export default function StaffControlsModal({
                     const effectiveGuarantee =
                       staff.daily_guarantee_override !==
                         null &&
-                      staff.daily_guarantee_override !==
+                        staff.daily_guarantee_override !==
                         undefined
                         ? Number(
-                            staff.daily_guarantee_override
-                          )
+                          staff.daily_guarantee_override
+                        )
                         : defaultGuarantee;
 
                     return (
@@ -834,11 +852,10 @@ export default function StaffControlsModal({
                         key={
                           staff.staff_id
                         }
-                        className={`rounded-xl border px-4 py-4 transition-all ${
-                          staff.is_working
+                        className={`rounded-xl border px-4 py-4 transition-all ${staff.is_working
                             ? "bg-white"
                             : "bg-gray-100 opacity-70"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0">
@@ -904,15 +921,23 @@ export default function StaffControlsModal({
                                   onWheel={
                                     handleNumberWheel
                                   }
-                                  onChange={(
-                                    e
-                                  ) =>
-                                    updateGuarantee(
+                                  onChange={(e) =>
+                                    updateGuaranteeDraft(
                                       staff.staff_id,
-                                      e.target
-                                        .value
+                                      e.target.value
                                     )
                                   }
+                                  onBlur={() =>
+                                    updateGuarantee(
+                                      staff.staff_id,
+                                      staff.daily_guarantee_override ?? ""
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
                                   className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
                                 />
 
@@ -949,8 +974,8 @@ export default function StaffControlsModal({
                               disabled={
                                 saving ||
                                 index ===
-                                  todaysStaff.length -
-                                    1
+                                todaysStaff.length -
+                                1
                               }
                               onClick={() =>
                                 moveStaff(
@@ -973,17 +998,16 @@ export default function StaffControlsModal({
                                   staff
                                 )
                               }
-                              className={`rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
-                                staff.is_working
+                              className={`rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50 ${staff.is_working
                                   ? "border-red-200 text-red-700 hover:bg-red-50"
                                   : "border-green-200 text-green-700 hover:bg-green-50"
-                              }`}
+                                }`}
                             >
                               {saving
                                 ? "Saving..."
                                 : staff.is_working
-                                ? "Set off"
-                                : "Set working"}
+                                  ? "Set off"
+                                  : "Set working"}
                             </button>
                           </div>
                         </div>

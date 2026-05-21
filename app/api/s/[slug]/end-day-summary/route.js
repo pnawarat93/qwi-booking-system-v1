@@ -81,6 +81,7 @@ async function getEffectiveStaffForDate(storeId, date) {
         override_date,
         is_working,
         display_order,
+        daily_guarantee_override,
         staff (
           id,
           name,
@@ -112,6 +113,7 @@ async function getEffectiveStaffForDate(storeId, date) {
       is_working: row.is_working,
       display_order: row.display_order ?? 0,
       source: "roster",
+      daily_guarantee_override: null,
     });
   });
 
@@ -133,6 +135,11 @@ async function getEffectiveStaffForDate(storeId, date) {
           ? row.display_order
           : existing?.display_order ?? 0,
       source: "override",
+      daily_guarantee_override:
+        row.daily_guarantee_override !== null &&
+          row.daily_guarantee_override !== undefined
+          ? Number(row.daily_guarantee_override)
+          : null,
     });
   });
 
@@ -497,6 +504,12 @@ export async function GET(request, context) {
     const workingStaff = await getEffectiveStaffForDate(store.id, date);
 
     workingStaff.forEach((staff) => {
+      const effectiveDailyGuarantee =
+        staff.daily_guarantee_override !== null &&
+          staff.daily_guarantee_override !== undefined
+          ? Number(staff.daily_guarantee_override)
+          : dailyGuarantee;
+
       staffMap.set(String(staff.id), {
         staff_id: staff.id,
         staff_name: staff.name_display || staff.name || "Unknown staff",
@@ -508,7 +521,7 @@ export async function GET(request, context) {
         effective_sales: 0,
         calculated_payout_total: 0,
         payout_total: 0,
-        daily_guarantee: dailyGuarantee,
+        daily_guarantee: effectiveDailyGuarantee,
         guarantee_top_up: 0,
       });
     });
@@ -621,33 +634,33 @@ export async function GET(request, context) {
       byMethod: {
         cash: roundMoney(
           paymentTotals.cash +
-            depositTotals.cash +
-            cancellationFeeTotals.cash -
-            refundTotals.cash
+          depositTotals.cash +
+          cancellationFeeTotals.cash -
+          refundTotals.cash
         ),
         card: roundMoney(
           paymentTotals.card +
-            depositTotals.card +
-            cancellationFeeTotals.card -
-            refundTotals.card
+          depositTotals.card +
+          cancellationFeeTotals.card -
+          refundTotals.card
         ),
         hicaps: roundMoney(
           paymentTotals.hicaps +
-            depositTotals.hicaps +
-            cancellationFeeTotals.hicaps -
-            refundTotals.hicaps
+          depositTotals.hicaps +
+          cancellationFeeTotals.hicaps -
+          refundTotals.hicaps
         ),
         transfer: roundMoney(
           paymentTotals.transfer +
-            depositTotals.transfer +
-            cancellationFeeTotals.transfer -
-            refundTotals.transfer
+          depositTotals.transfer +
+          cancellationFeeTotals.transfer -
+          refundTotals.transfer
         ),
         other: roundMoney(
           paymentTotals.other +
-            depositTotals.other +
-            cancellationFeeTotals.other -
-            refundTotals.other
+          depositTotals.other +
+          cancellationFeeTotals.other -
+          refundTotals.other
         ),
       },
       transactions: {
