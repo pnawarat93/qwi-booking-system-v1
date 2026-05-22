@@ -617,6 +617,25 @@ export async function GET(request, context) {
 
     const storeKeeps = roundMoney(netRevenue - totalStaffPayout);
 
+    const { data: storeDay } = await supabase
+      .from("store_days")
+      .select("start_till")
+      .eq("store_id", store.id)
+      .eq("day_date", date)
+      .maybeSingle();
+
+    const startTill = Number(
+      storeDay?.start_till || 0
+    );
+
+    const cashOnTill = roundMoney(
+      startTill +
+      paymentTotals.cash +
+      depositTotals.cash +
+      cancellationFeeTotals.cash -
+      refundTotals.cash
+    );
+
     return NextResponse.json({
       date,
       dailyGuarantee,
@@ -630,6 +649,8 @@ export async function GET(request, context) {
         netRevenue: roundMoney(netRevenue),
         totalStaffPayout,
         storeKeeps,
+        startTill,
+        cashOnTill,
       },
       byMethod: {
         cash: roundMoney(

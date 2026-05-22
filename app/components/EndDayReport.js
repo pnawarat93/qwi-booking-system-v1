@@ -88,6 +88,7 @@ export default function EndDayReport({
     cash: 0,
     card: 0,
     hicaps: 0,
+    transfer: 0,
     other: 0,
   };
 
@@ -100,6 +101,16 @@ export default function EndDayReport({
   };
 
   const staffPayouts = summary?.staffPayouts || [];
+
+  const startTill =
+    summary?.startTill ??
+    summary?.stats?.startTill ??
+    0;
+
+  const cashOnTill =
+    summary?.cashOnTill ??
+    summary?.stats?.cashOnTill ??
+    startTill;
 
   const pendingBookings = useMemo(() => {
     return bookings.filter((booking) => booking.status === "pending");
@@ -147,23 +158,27 @@ export default function EndDayReport({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
       <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl">
-        <div className="relative shrink-0 bg-[#4A3A34] p-6 text-white">
+        <div className="relative shrink-0 border-b border-[#E8DED6] bg-[#F8F1EC] p-5 text-[#3F3733] sm:p-6">
           <button
             type="button"
             onClick={onClose}
             disabled={isCompleting}
-            className="absolute right-6 top-6 text-white/40 transition hover:text-white disabled:opacity-40"
+            className="absolute right-5 top-5 rounded-full p-2 text-[#8B7A72] transition hover:bg-white hover:text-[#3F3733] disabled:opacity-40 sm:right-6 sm:top-6"
           >
             <X size={24} />
           </button>
 
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#C87D87]">
-            <Moon size={24} />
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#E1D3CA] bg-white text-[#7A6458] shadow-sm">
+              <Moon size={22} />
+            </div>
+
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              End of Day Report
+            </h2>
           </div>
 
-          <h2 className="text-3xl font-bold">End of Day Report</h2>
-
-          <p className="mt-1 text-white/70">
+          <p className="mt-1 max-w-2xl text-sm text-[#7B6B64]">
             Review today&apos;s records before closing store operations.
           </p>
         </div>
@@ -215,7 +230,7 @@ export default function EndDayReport({
                                   {booking.customer_name || "Walk-in"}
                                 </p>
 
-                                <p className="mt-1 text-xs text-gray-500">
+                                <p className="mt-1 text-xs font-medium text-[#9A8A84]">
                                   {String(booking.time || "").substring(0, 5)} •{" "}
                                   {booking.services?.name ||
                                     booking.service_name_snapshot ||
@@ -240,67 +255,95 @@ export default function EndDayReport({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <CheckCircle size={16} className="text-emerald-500" />
 
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
                       Paid Jobs
                     </span>
                   </div>
 
-                  <p className="text-3xl font-black text-[#4A3A34]">
+                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl text-[#4A3A34]">
                     {stats.paidJobs} / {stats.totalJobs}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
+                <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <TrendingUp size={16} className="text-[#C87D87]" />
 
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
                       Net Revenue
                     </span>
                   </div>
 
-                  <p className="text-3xl font-black text-[#4A3A34]">
+                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl text-[#4A3A34]">
                     {currency(stats.netRevenue)}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
+                <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <Banknote size={16} className="text-blue-600" />
 
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
                       Total Staff Payout
                     </span>
                   </div>
 
-                  <p className="text-3xl font-black text-[#4A3A34]">
+                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl text-[#4A3A34]">
                     {currency(stats.totalStaffPayout)}
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-[#F1E4DA] bg-[#FFF9F6] p-5">
+                <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
                   <div className="mb-2 flex items-center gap-2">
                     <AlertCircle size={16} className="text-amber-600" />
 
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
                       Store Keeps
                     </span>
                   </div>
 
-                  <p className="text-3xl font-black text-[#4A3A34]">
+                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl text-[#4A3A34]">
                     {currency(stats.storeKeeps)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Banknote size={16} className="text-[#8B5E3C]" />
+
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
+                      Start Till
+                    </span>
+                  </div>
+
+                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl text-[#4A3A34]">
+                    {currency(startTill)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm sm:p-5">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Banknote size={16} className="text-emerald-600" />
+
+                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
+                      Expected Cash in Till
+                    </span>
+                  </div>
+
+                  <p className="text-2xl font-semibold tracking-tight sm:text-3xl text-emerald-900">
+                    {currency(cashOnTill)}
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <div>
-                  <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-400">
+                  <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
                     Payment Breakdown
                   </h3>
 
@@ -311,10 +354,10 @@ export default function EndDayReport({
                           <Banknote size={16} />
                         </div>
 
-                        <span className="font-bold text-gray-700">Cash</span>
+                        <span className="font-semibold text-[#5B4B45]">Cash</span>
                       </div>
 
-                      <span className="text-lg font-black text-[#4A3A34]">
+                      <span className="text-lg font-semibold text-[#3F3733]">
                         {currency(byMethod.cash)}
                       </span>
                     </div>
@@ -325,10 +368,10 @@ export default function EndDayReport({
                           <CreditCard size={16} />
                         </div>
 
-                        <span className="font-bold text-gray-700">Card</span>
+                        <span className="font-semibold text-[#5B4B45]">Card</span>
                       </div>
 
-                      <span className="text-lg font-black text-[#4A3A34]">
+                      <span className="text-lg font-semibold text-[#3F3733]">
                         {currency(byMethod.card)}
                       </span>
                     </div>
@@ -339,11 +382,25 @@ export default function EndDayReport({
                           <Landmark size={16} />
                         </div>
 
-                        <span className="font-bold text-gray-700">Hicaps</span>
+                        <span className="font-semibold text-[#5B4B45]">Hicaps</span>
                       </div>
 
-                      <span className="text-lg font-black text-[#4A3A34]">
+                      <span className="text-lg font-semibold text-[#3F3733]">
                         {currency(byMethod.hicaps)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-700">
+                          <Landmark size={16} />
+                        </div>
+
+                        <span className="font-semibold text-[#5B4B45]">Transfer</span>
+                      </div>
+
+                      <span className="text-lg font-semibold text-[#3F3733]">
+                        {currency(byMethod.transfer)}
                       </span>
                     </div>
 
@@ -353,10 +410,10 @@ export default function EndDayReport({
                           <AlertCircle size={16} />
                         </div>
 
-                        <span className="font-bold text-gray-700">Other</span>
+                        <span className="font-semibold text-[#5B4B45]">Other</span>
                       </div>
 
-                      <span className="text-lg font-black text-[#4A3A34]">
+                      <span className="text-lg font-semibold text-[#3F3733]">
                         {currency(byMethod.other)}
                       </span>
                     </div>
@@ -367,12 +424,12 @@ export default function EndDayReport({
                           <AlertCircle size={18} />
                         </div>
 
-                        <span className="font-bold text-amber-700">
+                        <span className="font-semibold text-amber-700">
                           Outstanding (Unpaid)
                         </span>
                       </div>
 
-                      <span className="text-lg font-black text-amber-900">
+                      <span className="text-lg font-semibold text-amber-900">
                         {currency(stats.outstanding)}
                       </span>
                     </div>
@@ -380,35 +437,35 @@ export default function EndDayReport({
                 </div>
 
                 <div>
-                  <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-400">
+                  <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
                     Transaction Summary
                   </h3>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                      <p className="text-xs text-gray-500">Payments</p>
-                      <p className="mt-1 text-lg font-bold text-[#4A3A34]">
+                    <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
+                      <p className="text-xs font-medium text-[#9A8A84]">Payments</p>
+                      <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.payments.total)}
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                      <p className="text-xs text-gray-500">Refunds</p>
-                      <p className="mt-1 text-lg font-bold text-[#4A3A34]">
+                    <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
+                      <p className="text-xs font-medium text-[#9A8A84]">Refunds</p>
+                      <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.refunds.total)}
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                      <p className="text-xs text-gray-500">Deposits</p>
-                      <p className="mt-1 text-lg font-bold text-[#4A3A34]">
+                    <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
+                      <p className="text-xs font-medium text-[#9A8A84]">Deposits</p>
+                      <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.deposits.total)}
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                      <p className="text-xs text-gray-500">Voids</p>
-                      <p className="mt-1 text-lg font-bold text-[#4A3A34]">
+                    <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
+                      <p className="text-xs font-medium text-[#9A8A84]">Voids</p>
+                      <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.voids.total)}
                       </p>
                     </div>
@@ -417,14 +474,14 @@ export default function EndDayReport({
               </div>
 
               <div>
-                <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-400">
-                  Staff Payouts (everyone who worked today)
+                <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
+                  Staff Payouts
                 </h3>
 
-                <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+                <div className="overflow-hidden rounded-3xl border border-[#E8DED6] bg-white shadow-sm">
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
-                      <thead className="bg-gray-50 text-left text-xs uppercase tracking-widest text-gray-500">
+                      <thead className="bg-[#FAF5F1] text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
                         <tr>
                           <th className="px-4 py-3">Staff</th>
                           <th className="px-4 py-3">Policy</th>
@@ -441,7 +498,7 @@ export default function EndDayReport({
                         {staffPayouts.length === 0 ? (
                           <tr>
                             <td
-                              className="px-4 py-6 text-center text-gray-400"
+                              className="px-4 py-6 text-center text-[#9A8A84]"
                               colSpan={8}
                             >
                               No staff payout data for this day.
@@ -451,37 +508,37 @@ export default function EndDayReport({
                           staffPayouts.map((staff) => (
                             <tr
                               key={staff.staff_id}
-                              className="border-t border-gray-100"
+                              className="border-t border-[#F3EAE4]"
                             >
-                              <td className="px-4 py-3 font-medium text-gray-900">
+                              <td className="px-4 py-3 font-semibold text-[#3F3733]">
                                 {staff.staff_name}
                               </td>
 
-                              <td className="px-4 py-3 text-gray-600">
+                              <td className="px-4 py-3 text-[#6F625C]">
                                 {staff.policy_name || "No policy"}
                               </td>
 
-                              <td className="px-4 py-3 text-gray-600">
+                              <td className="px-4 py-3 text-[#6F625C]">
                                 {staff.paid_jobs_count}
                               </td>
 
-                              <td className="px-4 py-3 text-gray-600">
+                              <td className="px-4 py-3 text-[#6F625C]">
                                 {staff.fully_refunded_jobs_count}
                               </td>
 
-                              <td className="px-4 py-3 text-gray-600">
+                              <td className="px-4 py-3 text-[#6F625C]">
                                 {currency(staff.gross_sales)}
                               </td>
 
-                              <td className="px-4 py-3 text-gray-600">
+                              <td className="px-4 py-3 text-[#6F625C]">
                                 {currency(staff.refunds)}
                               </td>
 
-                              <td className="px-4 py-3 text-gray-600">
+                              <td className="px-4 py-3 text-[#6F625C]">
                                 {currency(staff.effective_sales)}
                               </td>
 
-                              <td className="px-4 py-3 font-semibold text-[#4A3A34]">
+                              <td className="px-4 py-3 font-bold text-[#3F3733]">
                                 {currency(staff.payout_total)}
                               </td>
                             </tr>
@@ -496,13 +553,13 @@ export default function EndDayReport({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-gray-100 bg-white p-6">
+        <div className="shrink-0 border-t border-[#E8DED6] bg-[#FFFCFA] p-5 sm:p-6">
           <div className="flex gap-4">
             <button
               type="button"
               onClick={onClose}
               disabled={isCompleting}
-              className="flex-1 rounded-2xl border border-gray-100 py-4 font-bold text-gray-400 transition hover:bg-gray-50 disabled:opacity-50"
+              className="flex-1 rounded-2xl border border-[#E2D7CF] bg-white py-3.5 font-semibold text-[#6F625C] transition hover:bg-[#FAF5F1] disabled:opacity-50"
             >
               Back to Grid
             </button>
@@ -515,13 +572,13 @@ export default function EndDayReport({
                 setShowFinalizeConfirm(true);
               }}
               disabled={loading || isCompleting || !!loadError || hasPendingBookings}
-              className="flex-[1.5] rounded-2xl bg-[#C87D87] py-4 font-bold text-white shadow-lg transition hover:bg-[#B8707A] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-[1.5] rounded-2xl bg-[#B86F52] py-3.5 font-semibold text-white shadow-sm transition hover:bg-[#A86248] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCompleting
                 ? "Finalizing..."
                 : hasPendingBookings
-                ? "Pending Bookings Exist"
-                : "Finalize Day"}
+                  ? "Pending Bookings Exist"
+                  : "Finalize Day"}
             </button>
           </div>
         </div>
@@ -529,22 +586,22 @@ export default function EndDayReport({
 
       {showFinalizeConfirm && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-700">
+          <div className="w-full max-w-md rounded-[2rem] border border-[#E8DED6] bg-[#FFFCFA] p-6 shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[#E8DED6] bg-white text-[#7A6458]">
               <AlertCircle size={22} />
             </div>
 
-            <h3 className="mt-4 text-center text-xl font-bold text-gray-900">
+            <h3 className="mt-4 text-center text-xl font-semibold tracking-tight text-[#3F3733]">
               Finalize and lock this day?
             </h3>
 
-            <p className="mt-2 text-center text-sm text-gray-500">
+            <p className="mt-2 text-center text-sm leading-6 text-[#7B6B64]">
               After this day is finalized, front desk can no longer edit
               bookings, payments, refunds, staff assignment, or notes for this
               date.
             </p>
 
-            <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <div className="mt-5 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3 text-sm font-semibold text-[#9F3A2E]">
               This action cannot be changed from the front desk.
             </div>
 
@@ -565,7 +622,7 @@ export default function EndDayReport({
                   await handleCompleteEndDay();
                 }}
                 disabled={isCompleting}
-                className="flex-[1.4] rounded-2xl bg-[#C87D87] px-4 py-3 text-sm font-bold text-white hover:bg-[#B8707A] disabled:opacity-50"
+                className="flex-[1.4] rounded-2xl bg-[#B86F52] px-4 py-3 text-sm font-semibold text-white hover:bg-[#A86248] disabled:opacity-50"
               >
                 Yes, finalize day
               </button>

@@ -735,45 +735,42 @@ export default function StaffControlsModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-4xl border border-[#E8DED6] bg-[#FFFCFA]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8DED6] bg-[#F8F1EC] px-6 py-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight text-[#3F3733]">
               Staff controls
             </h2>
 
-            <p className="mt-1 text-sm text-gray-500">
-              Manage who is working on{" "}
-              {selectedDate}.
+            <p className="mt-1 text-sm leading-5 text-[#6F625C]">
+              Manage who is working on {selectedDate}.
             </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-2xl border border-[#E8DED6] bg-white px-3.5 py-2 text-sm font-semibold text-[#3F3733] transition hover:bg-[#FFF8F4]"
           >
             Close
           </button>
         </div>
 
-        <div className="grid flex-1 gap-6 overflow-y-auto px-6 py-6 lg:grid-cols-[1.5fr_1fr]">
+        <div className="grid flex-1 gap-4 overflow-hidden px-6 py-5 lg:grid-cols-[1.55fr_0.95fr]">
           <section>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold tracking-tight text-[#3F3733]">
                   Today’s staff
                 </h3>
 
-                <p className="mt-1 text-xs text-gray-500">
-                  Staff marked off stay
-                  visible for payout and
-                  guarantee adjustments.
+                <p className="mt-1 text-sm leading-5 text-[#6F625C]">
+                  Staff marked off remain visible for payout and guarantee adjustments.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -785,7 +782,7 @@ export default function StaffControlsModal({
                       false
                     );
                   }}
-                  className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-2xl border border-[#E8DED6] bg-white px-3.5 py-2 text-sm font-semibold text-[#3F3733] transition hover:bg-[#FFF8F4]"
                 >
                   {showAddExisting
                     ? "Hide add staff"
@@ -803,7 +800,7 @@ export default function StaffControlsModal({
                       false
                     );
                   }}
-                  className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-black"
+                  className="rounded-2xl bg-[#B86F52] px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-[#A86248]"
                 >
                   {showQuickAdd
                     ? "Hide quick add"
@@ -813,20 +810,18 @@ export default function StaffControlsModal({
             </div>
 
             {errorMessage && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-4 rounded-3xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3 text-sm text-[#9F3A2E]">
                 {errorMessage}
               </div>
             )}
 
             {loading ? (
-              <p className="text-sm text-gray-400">
+              <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
                 Loading...
-              </p>
-            ) : todaysStaff.length ===
-              0 ? (
-              <div className="rounded-xl border bg-gray-50 px-4 py-6 text-sm text-gray-500">
-                No staff on this date
-                yet.
+              </div>
+            ) : todaysStaff.length === 0 ? (
+              <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
+                No staff on this date yet.
               </div>
             ) : (
               <div className="space-y-3">
@@ -852,60 +847,46 @@ export default function StaffControlsModal({
                         key={
                           staff.staff_id
                         }
-                        className={`rounded-xl border px-4 py-4 transition-all ${staff.is_working
+                        className={`rounded-3xl border px-4 py-4 transition ${staff.is_working
                             ? "bg-white"
-                            : "bg-gray-100 opacity-70"
+                            : "bg-[#FFF7F2] opacity-95"
                           }`}
                       >
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate text-sm font-semibold text-gray-900">
-                                {index + 1}.{" "}
-                                {staff.name}
+                              <p className="truncate text-sm font-semibold text-[#3F3733]">
+                                {index + 1}. {staff.name}
                               </p>
 
                               {!staff.is_working && (
-                                <span className="rounded-full bg-gray-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">
+                                <span className="rounded-full bg-[#FFF1EE] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#9F3A2E]">
                                   Off
                                 </span>
                               )}
                             </div>
 
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                              <span>
-                                {staff.staff_code ||
-                                  "No staff code"}
-                              </span>
-
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#6F625C]">
+                              <span>{staff.staff_code || "No staff code"}</span>
                               <span>•</span>
-
                               <span>
                                 {normalizeTime(
                                   staff.start_time,
                                   defaultStartTime
-                                )}{" "}
-                                -{" "}
-                                {normalizeTime(
+                                )} - {normalizeTime(
                                   staff.end_time,
                                   defaultEndTime
                                 )}
                               </span>
-
                               <span>•</span>
-
-                              <span className="capitalize">
-                                {
-                                  staff.source
-                                }
-                              </span>
+                              <span className="capitalize">{staff.source}</span>
                             </div>
                           </div>
 
                           <div className="flex flex-wrap items-center justify-end gap-2">
                             {enableDailyGuarantee && (
-                              <div className="w-[120px]">
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                              <div className="w-30 min-w-30">
+                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
                                   Guarantee
                                 </label>
 
@@ -918,9 +899,7 @@ export default function StaffControlsModal({
                                   placeholder={String(
                                     defaultGuarantee
                                   )}
-                                  onWheel={
-                                    handleNumberWheel
-                                  }
+                                  onWheel={handleNumberWheel}
                                   onChange={(e) =>
                                     updateGuaranteeDraft(
                                       staff.staff_id,
@@ -938,16 +917,13 @@ export default function StaffControlsModal({
                                       e.currentTarget.blur();
                                     }
                                   }}
-                                  className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                                  className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52]"
                                 />
 
-                                <p className="mt-1 text-[10px] text-gray-400">
-                                  Effective: $
-                                  {Number(
+                                <p className="mt-1 text-[10px] text-[#9A8A84]">
+                                  Effective: ${Number(
                                     effectiveGuarantee
-                                  ).toFixed(
-                                    0
-                                  )}
+                                  ).toFixed(0)}
                                 </p>
                               </div>
                             )}
@@ -955,8 +931,7 @@ export default function StaffControlsModal({
                             <button
                               type="button"
                               disabled={
-                                saving ||
-                                index === 0
+                                saving || index === 0
                               }
                               onClick={() =>
                                 moveStaff(
@@ -964,7 +939,7 @@ export default function StaffControlsModal({
                                   "left"
                                 )
                               }
-                              className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                              className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#3F3733] transition hover:bg-[#FFF8F4] disabled:opacity-40"
                             >
                               ←
                             </button>
@@ -973,9 +948,7 @@ export default function StaffControlsModal({
                               type="button"
                               disabled={
                                 saving ||
-                                index ===
-                                todaysStaff.length -
-                                1
+                                index === todaysStaff.length - 1
                               }
                               onClick={() =>
                                 moveStaff(
@@ -983,24 +956,20 @@ export default function StaffControlsModal({
                                   "right"
                                 )
                               }
-                              className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                              className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#3F3733] transition hover:bg-[#FFF8F4] disabled:opacity-40"
                             >
                               →
                             </button>
 
                             <button
                               type="button"
-                              disabled={
-                                saving
-                              }
+                              disabled={saving}
                               onClick={() =>
-                                toggleOff(
-                                  staff
-                                )
+                                toggleOff(staff)
                               }
-                              className={`rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50 ${staff.is_working
-                                  ? "border-red-200 text-red-700 hover:bg-red-50"
-                                  : "border-green-200 text-green-700 hover:bg-green-50"
+                              className={`rounded-2xl border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${staff.is_working
+                                  ? "border-[#F3B2A5] bg-[#FFF1EE] text-[#9F3A2E] hover:bg-[#FFE8DE]"
+                                  : "border-[#D8E9DE] bg-[#F4FBF6] text-[#166B3A] hover:bg-[#E6F8E8]"
                                 }`}
                             >
                               {saving
@@ -1021,245 +990,160 @@ export default function StaffControlsModal({
 
           <section className="space-y-4">
             {showAddExisting && (
-              <div className="rounded-xl border bg-gray-50 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                  Add existing staff
-                </h3>
+              <div className="rounded-3xl border border-[#E8DED6] bg-white p-4">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold tracking-tight text-[#3F3733]">
+                    Add existing staff
+                  </h3>
+                </div>
 
                 {loading ? (
-                  <p className="text-sm text-gray-400">
+                  <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
                     Loading...
-                  </p>
-                ) : availableToAdd.length ===
-                  0 ? (
-                  <p className="text-sm text-gray-400">
-                    No more staff
-                    available to add.
-                  </p>
+                  </div>
+                ) : availableToAdd.length === 0 ? (
+                  <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
+                    No more staff available to add.
+                  </div>
                 ) : (
-                  <div className="max-h-[320px] space-y-3 overflow-auto">
-                    {availableToAdd.map(
-                      (staff) => {
-                        const displayName =
-                          staff.name_display ||
-                          staff.name ||
-                          "Staff";
+                  <div className="max-h-80 space-y-3 overflow-auto pr-1">
+                    {availableToAdd.map((staff) => {
+                      const displayName =
+                        staff.name_display ||
+                        staff.name ||
+                        "Staff";
 
-                        const saving =
-                          savingIds.has(
-                            staff.id
-                          );
+                      const saving = savingIds.has(staff.id);
 
-                        return (
-                          <div
-                            key={
-                              staff.id
-                            }
-                            className="flex items-center justify-between rounded-xl border bg-white px-4 py-4"
-                          >
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-gray-900">
-                                {
-                                  displayName
-                                }
-                              </p>
+                      return (
+                        <div
+                          key={staff.id}
+                          className="flex items-center justify-between gap-3 rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-[#3F3733]">
+                              {displayName}
+                            </p>
 
-                              <p className="mt-1 text-xs text-gray-500">
-                                {staff.staff_code ||
-                                  "No staff code"}
-                              </p>
-                            </div>
-
-                            <button
-                              type="button"
-                              disabled={
-                                saving
-                              }
-                              onClick={() =>
-                                addExistingStaff(
-                                  staff
-                                )
-                              }
-                              className="rounded-lg border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
-                            >
-                              {saving
-                                ? "Adding..."
-                                : "Add"}
-                            </button>
+                            <p className="mt-1 text-xs text-[#6F625C]">
+                              {staff.staff_code || "No staff code"}
+                            </p>
                           </div>
-                        );
-                      }
-                    )}
+
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => addExistingStaff(staff)}
+                            className="rounded-2xl border border-[#D7E8DF] bg-[#F7FCF8] px-3 py-2 text-sm font-semibold text-[#166B3A] transition hover:bg-[#E6F8E8] disabled:opacity-50"
+                          >
+                            {saving ? "Adding..." : "Add"}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             )}
 
             {showQuickAdd && (
-              <div className="rounded-xl border bg-gray-50 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                  Quick add temporary /
-                  casual staff
-                </h3>
+              <div className="rounded-3xl border border-[#E8DED6] bg-white p-4">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold tracking-tight text-[#3F3733]">
+                    Quick add temporary / casual staff
+                  </h3>
+                </div>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
                       Display name
                     </label>
 
                     <input
                       type="text"
-                      value={
-                        newStaffName
-                      }
-                      onChange={(e) =>
-                        setNewStaffName(
-                          e.target
-                            .value
-                        )
-                      }
-                      className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                      value={newStaffName}
+                      onChange={(e) => setNewStaffName(e.target.value)}
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52]"
                       placeholder="e.g. Nancy"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
-                      Staff code
-                      (optional)
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
+                      Staff code (optional)
                     </label>
 
                     <input
                       type="text"
-                      value={
-                        newStaffCode
-                      }
-                      onChange={(e) =>
-                        setNewStaffCode(
-                          e.target
-                            .value
-                        )
-                      }
-                      className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                      value={newStaffCode}
+                      onChange={(e) => setNewStaffCode(e.target.value)}
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52]"
                       placeholder="e.g. NANCY-07"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
                       Staff role
                     </label>
 
                     <select
                       value={newRoleId}
-                      onChange={(e) =>
-                        setNewRoleId(
-                          e.target
-                            .value
-                        )
-                      }
-                      className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                      onChange={(e) => setNewRoleId(e.target.value)}
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52]"
                     >
-                      <option value="">
-                        No role selected
-                      </option>
-
-                      {payoutRoles.map(
-                        (role) => (
-                          <option
-                            key={
-                              role.id
-                            }
-                            value={
-                              role.id
-                            }
-                          >
-                            {role.role_name ||
-                              role.name}
-                          </option>
-                        )
-                      )}
+                      <option value="">No role selected</option>
+                      {payoutRoles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.role_name || role.name}
+                        </option>
+                      ))}
                     </select>
 
-                    <p className="mt-1 text-xs text-gray-400">
-                      Optional.
-                      Staff payout
-                      will use this
-                      role.
+                    <p className="mt-1 text-xs text-[#9A8A84]">
+                      Optional. Staff payout will use this role.
                     </p>
                   </div>
 
                   {enableDailyGuarantee && (
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-gray-600">
-                        Guarantee today
-                        (optional)
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
+                        Guarantee today (optional)
                       </label>
 
                       <input
                         type="number"
-                        value={
-                          newGuaranteeOverride
-                        }
-                        onWheel={
-                          handleNumberWheel
-                        }
-                        onChange={(e) =>
-                          setNewGuaranteeOverride(
-                            e.target
-                              .value
-                          )
-                        }
-                        className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
-                        placeholder={String(
-                          defaultGuarantee
-                        )}
+                        value={newGuaranteeOverride}
+                        onWheel={handleNumberWheel}
+                        onChange={(e) => setNewGuaranteeOverride(e.target.value)}
+                        className="w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52]"
+                        placeholder={String(defaultGuarantee)}
                       />
 
-                      <p className="mt-1 text-xs text-gray-400">
-                        Leave empty
-                        to use default
-                        guarantee.
+                      <p className="mt-1 text-xs text-[#9A8A84]">
+                        Leave empty to use default guarantee.
                       </p>
                     </div>
                   )}
 
                   <button
                     type="button"
-                    disabled={
-                      isCreatingStaff
-                    }
-                    onClick={
-                      createTemporaryStaff
-                    }
-                    className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+                    disabled={isCreatingStaff}
+                    onClick={createTemporaryStaff}
+                    className="w-full rounded-2xl bg-[#B86F52] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#A86248] disabled:opacity-50"
                   >
-                    {isCreatingStaff
-                      ? "Creating..."
-                      : "Create and add"}
+                    {isCreatingStaff ? "Creating..." : "Create and add"}
                   </button>
                 </div>
               </div>
             )}
 
-            {!showAddExisting &&
-              !showQuickAdd && (
-                <div className="rounded-xl border bg-gray-50 px-4 py-6 text-sm text-gray-500">
-                  Use{" "}
-                  <span className="font-medium text-gray-700">
-                    Add staff
-                  </span>{" "}
-                  for existing
-                  staff, or{" "}
-                  <span className="font-medium text-gray-700">
-                    Add temporary /
-                    casual
-                  </span>{" "}
-                  for last-minute
-                  coverage.
-                </div>
-              )}
+            {!showAddExisting && !showQuickAdd && (
+              <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm leading-6 text-[#6F625C]">
+                Use <span className="font-semibold text-[#3F3733]">Add staff</span> for existing staff, or <span className="font-semibold text-[#3F3733]">Add temporary / casual</span> for last-minute coverage.
+              </div>
+            )}
           </section>
         </div>
       </div>

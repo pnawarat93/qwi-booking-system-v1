@@ -1,5 +1,13 @@
 "use client";
 
+function roundMoney(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function money(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
 function StatPill({ label, value, color, onClick }) {
   const content = (
     <div
@@ -33,8 +41,11 @@ export default function BottomDayTray({
   onOpenStaffControls,
   onOpenEndDay,
   storeDay,
+  startTill = 0,
+  cashOnTill = 0,
 }) {
   const inactiveCount = cancelledCount + noShowCount;
+
 
   return (
     <div className="border-t border-[#E9DED8] bg-[#FFF9F6]/95 px-5 py-2.5 backdrop-blur">
@@ -65,6 +76,18 @@ export default function BottomDayTray({
             color="border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
             onClick={onOpenUnassigned}
           />
+
+          <StatPill
+            label="Start Till"
+            value={money(startTill)}
+            color="border-[#E9DED8] bg-white text-[#4A3A34]"
+          />
+
+          <StatPill
+            label="Cash Till"
+            value={money(cashOnTill)}
+            color="border-emerald-200 bg-emerald-50 text-emerald-800"
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -79,7 +102,7 @@ export default function BottomDayTray({
           <button
             type="button"
             onClick={onOpenEndDay}
-            className="rounded-full bg-[#4A3A34] px-5 py-2.5 text-sm font-semibold shadow-sm text-white transition hover:-translate-y-px hover:bg-[#5A4740] hover:shadow-md"
+            className="rounded-full bg-[#4A3A34] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-[#5A4740] hover:shadow-md"
           >
             End of Day Report
           </button>

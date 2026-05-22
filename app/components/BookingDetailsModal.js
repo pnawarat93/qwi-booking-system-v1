@@ -788,21 +788,21 @@ export default function BookingDetailsModal({
   const timeRange = formatTimeRange(formData.time, formData.duration);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div className="shrink-0 border-b px-6 py-4">
-          <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-[#E8DED6] bg-[#FFFCFA] shadow-[0_20px_60px_rgba(63,55,51,0.08)]">
+        <div className="shrink-0 border-b border-[#E8DED6] bg-[#F8F1EC] px-5 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-xl font-semibold tracking-tight text-[#3F3733]">
                 Booking details
               </h2>
-              <p className="mt-1 text-sm text-gray-500">{timeRange}</p>
+              <p className="mt-1 text-sm text-[#6F625C]">{timeRange}</p>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6]"
             >
               Close
             </button>
@@ -841,76 +841,76 @@ export default function BookingDetailsModal({
           </div>
 
           {saveError && (
-            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="mt-3 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3 text-sm text-[#9F3A2E]">
               {saveError}
             </div>
           )}
         </div>
 
-        <div className="space-y-5 overflow-y-auto px-6 py-6">
-          <section className="rounded-2xl border border-[#E9DED8] bg-white p-4 shadow-sm">
-            <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="space-y-4 overflow-y-auto px-5 py-5">
+          <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-[#B09A92]">
-                  Booking Information
+                <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
+                  Booking information
                 </h3>
-                <p className="mt-1 text-xs text-[#8B7A72]">
-                  Customer, service and time details
+                <p className="mt-1 text-xs text-[#6F625C]">
+                  Customer, service, and time details
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsEditingDetails((prev) => !prev)}
-                className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${isEditingDetails
-                  ? "border-[#C87D87] bg-[#FFF5F7] text-[#8B4F5A]"
-                  : "border-[#E9DED8] bg-[#FFF9F6] text-[#5B4B45] hover:bg-[#F5ECE7]"
+                className={`rounded-2xl border px-3 py-2 text-xs font-semibold transition ${isEditingDetails
+                  ? "border-[#B86F52] bg-[#FFEFE9] text-[#B86F52]"
+                  : "border-[#E8DED6] bg-[#FFF9F6] text-[#5B4B45] hover:bg-[#FFF5F1]"
                   }`}
               >
-                {isEditingDetails ? "Done Editing" : "Edit Details"}
+                {isEditingDetails ? "Done editing" : "Edit details"}
               </button>
             </div>
 
             {isEditingDetails ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
                     Customer name
                   </label>
                   <input
                     type="text"
                     value={formData.customer_name}
                     onChange={(e) => updateField("customer_name", e.target.value)}
-                    className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
                     Phone number
                   </label>
                   <input
                     type="text"
                     value={formData.customer_phone}
                     onChange={(e) => updateField("customer_phone", e.target.value)}
-                    className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
                     Service name
                   </label>
                   <input
                     type="text"
                     value={formData.service_name}
                     onChange={(e) => updateField("service_name", e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
                     Duration (mins)
                   </label>
                   <input
@@ -920,12 +920,12 @@ export default function BookingDetailsModal({
                     value={formData.duration}
                     onWheel={handleNumberWheel}
                     onChange={(e) => updateField("duration", e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
                     Time
                   </label>
                   <input
@@ -933,59 +933,59 @@ export default function BookingDetailsModal({
                     step="300"
                     value={formData.time}
                     onChange={(e) => updateField("time", e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+                    className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                   />
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl bg-[#FFF9F6] px-4 py-3">
+              <div className="rounded-2xl bg-[#FFFCFA] px-4 py-3">
                 <div className="grid gap-y-2 text-sm md:grid-cols-2 md:gap-x-6">
-                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
-                    <span className="font-semibold text-[#9A8A84]">
+                  <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
                       Customer
                     </span>
 
-                    <span className="text-right font-semibold text-[#4A3A34]">
+                    <span className="text-right font-semibold text-[#3F3733]">
                       {formData.customer_name || "—"}
                     </span>
                   </div>
 
-                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
-                    <span className="font-semibold text-[#9A8A84]">
+                  <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
                       Phone
                     </span>
 
-                    <span className="text-right font-semibold text-[#4A3A34]">
+                    <span className="text-right font-semibold text-[#3F3733]">
                       {formData.customer_phone || "—"}
                     </span>
                   </div>
 
-                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
-                    <span className="font-semibold text-[#9A8A84]">
+                  <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
                       Service
                     </span>
 
-                    <span className="text-right font-semibold text-[#4A3A34]">
+                    <span className="text-right font-semibold text-[#3F3733]">
                       {formData.service_name || "—"}
                     </span>
                   </div>
 
-                  <div className="flex items-start justify-between gap-3 border-b border-[#F1E7E2] py-1.5 md:border-b-0">
-                    <span className="font-semibold text-[#9A8A84]">
+                  <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
                       Duration
                     </span>
 
-                    <span className="text-right font-semibold text-[#4A3A34]">
+                    <span className="text-right font-semibold text-[#3F3733]">
                       {formData.duration} mins
                     </span>
                   </div>
 
-                  <div className="flex items-start justify-between gap-3 py-1.5">
-                    <span className="font-semibold text-[#9A8A84]">
+                  <div className="flex items-center justify-between gap-3 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
                       Time
                     </span>
 
-                    <span className="text-right font-semibold text-[#4A3A34]">
+                    <span className="text-right font-semibold text-[#3F3733]">
                       {formData.time || "—"}
                     </span>
                   </div>
@@ -995,30 +995,30 @@ export default function BookingDetailsModal({
 
 
             {customerBookingNote && (
-              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">
+              <div className="mt-3 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9F3A2E]">
                   Customer note
                 </p>
-                <p className="mt-1 text-sm text-amber-900">{customerBookingNote}</p>
+                <p className="mt-2 text-sm text-[#9F3A2E]">{customerBookingNote}</p>
               </div>
             )}
           </section>
 
-          <section className="rounded-xl border bg-white p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">
+          <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
+            <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
               Assigned staff
             </h3>
 
             {(isRequestedStaffBooking || isGroupBooking) && (
               <div className="mb-3 space-y-2">
                 {isRequestedStaffBooking && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <div className="rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-3 py-2 text-sm text-[#9F3A2E]">
                     Customer requested this staff. Reassign only if necessary.
                   </div>
                 )}
 
                 {isGroupBooking && (
-                  <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-700">
+                  <div className="rounded-2xl border border-[#D1D0EA] bg-[#F9F6FE] px-3 py-2 text-sm text-[#5B4B45]">
                     This booking is part of a group booking. Payments and refunds
                     are handled at group level.
                   </div>
@@ -1029,7 +1029,7 @@ export default function BookingDetailsModal({
             <select
               value={formData.staff_id}
               onChange={(e) => updateField("staff_id", e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+              className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
             >
               <option value="">Unassigned</option>
               {assignableStaff.map((staff) => (
@@ -1040,19 +1040,18 @@ export default function BookingDetailsModal({
               ))}
             </select>
 
-            <p className="mt-2 text-xs text-gray-500">
-              Only staff on the selected date’s shift and free at this time are
-              shown here.
+            <p className="mt-2 text-xs text-[#6F625C]">
+              Only staff on the selected date’s shift and free at this time are shown here.
             </p>
           </section>
 
-          <section className="mt-4 rounded-2xl border border-[#E9DED8] bg-white p-4 shadow-sm">
+          <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
             <div className="mb-3">
-              <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-[#B09A92]">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
                 Status
               </h3>
 
-              <p className="mt-1 text-xs text-[#8B7A72]">
+              <p className="mt-1 text-xs text-[#6F625C]">
                 Update booking progress and payment flow
               </p>
             </div>
@@ -1073,9 +1072,9 @@ export default function BookingDetailsModal({
                     key={status}
                     type="button"
                     onClick={() => handleStatusChange(status)}
-                    className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${active
-                        ? "border-[#C87D87] bg-[#FFF5F7] text-[#8B4F5A]"
-                        : "border-[#E9DED8] bg-[#FFFCFA] text-[#5B4B45] hover:bg-[#FFF5F7]"
+                    className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition ${active
+                        ? "border-[#B86F52] bg-[#FFEFE9] text-[#B86F52]"
+                        : "border-[#E8DED6] bg-[#FFFCFA] text-[#5B4B45] hover:bg-[#FFF5F1]"
                       }`}
                   >
                     {labelMap[status]}
@@ -1085,35 +1084,35 @@ export default function BookingDetailsModal({
             </div>
 
             {formData.status === "paid" ? (
-              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-                <p className="text-sm font-semibold text-emerald-900">
+              <div className="mt-3 rounded-2xl border border-[#D9E9DE] bg-[#EFF8F3] px-3 py-2.5">
+                <p className="text-sm font-semibold text-[#186C4D]">
                   Payment section is ready below
                 </p>
               </div>
             ) : null}
           </section>
 
-          <section ref={paymentSectionRef} className="rounded-xl border bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900">
+          <section ref={paymentSectionRef} className="rounded-2xl border border-[#E8DED6] bg-white p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-sm font-semibold text-[#3F3733]">
                 Payment information
               </h3>
               {isGroupBooking && (
-                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-                  Group-level payment
+                <span className="rounded-full bg-[#EFF8F3] px-3 py-1 text-xs font-semibold text-[#186C4D]">
+                  Group payment
                 </span>
               )}
             </div>
 
             {isGroupBooking && (
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-gray-500">Payment scope:</span>
+                <span className="text-[#6F625C]">Scope:</span>
                 <button
                   type="button"
                   onClick={() => setPaymentScope("single")}
-                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "single"
-                    ? "border-blue-300 bg-blue-50 text-blue-700"
-                    : "border-gray-200 text-gray-700"
+                  className={`rounded-2xl border px-3 py-2 text-sm font-medium ${paymentScope === "single"
+                    ? "border-[#B86F52] bg-[#FFEFE9] text-[#B86F52]"
+                    : "border-[#E8DED6] bg-[#FFFCFA] text-[#5B4B45]"
                     }`}
                 >
                   This booking only
@@ -1121,9 +1120,9 @@ export default function BookingDetailsModal({
                 <button
                   type="button"
                   onClick={() => setPaymentScope("group")}
-                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${paymentScope === "group"
-                    ? "border-blue-300 bg-blue-50 text-blue-700"
-                    : "border-gray-200 text-gray-700"
+                  className={`rounded-2xl border px-3 py-2 text-sm font-medium ${paymentScope === "group"
+                    ? "border-[#B86F52] bg-[#FFEFE9] text-[#B86F52]"
+                    : "border-[#E8DED6] bg-[#FFFCFA] text-[#5B4B45]"
                     }`}
                 >
                   Whole group
@@ -1131,26 +1130,26 @@ export default function BookingDetailsModal({
               </div>
             )}
 
-            <div className="mt-3 space-y-2 rounded-lg border bg-amber-50 px-3 py-3 text-sm text-amber-900">
+            <div className="mt-3 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-3 py-3 text-sm text-[#9F3A2E]">
               <div className="flex items-center justify-between">
                 <span>Selected amount</span>
-                <span className="font-semibold">
+                <span className="font-semibold text-[#3F3733]">
                   ${selectedPaymentPrice.toFixed(2)}
                 </span>
               </div>
 
               {existingPayment && (
                 <>
-                  <div className="flex items-center justify-between">
+                  <div className="mt-3 flex items-center justify-between text-sm text-[#5B4B45]">
                     <span>Paid so far</span>
-                    <span className="font-semibold text-green-700">
+                    <span className="font-semibold text-[#186C4D]">
                       ${paidTotal.toFixed(2)}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between">
+                  <div className="mt-2 flex items-center justify-between text-sm text-[#5B4B45]">
                     <span>Remaining</span>
-                    <span className="font-semibold text-amber-800">
+                    <span className="font-semibold text-[#B86F52]">
                       ${remainingAmount.toFixed(2)}
                     </span>
                   </div>
@@ -1165,56 +1164,56 @@ export default function BookingDetailsModal({
             </div>
 
             {loadingPayment ? (
-              <p className="mt-3 text-sm text-gray-400">Loading payment...</p>
+              <p className="mt-3 text-sm text-[#6F625C]">Loading payment...</p>
             ) : existingPayment ? (
               <div className="mt-3 space-y-3">
-                <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-800">
+                <div className="rounded-2xl border border-[#D9E9DE] bg-[#EFF8F3] px-3 py-3 text-sm text-[#186C4D]">
                   Active payment recorded. You can review or update it here.
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                <div className="grid gap-2 sm:grid-cols-2 text-sm">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2">
                     Cash: ${Number(existingPayment.cash || 0).toFixed(2)}
                   </div>
-                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2">
                     Card: ${Number(existingPayment.card || 0).toFixed(2)}
                   </div>
-                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2">
                     Hicaps: ${Number(existingPayment.hicaps || 0).toFixed(2)}
                   </div>
-                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2">
                     Transfer: ${Number(existingPayment.transfer || 0).toFixed(2)}
                   </div>
-                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2">
                     Other: ${Number(existingPayment.other || 0).toFixed(2)}
                   </div>
-                  <div className="rounded-lg border bg-gray-50 px-3 py-2">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2">
                     Ref code: {existingPayment.reference_code || "-"}
                   </div>
                 </div>
 
                 {existingPayment.staff_note && (
-                  <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
-                    <span className="font-medium text-gray-900">Staff note:</span>{" "}
+                  <div className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733]">
+                    <span className="font-semibold text-[#3F3733]">Staff note:</span>{" "}
                     {existingPayment.staff_note}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 gap-2 text-sm">
-                  <div className="rounded-lg border bg-white px-3 py-2 font-medium text-gray-800">
+                <div className="grid gap-2 text-sm sm:grid-cols-3">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 font-semibold text-[#3F3733]">
                     Paid total: ${paidTotal.toFixed(2)}
                   </div>
-                  <div className="rounded-lg border bg-blue-50 px-3 py-2 font-medium text-blue-800">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#EFF8FF] px-3 py-2 font-semibold text-[#1B4E82]">
                     Refunded total: ${refundedTotal.toFixed(2)}
                   </div>
-                  <div className="rounded-lg border bg-amber-50 px-3 py-2 font-medium text-amber-800">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFF7ED] px-3 py-2 font-semibold text-[#B86F52]">
                     Remaining refundable: ${remainingRefundable.toFixed(2)}
                   </div>
                 </div>
 
                 {refundRows.length > 0 && (
-                  <div className="rounded-lg border bg-gray-50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
                       Refund history
                     </p>
                     <div className="space-y-2">
@@ -1223,8 +1222,8 @@ export default function BookingDetailsModal({
                           key={row.id}
                           className="flex items-center justify-between text-sm"
                         >
-                          <span className="text-gray-600">Refunded</span>
-                          <span className="font-medium text-gray-900">
+                          <span className="text-[#6F625C]">Refunded</span>
+                          <span className="font-semibold text-[#3F3733]">
                             ${totalPaymentAmount(row).toFixed(2)}
                           </span>
                         </div>
@@ -1237,7 +1236,7 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={() => setShowPaymentForm((prev) => !prev)}
-                    className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#5B4B45] hover:bg-[#FFF9F6]"
                   >
                     {showPaymentForm ? "Hide payment editor" : "Edit payment"}
                   </button>
@@ -1246,7 +1245,7 @@ export default function BookingDetailsModal({
                     type="button"
                     onClick={() => setShowRefundForm((prev) => !prev)}
                     disabled={hasFullyRefunded}
-                    className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-2xl border border-[#D1E4FF] bg-white px-3 py-2 text-sm font-semibold text-[#1B4E82] hover:bg-[#EFF6FF] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {hasFullyRefunded
                       ? "Fully refunded"
@@ -1259,7 +1258,7 @@ export default function BookingDetailsModal({
                     type="button"
                     onClick={handleBackToPendingWithVoid}
                     disabled={isVoidingPayment}
-                    className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-2xl border border-[#F3B2A5] bg-white px-3 py-2 text-sm font-semibold text-[#9F3A2E] hover:bg-[#FFF1EE] disabled:opacity-50"
                   >
                     {isVoidingPayment
                       ? "Voiding..."
@@ -1276,7 +1275,7 @@ export default function BookingDetailsModal({
                     setFormData((prev) => ({ ...prev, status: "paid" }));
                     setSaveError("");
                   }}
-                  className="rounded-lg border px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                  className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#5B4B45] hover:bg-[#FFF9F6]"
                 >
                   {showPaymentForm ? "Hide payment form" : "Record payment"}
                 </button>
@@ -1284,29 +1283,28 @@ export default function BookingDetailsModal({
             )}
 
             {showPaymentForm && (
-              <div className="mt-4 space-y-4 rounded-xl border border-green-100 bg-green-50/30 p-4">
+              <div className="mt-4 space-y-4 rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
                 {isGroupBooking && (
-                  <div className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-violet-700">
-                    This is a group booking. Payment will be recorded against
-                    the whole group to prevent duplicate payment records.
+                  <div className="rounded-2xl border border-[#D9D0EA] bg-white px-3 py-2 text-sm text-[#5B4B45]">
+                    This is a group booking. Payment will be recorded against the whole group to prevent duplicate payment records.
                   </div>
                 )}
 
-                <div className="rounded-lg border border-green-200 bg-white px-3 py-3 text-sm text-gray-700">
+                <div className="rounded-2xl border border-[#D9E9DE] bg-white px-3 py-3 text-sm text-[#3F3733]">
                   <div className="flex items-center justify-between">
                     <span>Suggested amount</span>
-                    <span className="font-semibold text-gray-900">
+                    <span className="font-semibold text-[#3F3733]">
                       ${paymentTargetAmount.toFixed(2)}
                     </span>
                   </div>
 
-                  <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+                  <div className="mt-1 flex items-center justify-between text-xs text-[#6F625C]">
                     <span>
                       {existingPayment
                         ? "Remaining after current payment"
                         : "Service price"}
                     </span>
-                    <span>${paymentTargetAmount.toFixed(2)}</span>
+                    <span className="font-semibold text-[#3F3733]">${paymentTargetAmount.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -1320,9 +1318,9 @@ export default function BookingDetailsModal({
                         setPaymentInfo
                       )
                     }
-                    className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                    className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#5B4B45] hover:bg-[#FFF9F6]"
                   >
-                    {existingPayment ? "Remaining Cash" : "Full Cash"}
+                    {existingPayment ? "Remaining cash" : "Full cash"}
                   </button>
 
                   <button
@@ -1334,9 +1332,9 @@ export default function BookingDetailsModal({
                         setPaymentInfo
                       )
                     }
-                    className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                    className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#5B4B45] hover:bg-[#FFF9F6]"
                   >
-                    {existingPayment ? "Remaining Card" : "Full Card"}
+                    {existingPayment ? "Remaining card" : "Full card"}
                   </button>
 
                   <button
@@ -1348,7 +1346,7 @@ export default function BookingDetailsModal({
                         setPaymentInfo
                       )
                     }
-                    className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+                    className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#5B4B45] hover:bg-[#FFF9F6]"
                   >
                     Transfer
                   </button>
@@ -1356,7 +1354,7 @@ export default function BookingDetailsModal({
                   <button
                     type="button"
                     onClick={clearPaymentAmounts}
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#5B4B45] hover:bg-[#FFF9F6]"
                   >
                     Clear
                   </button>
@@ -1364,7 +1362,7 @@ export default function BookingDetailsModal({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                  <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Cash ($)
                     </label>
                     <input
@@ -1374,13 +1372,12 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updatePaymentField("cash", e.target.value)
                       }
-                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
-                      placeholder="0.00"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Card ($)
                     </label>
                     <input
@@ -1390,13 +1387,13 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updatePaymentField("card", e.target.value)
                       }
-                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Hicaps ($)
                     </label>
                     <input
@@ -1406,13 +1403,13 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updatePaymentField("hicaps", e.target.value)
                       }
-                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Transfer ($)
                     </label>
                     <input
@@ -1422,13 +1419,13 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updatePaymentField("transfer", e.target.value)
                       }
-                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Other ($)
                     </label>
                     <input
@@ -1438,13 +1435,13 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updatePaymentField("other", e.target.value)
                       }
-                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Reference code
                     </label>
                     <input
@@ -1453,16 +1450,16 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updatePaymentField("reference_code", e.target.value)
                       }
-                      className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="Voucher / bank ref / PayID"
                     />
                   </div>
                 </div>
 
-                <div className="rounded-lg border bg-white px-3 py-3 text-sm">
+                <div className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Entered total</span>
-                    <span className="font-semibold text-gray-900">
+                    <span className="text-[#6F625C]">Entered total</span>
+                    <span className="font-semibold text-[#3F3733]">
                       ${paymentDraftTotal.toFixed(2)}
                     </span>
                   </div>
@@ -1485,17 +1482,16 @@ export default function BookingDetailsModal({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
-                    Staff note
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={paymentInfo.staff_note}
-                    onChange={(e) =>
-                      updatePaymentField("staff_note", e.target.value)
-                    }
-                    className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-400"
-                    placeholder="Voucher details, transfer time, bank used, split payment note, etc."
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
+                      Staff note
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={paymentInfo.staff_note}
+                      onChange={(e) =>
+                        updatePaymentField("staff_note", e.target.value)
+                      }
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                   />
                 </div>
 
@@ -1503,7 +1499,7 @@ export default function BookingDetailsModal({
                   type="button"
                   onClick={handleRecordPayment}
                   disabled={isRecordingPayment || paymentDraftTotal <= 0}
-                  className="w-full rounded-lg bg-green-600 py-3 text-sm font-bold uppercase tracking-widest text-white shadow-lg shadow-green-200 transition-all hover:bg-green-700 disabled:opacity-50"
+                  className="w-full rounded-2xl bg-[#B86F52] py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#A86248] disabled:opacity-50"
                 >
                   {isRecordingPayment
                     ? existingPayment
@@ -1517,18 +1513,18 @@ export default function BookingDetailsModal({
             )}
 
             {showRefundForm && existingPayment && (
-              <div className="mt-4 space-y-4 rounded-xl border border-blue-100 bg-blue-50/30 p-4">
-                <p className="text-sm font-semibold text-blue-800">
+              <div className="mt-4 space-y-4 rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
+                <p className="text-sm font-semibold text-[#3F3733]">
                   Refund amount
                 </p>
 
-                <div className="rounded-lg border bg-white px-3 py-2 text-sm">
+                <div className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733]">
                   Remaining refundable: ${remainingRefundable.toFixed(2)}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Cash ($)
                     </label>
                     <input
@@ -1536,13 +1532,13 @@ export default function BookingDetailsModal({
                       value={refundInfo.cash}
                       onWheel={handleNumberWheel}
                       onChange={(e) => updateRefundField("cash", e.target.value)}
-                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Card ($)
                     </label>
                     <input
@@ -1550,13 +1546,13 @@ export default function BookingDetailsModal({
                       value={refundInfo.card}
                       onWheel={handleNumberWheel}
                       onChange={(e) => updateRefundField("card", e.target.value)}
-                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Hicaps ($)
                     </label>
                     <input
@@ -1566,13 +1562,13 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updateRefundField("hicaps", e.target.value)
                       }
-                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Transfer ($)
                     </label>
                     <input
@@ -1582,13 +1578,13 @@ export default function BookingDetailsModal({
                       onChange={(e) =>
                         updateRefundField("transfer", e.target.value)
                       }
-                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                    <label className="mb-1 block text-xs font-semibold text-[#6F625C]">
                       Other ($)
                     </label>
                     <input
@@ -1596,13 +1592,13 @@ export default function BookingDetailsModal({
                       value={refundInfo.other}
                       onWheel={handleNumberWheel}
                       onChange={(e) => updateRefundField("other", e.target.value)}
-                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
 
-                <div className="rounded-lg border bg-white px-3 py-2 text-sm font-medium">
+                <div className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#3F3733]">
                   Refund draft total: ${refundDraftTotal.toFixed(2)}
                 </div>
 
@@ -1615,16 +1611,16 @@ export default function BookingDetailsModal({
                     refundDraftTotal <= 0 ||
                     refundDraftTotal > remainingRefundable
                   }
-                  className="w-full rounded-lg bg-blue-600 py-3 text-sm font-bold uppercase tracking-widest text-white shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-2xl bg-[#B86F52] py-3 text-sm font-semibold text-white transition hover:bg-[#A86248] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isRefunding ? "Processing..." : "Confirm Refund"}
+                  {isRefunding ? "Processing..." : "Confirm refund"}
                 </button>
               </div>
             )}
           </section>
 
-          <section className="rounded-xl border bg-white p-4">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">
+          <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
+            <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
               Internal booking note
             </h3>
 
@@ -1632,23 +1628,23 @@ export default function BookingDetailsModal({
               rows={4}
               value={formData.notes}
               onChange={(e) => updateField("notes", e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-gray-400"
+              className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
               placeholder="Internal note for this booking"
             />
           </section>
         </div>
 
-        <div className="flex items-center justify-between border-t px-6 py-4">
-          <p className="text-sm text-gray-500">
+        <div className="flex flex-col gap-3 border-t border-[#E8DED6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-[#6F625C]">
             {isDirty ? "Unsaved changes" : "No changes yet"}
           </p>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={onClose}
               disabled={isSavingChanges}
-              className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-2xl border border-[#E8DED6] bg-white px-4 py-2 text-sm font-semibold text-[#6F625C] hover:bg-[#FFF9F6] disabled:opacity-50"
             >
               Cancel
             </button>
@@ -1657,7 +1653,7 @@ export default function BookingDetailsModal({
               type="button"
               onClick={handleSave}
               disabled={isSavingChanges}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+              className="rounded-2xl bg-[#B86F52] px-4 py-2 text-sm font-semibold text-white hover:bg-[#A86248] disabled:opacity-50"
             >
               {isSavingChanges ? "Saving..." : "Save changes"}
             </button>

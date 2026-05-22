@@ -34,7 +34,6 @@ function formatClosedAt(value, timeZone = "Australia/Sydney") {
   if (!value) return "";
 
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return "";
 
   return date.toLocaleString("en-AU", {
@@ -104,6 +103,7 @@ export default function StoreAdminPage() {
   });
 
   const [storeDay, setStoreDay] = useState(null);
+  const [endDaySummary, setEndDaySummary] = useState(null);
   const [loadingStoreDay, setLoadingStoreDay] = useState(true);
 
   const [showEndDayReport, setShowEndDayReport] = useState(false);
@@ -132,6 +132,35 @@ export default function StoreAdminPage() {
     setSelectedDate((prev) => prev || getTodayInTimeZone(storeTimeZone));
   }, [storeTimeZone]);
 
+  async function loadEndDaySummary(dateToLoad) {
+    if (!store?.slug || !dateToLoad) return null;
+
+    try {
+      const res = await fetch(
+        storeApiUrl(
+          store.slug,
+          `/end-day-summary?date=${dateToLoad}&t=${Date.now()}`
+        ),
+        {
+          cache: "no-store",
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load end day summary");
+      }
+
+      setEndDaySummary(data);
+      return data;
+    } catch (error) {
+      console.error("Failed to load end day summary:", error);
+      setEndDaySummary(null);
+      return null;
+    }
+  }
+
   async function loadStoreDayForDate(dateToLoad) {
     if (!store?.slug || !dateToLoad) return null;
 
@@ -157,10 +186,13 @@ export default function StoreAdminPage() {
       const nextStoreDay = data?.store_day || null;
       setStoreDay(nextStoreDay);
 
+      await loadEndDaySummary(dateToLoad);
+
       return nextStoreDay;
     } catch (error) {
       console.error("Failed to load store day:", error);
       setStoreDay(null);
+      setEndDaySummary(null);
       return null;
     } finally {
       setLoadingStoreDay(false);
@@ -195,11 +227,14 @@ export default function StoreAdminPage() {
         if (isMounted) {
           setStoreDay(data?.store_day || null);
         }
+
+        await loadEndDaySummary(selectedDate);
       } catch (error) {
         console.error("Failed to load store day:", error);
 
         if (isMounted) {
           setStoreDay(null);
+          setEndDaySummary(null);
         }
       } finally {
         if (isMounted) {
@@ -235,9 +270,8 @@ export default function StoreAdminPage() {
 
   const isTodaySelected = selectedDate === todayInStoreTz;
 
-  const isStoreDayClosed = Boolean(storeDay?.closed_at) || storeDay?.is_open === false;
-
-  const isStoreDayStarted = Boolean(storeDay?.is_open) && !isStoreDayClosed;
+  const isStoreDayClosed =
+    Boolean(storeDay?.closed_at) || storeDay?.is_open === false;
 
   const shouldBlockTodayOps =
     isTodaySelected &&
@@ -251,6 +285,12 @@ export default function StoreAdminPage() {
     setGridRefreshToken((prev) => prev + 1);
   }
 
+  async function refreshDayData() {
+    await loadStoreDayForDate(selectedDate);
+    await loadEndDaySummary(selectedDate);
+    refreshGridNow();
+  }
+
   async function handleStartedDay(startedStoreDay) {
     const nextStoreDay =
       startedStoreDay?.store_day || startedStoreDay || null;
@@ -259,21 +299,23 @@ export default function StoreAdminPage() {
       setStoreDay(nextStoreDay);
     }
 
-    await loadStoreDayForDate(selectedDate);
+    await refreshDayData();
+  }
+
+  async function handleStaffControlsUpdated() {
+    await loadEndDaySummary(selectedDate);
     refreshGridNow();
   }
 
-  function handleStaffControlsUpdated() {
-    refreshGridNow();
-  }
-
-  function handleWalkInCreated() {
+  async function handleWalkInCreated() {
     setShowWalkInModal(false);
+    await loadEndDaySummary(selectedDate);
     refreshGridNow();
   }
 
-  function handleNewBookingCreated() {
+  async function handleNewBookingCreated() {
     setShowNewBookingModal(false);
+    await loadEndDaySummary(selectedDate);
     refreshGridNow();
   }
 
@@ -411,6 +453,18 @@ export default function StoreAdminPage() {
             onOpenStaffControls={() => setShowStaffControlsModal(true)}
             onOpenEndDay={() => setShowEndDayReport(true)}
             storeDay={storeDay}
+            startTill={
+              endDaySummary?.startTill ??
+              endDaySummary?.stats?.startTill ??
+              storeDay?.start_till ??
+              0
+            }
+            cashOnTill={
+              endDaySummary?.cashOnTill ??
+              endDaySummary?.stats?.cashOnTill ??
+              storeDay?.start_till ??
+              0
+            }
           />
         </div>
       )}
@@ -472,8 +526,7 @@ export default function StoreAdminPage() {
           onClose={() => setShowEndDayReport(false)}
           onFinish={() => {
             setShowEndDayReport(false);
-            loadStoreDayForDate(selectedDate);
-            refreshGridNow();
+            refreshDayData();
           }}
         />
       )}
