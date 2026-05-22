@@ -498,6 +498,46 @@ export default function StoreAdminPage() {
         open={!isStoreDayClosed && showInactiveBookingsModal}
         bookings={trayData.inactiveBookings || []}
         onClose={() => setShowInactiveBookingsModal(false)}
+        onRecover={async (booking) => {
+          try {
+            const res = await fetch(
+              storeApiUrl(
+                store.slug,
+                `/booking/${booking.id}`
+              ),
+              {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  status: "pending",
+                }),
+              }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok) {
+              throw new Error(
+                data?.error || "Failed to recover booking"
+              );
+            }
+
+            setShowInactiveBookingsModal(false);
+
+            setTrayData((prev) => ({
+              ...prev,
+              inactiveBookings: (prev.inactiveBookings || []).filter(
+                (item) => String(item.id) !== String(booking.id)
+              ),
+            }));
+
+            refreshGridNow();
+          } catch (error) {
+            console.error(error);
+          }
+        }}
       />
 
       <UnassignedBookingsModal

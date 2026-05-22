@@ -757,7 +757,7 @@ export default function StaffControlsModal({
           </button>
         </div>
 
-        <div className="grid flex-1 gap-4 overflow-hidden px-6 py-5 lg:grid-cols-[1.55fr_0.95fr]">
+        <div className="grid flex-1 gap-4 overflow-auto px-6 py-5 lg:grid-cols-[1.55fr_0.95fr]">
           <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">

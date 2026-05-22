@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { storeApiUrl } from "@/lib/storeApi";
 
 function apiPath(slug, path) {
@@ -50,6 +50,8 @@ export default function StartDayModal({
 
   const [showAddExisting, setShowAddExisting] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const addExistingRef = useRef(null);
+  const quickAddRef = useRef(null);
 
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCode, setNewStaffCode] = useState("");
@@ -230,6 +232,28 @@ export default function StartDayModal({
       document.body.style.overflow = previousOverflow;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (showAddExisting && addExistingRef.current) {
+      addExistingRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [open, showAddExisting]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (showQuickAdd && quickAddRef.current) {
+      quickAddRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [open, showQuickAdd]);
 
   const enableDailyGuarantee = Boolean(storeInfo?.enable_daily_guarantee);
   const defaultGuarantee = getDefaultGuaranteeForDate(storeInfo, selectedDate);
@@ -754,7 +778,7 @@ export default function StartDayModal({
               )}
 
               {showAddExisting ? (
-                <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
+                <div ref={addExistingRef} className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
                   <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
                     Add existing staff
                   </h3>
@@ -804,7 +828,7 @@ export default function StartDayModal({
               ) : null}
 
               {showQuickAdd ? (
-                <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
+                <div ref={quickAddRef} className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
                   <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
                     Add temporary / casual staff
                   </h3>
@@ -879,7 +903,7 @@ export default function StartDayModal({
             </div>
           ) : null}
 
-          <div className="flex items-center justify-end border-t border-[#E8DED6] bg-[#FFFCFA] px-5 py-4">
+          <div className="sticky bottom-0 z-20 flex items-center justify-end border-t border-[#E8DED6] bg-[#FFFCFA] px-5 py-4">
             <button
               type="submit"
               disabled={saving || loadingSetup}
