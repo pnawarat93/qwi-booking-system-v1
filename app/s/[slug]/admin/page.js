@@ -270,8 +270,8 @@ export default function StoreAdminPage() {
 
   const isTodaySelected = selectedDate === todayInStoreTz;
 
-const isStoreDayClosed =
-  Boolean(storeDay?.closed_at);
+  const isStoreDayClosed =
+    Boolean(storeDay?.closed_at);
 
   const shouldBlockTodayOps =
     isTodaySelected &&
@@ -533,6 +533,7 @@ const isStoreDayClosed =
               ),
             }));
 
+            await loadEndDaySummary(selectedDate);
             refreshGridNow();
           } catch (error) {
             console.error(error);
