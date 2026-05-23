@@ -270,8 +270,8 @@ export default function StoreAdminPage() {
 
   const isTodaySelected = selectedDate === todayInStoreTz;
 
-  const isStoreDayClosed =
-    Boolean(storeDay?.closed_at) || storeDay?.is_open === false;
+const isStoreDayClosed =
+  Boolean(storeDay?.closed_at);
 
   const shouldBlockTodayOps =
     isTodaySelected &&
