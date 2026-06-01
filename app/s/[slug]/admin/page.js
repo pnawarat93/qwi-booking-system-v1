@@ -503,7 +503,6 @@ export default function StoreAdminPage() {
             const res = await fetch(
               storeApiUrl(
                 store.slug,
-                `/booking/${booking.id}`
               ),
               {
                 method: "PATCH",

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
+import { FEATURES } from "@/lib/config/features";
 import {
   LayoutGrid,
   CalendarDays,
@@ -40,7 +41,7 @@ const ownerNavItems = [
     href: (slug) => `/s/${slug}/owner/business-hours`,
     icon: Clock3,
   },
-  {
+  FEATURES.ADVANCED_REPORTS && {
     label: "Reports",
     href: (slug) => `/s/${slug}/owner/reports`,
     icon: FileText,
@@ -79,7 +80,7 @@ export default function OwnerClientLayout({ children, activeSlug, storeName }) {
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
           <nav className="space-y-1">
-            {ownerNavItems.map((item) => {
+            {ownerNavItems.filter(Boolean).map((item) => {
               const href = item.href(activeSlug);
               const active = isActivePath(pathname, href);
               const Icon = item.icon;
@@ -88,11 +89,10 @@ export default function OwnerClientLayout({ children, activeSlug, storeName }) {
                 <Link
                   key={href}
                   href={href}
-                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
-                    active
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${active
                       ? "bg-[#FBEAD6] text-[#4A3A34]"
                       : "text-[#7A675F] hover:bg-[#FFF4EC] hover:text-[#4A3A34]"
-                  }`}
+                    }`}
                 >
                   <Icon className="h-4 w-4" />
                   <span>{item.label}</span>
