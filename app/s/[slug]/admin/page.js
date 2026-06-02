@@ -107,6 +107,7 @@ export default function StoreAdminPage() {
   const [loadingStoreDay, setLoadingStoreDay] = useState(true);
 
   const [showEndDayReport, setShowEndDayReport] = useState(false);
+  const [endDayGuardMessage, setEndDayGuardMessage] = useState("");
   const [showWalkInModal, setShowWalkInModal] = useState(false);
   const [showNewBookingModal, setShowNewBookingModal] = useState(false);
   const [showInactiveBookingsModal, setShowInactiveBookingsModal] =
@@ -131,6 +132,11 @@ export default function StoreAdminPage() {
   useEffect(() => {
     setSelectedDate((prev) => prev || getTodayInTimeZone(storeTimeZone));
   }, [storeTimeZone]);
+
+  useEffect(() => {
+    setEndDayGuardMessage("");
+    setShowEndDayReport(false);
+  }, [selectedDate]);
 
   async function loadEndDaySummary(dateToLoad) {
     if (!store?.slug || !dateToLoad) return null;
@@ -324,6 +330,19 @@ export default function StoreAdminPage() {
     action();
   }
 
+  function handleOpenEndDay() {
+    if (!isTodaySelected && !storeDay) {
+      setShowEndDayReport(false);
+      setEndDayGuardMessage(
+        "This date was never opened. Start Day must be created before End Day can be finalized."
+      );
+      return;
+    }
+
+    setEndDayGuardMessage("");
+    setShowEndDayReport(true);
+  }
+
   return (
     <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white">
       <div className="sticky top-0 z-40 shrink-0 border-b bg-white">
@@ -363,6 +382,15 @@ export default function StoreAdminPage() {
             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
               Finalized
             </span>
+          </div>
+        </div>
+      ) : null}
+
+      {!isStoreDayClosed && endDayGuardMessage ? (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="text-sm text-amber-800">
+            <span className="font-semibold">End Day unavailable</span>
+            <span className="ml-2 text-amber-700">{endDayGuardMessage}</span>
           </div>
         </div>
       ) : null}
@@ -451,7 +479,7 @@ export default function StoreAdminPage() {
             onOpenInactive={() => setShowInactiveBookingsModal(true)}
             onOpenUnassigned={() => setShowUnassignedBookingsModal(true)}
             onOpenStaffControls={() => setShowStaffControlsModal(true)}
-            onOpenEndDay={() => setShowEndDayReport(true)}
+            onOpenEndDay={handleOpenEndDay}
             storeDay={storeDay}
             startTill={
               endDaySummary?.startTill ??

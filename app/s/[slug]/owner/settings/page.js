@@ -11,6 +11,7 @@ import {
   ExternalLink,
   ShieldCheck,
 } from "lucide-react";
+import { FEATURES } from "@/lib/config/features";
 import { useStore } from "../../StoreContext";
 
 function apiPath(slug, path) {
@@ -54,6 +55,8 @@ function handleNumberWheel(event) {
 
 export default function OwnerSettingsPage() {
   const store = useStore();
+  const payoutsEnabled = FEATURES.PAYOUTS;
+  const guaranteesEnabled = FEATURES.GUARANTEES;
 
   const [storeInfo, setStoreInfo] = useState({
     name: "",
@@ -151,8 +154,10 @@ export default function OwnerSettingsPage() {
     if (!store.slug) return;
 
     loadStoreInfo();
-    loadPayoutPolicies();
-  }, [store.slug]);
+    if (payoutsEnabled) {
+      loadPayoutPolicies();
+    }
+  }, [store.slug, payoutsEnabled]);
 
   const bookingLink = useMemo(() => {
     if (!storeInfo.slug) return "";
@@ -170,6 +175,21 @@ export default function OwnerSettingsPage() {
       setErrorMessage("");
       setSuccessMessage("");
 
+      const payload = {
+        name: storeInfo.name,
+        phone: storeInfo.phone,
+        address: storeInfo.address,
+      };
+
+      if (guaranteesEnabled) {
+        payload.enable_daily_guarantee =
+          storeInfo.enable_daily_guarantee;
+        payload.daily_guarantee_config =
+          normalizeDailyGuaranteeConfig(
+            storeInfo.daily_guarantee_config
+          );
+      }
+
       const res = await fetch(
         apiPath(store.slug, "/store"),
         {
@@ -177,17 +197,7 @@ export default function OwnerSettingsPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            name: storeInfo.name,
-            phone: storeInfo.phone,
-            address: storeInfo.address,
-            enable_daily_guarantee:
-              storeInfo.enable_daily_guarantee,
-            daily_guarantee_config:
-              normalizeDailyGuaranteeConfig(
-                storeInfo.daily_guarantee_config
-              ),
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
@@ -396,8 +406,8 @@ export default function OwnerSettingsPage() {
 
         <p className="mt-2 text-sm text-gray-500">
           Update your store details,
-          booking link, daily
-          guarantee, and staff roles.
+          contact information, and
+          booking link.
         </p>
       </section>
 
@@ -536,143 +546,147 @@ export default function OwnerSettingsPage() {
         </div>
       </section>
 
-      {/* DAILY GUARANTEE */}
+      {guaranteesEnabled ? (
+        <>
+          {/* DAILY GUARANTEE */}
 
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100">
-            <ShieldCheck className="h-5 w-5 text-gray-700" />
-          </div>
-
-          <div className="w-full">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Daily Guarantee /
-              ประกันมือ
-            </h2>
-
-            <p className="mt-1 text-sm text-gray-500">
-              Optional minimum
-              daily payout for staff.
-            </p>
-
-            {loading ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
-                Loading daily
-                guarantee...
+          <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100">
+                <ShieldCheck className="h-5 w-5 text-gray-700" />
               </div>
-            ) : (
-              <>
-                <label className="mt-5 flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={
-                      storeInfo.enable_daily_guarantee
-                    }
-                    onChange={(e) =>
-                      setStoreInfo(
-                        (prev) => ({
-                          ...prev,
-                          enable_daily_guarantee:
-                            e.target
-                              .checked,
-                        })
-                      )
-                    }
-                    className="h-4 w-4"
-                  />
 
-                  <span className="text-sm font-medium text-gray-700">
-                    Enable daily
-                    guarantee
-                  </span>
-                </label>
+              <div className="w-full">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Daily Guarantee /
+                  ประกันมือ
+                </h2>
 
-                {storeInfo.enable_daily_guarantee ? (
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    {GUARANTEE_DAYS.map(
-                      (day) => (
-                        <div
-                          key={day.key}
-                        >
-                          <label className="mb-2 block text-sm font-medium text-gray-700">
-                            {day.label}
-                          </label>
-
-                          <div className="relative">
-                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                              $
-                            </span>
-
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              onWheel={
-                                handleNumberWheel
-                              }
-                              value={
-                                normalizeDailyGuaranteeConfig(
-                                  storeInfo.daily_guarantee_config
-                                )[
-                                  day.key
-                                ]
-                              }
-                              onChange={(
-                                e
-                              ) =>
-                                updateDailyGuaranteeDay(
-                                  day.key,
-                                  e
-                                    .target
-                                    .value
-                                )
-                              }
-                              className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-4 text-sm"
-                              placeholder="0"
-                            />
-                          </div>
-                        </div>
-                      )
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
-                    Daily guarantee
-                    is disabled.
-                    Front desk
-                    guarantee fields
-                    and end-day
-                    guarantee top-up
-                    will be hidden.
-                  </div>
-                )}
-
-                <p className="mt-3 text-xs text-gray-500">
-                  Example:
-                  Mon–Thu 150,
-                  Fri 180,
-                  Sat–Sun 200.
+                <p className="mt-1 text-sm text-gray-500">
+                  Optional minimum
+                  daily payout for staff.
                 </p>
 
-                <button
-                  type="button"
-                  onClick={
-                    handleSaveStoreInfo
-                  }
-                  disabled={savingStore}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" />
+                {loading ? (
+                  <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
+                    Loading daily
+                    guarantee...
+                  </div>
+                ) : (
+                  <>
+                    <label className="mt-5 flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={
+                          storeInfo.enable_daily_guarantee
+                        }
+                        onChange={(e) =>
+                          setStoreInfo(
+                            (prev) => ({
+                              ...prev,
+                              enable_daily_guarantee:
+                                e.target
+                                  .checked,
+                            })
+                          )
+                        }
+                        className="h-4 w-4"
+                      />
 
-                  {savingStore
-                    ? "Saving..."
-                    : "Save guarantee settings"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
+                      <span className="text-sm font-medium text-gray-700">
+                        Enable daily
+                        guarantee
+                      </span>
+                    </label>
+
+                    {storeInfo.enable_daily_guarantee ? (
+                      <div className="mt-5 grid gap-4 md:grid-cols-2">
+                        {GUARANTEE_DAYS.map(
+                          (day) => (
+                            <div
+                              key={day.key}
+                            >
+                              <label className="mb-2 block text-sm font-medium text-gray-700">
+                                {day.label}
+                              </label>
+
+                              <div className="relative">
+                                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                                  $
+                                </span>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  onWheel={
+                                    handleNumberWheel
+                                  }
+                                  value={
+                                    normalizeDailyGuaranteeConfig(
+                                      storeInfo.daily_guarantee_config
+                                    )[
+                                      day.key
+                                    ]
+                                  }
+                                  onChange={(
+                                    e
+                                  ) =>
+                                    updateDailyGuaranteeDay(
+                                      day.key,
+                                      e
+                                        .target
+                                        .value
+                                    )
+                                  }
+                                  className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-4 text-sm"
+                                  placeholder="0"
+                                />
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-5 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-500">
+                        Daily guarantee
+                        is disabled.
+                        Front desk
+                        guarantee fields
+                        and end-day
+                        guarantee top-up
+                        will be hidden.
+                      </div>
+                    )}
+
+                    <p className="mt-3 text-xs text-gray-500">
+                      Example:
+                      Mon–Thu 150,
+                      Fri 180,
+                      Sat–Sun 200.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={
+                        handleSaveStoreInfo
+                      }
+                      disabled={savingStore}
+                      className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+
+                      {savingStore
+                        ? "Saving..."
+                        : "Save guarantee settings"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+        </>
+      ) : null}
 
       {/* BOOKING LINK */}
 
@@ -740,252 +754,256 @@ export default function OwnerSettingsPage() {
         </div>
       </section>
 
-      {/* STAFF ROLES */}
+      {payoutsEnabled ? (
+        <>
+          {/* STAFF ROLES */}
 
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100">
-            <ShieldCheck className="h-5 w-5 text-gray-700" />
-          </div>
+          <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100">
+                <ShieldCheck className="h-5 w-5 text-gray-700" />
+              </div>
 
-          <div className="w-full">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Staff Roles &
-              Payout
-            </h2>
+              <div className="w-full">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Staff Roles &
+                  Payout
+                </h2>
 
-            <p className="mt-1 text-sm text-gray-500">
-              Create staff roles
-              and define how
-              payout is calculated.
-            </p>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Role name
-                </label>
-
-                <input
-                  value={
-                    payoutPolicyForm.role_name
-                  }
-                  onChange={(e) =>
-                    setPayoutPolicyForm(
-                      (prev) => ({
-                        ...prev,
-                        role_name:
-                          e.target
-                            .value,
-                      })
-                    )
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                  placeholder="Senior therapist"
-                />
-
-                <p className="mt-2 text-xs text-gray-500">
-                  Example:
-                  Junior Therapist,
-                  Senior Therapist,
-                  Weekend Casual.
+                <p className="mt-1 text-sm text-gray-500">
+                  Create staff roles
+                  and define how
+                  payout is calculated.
                 </p>
-              </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Payout type
-                </label>
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Role name
+                    </label>
 
-                <select
-                  value={
-                    payoutPolicyForm.payout_type
-                  }
-                  onChange={(e) =>
-                    setPayoutPolicyForm(
-                      (prev) => ({
-                        ...prev,
-                        payout_type:
-                          e.target
-                            .value,
-                        percent:
-                          e.target
-                            .value ===
-                          "percent"
-                            ? prev.percent
-                            : "",
-                      })
-                    )
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                >
-                  <option value="fixed_per_job">
-                    Fixed per
-                    service payout
-                  </option>
+                    <input
+                      value={
+                        payoutPolicyForm.role_name
+                      }
+                      onChange={(e) =>
+                        setPayoutPolicyForm(
+                          (prev) => ({
+                            ...prev,
+                            role_name:
+                              e.target
+                                .value,
+                          })
+                        )
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                      placeholder="Senior therapist"
+                    />
 
-                  <option value="percent">
-                    Percent of
-                    payment
-                  </option>
-                </select>
-              </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Example:
+                      Junior Therapist,
+                      Senior Therapist,
+                      Weekend Casual.
+                    </p>
+                  </div>
 
-              {payoutPolicyForm.payout_type ===
-              "fixed_per_job" ? (
-                <div className="md:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-900">
-                  <p className="font-medium">
-                    Fixed per
-                    service payout
-                  </p>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Payout type
+                    </label>
 
-                  <p className="mt-1">
-                    This role
-                    uses the
-                    payout amount
-                    configured on
-                    each service.
-                  </p>
-
-                  <p className="mt-2 text-xs text-blue-700">
-                    Edit payout
-                    amounts from
-                    the Services
-                    page.
-                  </p>
-                </div>
-              ) : null}
-
-              {payoutPolicyForm.payout_type ===
-              "percent" ? (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Percent
-                  </label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    onWheel={
-                      handleNumberWheel
-                    }
-                    value={
-                      payoutPolicyForm.percent
-                    }
-                    onChange={(e) =>
-                      setPayoutPolicyForm(
-                        (prev) => ({
-                          ...prev,
-                          percent:
-                            e.target
-                              .value,
-                        })
-                      )
-                    }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
-                    placeholder="40"
-                  />
-
-                  <p className="mt-2 text-xs text-gray-500">
-                    Example:
-                    40 means this
-                    role gets 40%
-                    of the paid
-                    service amount.
-                  </p>
-                </div>
-              ) : null}
-            </div>
-
-            <button
-              type="button"
-              onClick={
-                handleCreatePayoutPolicy
-              }
-              disabled={
-                savingPayoutPolicy ||
-                !payoutPolicyForm.role_name.trim() ||
-                (payoutPolicyForm.payout_type ===
-                  "percent" &&
-                  Number(
-                    payoutPolicyForm.percent ||
-                      0
-                  ) <= 0)
-              }
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-
-              {savingPayoutPolicy
-                ? "Creating..."
-                : "Create role"}
-            </button>
-
-            <div className="mt-6 space-y-3">
-              {loadingPayoutPolicies ? (
-                <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
-                  Loading staff
-                  roles...
-                </div>
-              ) : payoutPolicies.length ===
-                0 ? (
-                <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
-                  No staff roles
-                  yet.
-                </div>
-              ) : (
-                payoutPolicies.map(
-                  (policy) => (
-                    <div
-                      key={policy.id}
-                      className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3"
+                    <select
+                      value={
+                        payoutPolicyForm.payout_type
+                      }
+                      onChange={(e) =>
+                        setPayoutPolicyForm(
+                          (prev) => ({
+                            ...prev,
+                            payout_type:
+                              e.target
+                                .value,
+                            percent:
+                              e.target
+                                .value ===
+                              "percent"
+                                ? prev.percent
+                                : "",
+                          })
+                        )
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
                     >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {getRoleName(
-                              policy
-                            )}
-                          </p>
+                      <option value="fixed_per_job">
+                        Fixed per
+                        service payout
+                      </option>
 
-                          <p className="mt-1 text-xs text-gray-500">
-                            {policy.payout_type ===
-                            "fixed_per_job"
-                              ? "Fixed per service payout"
-                              : ""}
+                      <option value="percent">
+                        Percent of
+                        payment
+                      </option>
+                    </select>
+                  </div>
 
-                            {policy.payout_type ===
-                            "percent"
-                              ? `${Number(
-                                  policy.percent ||
-                                    0
-                                )}% of payment`
-                              : ""}
-                          </p>
-                        </div>
+                  {payoutPolicyForm.payout_type ===
+                  "fixed_per_job" ? (
+                    <div className="md:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-900">
+                      <p className="font-medium">
+                        Fixed per
+                        service payout
+                      </p>
 
-                        <span
-                          className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
-                            policy.is_active
-                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
-                              : "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200"
-                          }`}
-                        >
-                          {policy.is_active
-                            ? "Active"
-                            : "Inactive"}
-                        </span>
-                      </div>
+                      <p className="mt-1">
+                        This role
+                        uses the
+                        payout amount
+                        configured on
+                        each service.
+                      </p>
+
+                      <p className="mt-2 text-xs text-blue-700">
+                        Edit payout
+                        amounts from
+                        the Services
+                        page.
+                      </p>
                     </div>
-                  )
-                )
-              )}
+                  ) : null}
+
+                  {payoutPolicyForm.payout_type ===
+                  "percent" ? (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        Percent
+                      </label>
+
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        onWheel={
+                          handleNumberWheel
+                        }
+                        value={
+                          payoutPolicyForm.percent
+                        }
+                        onChange={(e) =>
+                          setPayoutPolicyForm(
+                            (prev) => ({
+                              ...prev,
+                              percent:
+                                e.target
+                                  .value,
+                            })
+                          )
+                        }
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                        placeholder="40"
+                      />
+
+                      <p className="mt-2 text-xs text-gray-500">
+                        Example:
+                        40 means this
+                        role gets 40%
+                        of the paid
+                        service amount.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    handleCreatePayoutPolicy
+                  }
+                  disabled={
+                    savingPayoutPolicy ||
+                    !payoutPolicyForm.role_name.trim() ||
+                    (payoutPolicyForm.payout_type ===
+                      "percent" &&
+                      Number(
+                        payoutPolicyForm.percent ||
+                          0
+                      ) <= 0)
+                  }
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+
+                  {savingPayoutPolicy
+                    ? "Creating..."
+                    : "Create role"}
+                </button>
+
+                <div className="mt-6 space-y-3">
+                  {loadingPayoutPolicies ? (
+                    <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
+                      Loading staff
+                      roles...
+                    </div>
+                  ) : payoutPolicies.length ===
+                    0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
+                      No staff roles
+                      yet.
+                    </div>
+                  ) : (
+                    payoutPolicies.map(
+                      (policy) => (
+                        <div
+                          key={policy.id}
+                          className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3"
+                        >
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {getRoleName(
+                                  policy
+                                )}
+                              </p>
+
+                              <p className="mt-1 text-xs text-gray-500">
+                                {policy.payout_type ===
+                                "fixed_per_job"
+                                  ? "Fixed per service payout"
+                                  : ""}
+
+                                {policy.payout_type ===
+                                "percent"
+                                  ? `${Number(
+                                      policy.percent ||
+                                        0
+                                    )}% of payment`
+                                  : ""}
+                              </p>
+                            </div>
+
+                            <span
+                              className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
+                                policy.is_active
+                                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
+                                  : "bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-200"
+                              }`}
+                            >
+                              {policy.is_active
+                                ? "Active"
+                                : "Inactive"}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    )
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }

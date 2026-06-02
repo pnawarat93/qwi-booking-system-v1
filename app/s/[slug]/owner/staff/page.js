@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
+import { FEATURES } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
 
 function apiPath(slug, path) {
@@ -70,6 +71,7 @@ const EMPTY_FORM = {
 
 export default function OwnerStaffPage({ params }) {
   const { slug } = use(params);
+  const payoutsEnabled = FEATURES.PAYOUTS;
 
   const [staffStatusFilter, setStaffStatusFilter] = useState("all");
   const [staffLoading, setStaffLoading] = useState(false);
@@ -201,8 +203,16 @@ export default function OwnerStaffPage({ params }) {
 
   useEffect(() => {
     if (!slug) return;
+    if (!payoutsEnabled) return;
     fetchPayoutSummary(range);
-  }, [slug, range.from, range.to, range.activeOnly, range.abnOnly]);
+  }, [
+    slug,
+    payoutsEnabled,
+    range.from,
+    range.to,
+    range.activeOnly,
+    range.abnOnly,
+  ]);
 
   const policiesById = useMemo(() => {
     const map = new Map();
@@ -212,6 +222,10 @@ export default function OwnerStaffPage({ params }) {
     return map;
   }, [policies]);
 
+  const defaultPayoutPolicy = policies.find(
+    (policy) => policy.is_active !== false
+  );
+
   const staffSummaryCards = useMemo(() => {
     const total = staffRows.length;
     const active = staffRows.filter((row) => row.is_active).length;
@@ -219,14 +233,19 @@ export default function OwnerStaffPage({ params }) {
     const noCode = staffRows.filter((row) => !row.staff_code).length;
     const noRole = staffRows.filter((row) => !row.payout_policy_id).length;
 
-    return [
+    const cards = [
       summaryCard("Staff in view", total),
       summaryCard("Active", active),
       summaryCard("With ABN", abnCount),
-      summaryCard("No role", noRole),
       summaryCard("No code yet", noCode),
     ];
-  }, [staffRows]);
+
+    if (payoutsEnabled) {
+      cards.splice(3, 0, summaryCard("No role", noRole));
+    }
+
+    return cards;
+  }, [staffRows, payoutsEnabled]);
 
   const payoutSummaryCards = useMemo(() => {
     if (!payoutSummary) return [];
@@ -277,7 +296,15 @@ export default function OwnerStaffPage({ params }) {
       setSaving(true);
       setStaffError("");
 
-      if (!form.payout_policy_id) {
+      const effectivePayoutPolicyId = payoutsEnabled
+        ? form.payout_policy_id
+        : form.payout_policy_id || defaultPayoutPolicy?.id;
+
+      if (!effectivePayoutPolicyId) {
+        if (!payoutsEnabled) {
+          throw new Error("Default staff setup is missing. Please contact support.");
+        }
+
         throw new Error("Please select an employment role for this staff member.");
       }
 
@@ -290,7 +317,7 @@ export default function OwnerStaffPage({ params }) {
 
       const payload = {
         ...form,
-        payout_policy_id: form.payout_policy_id || null,
+        payout_policy_id: effectivePayoutPolicyId || null,
       };
 
       const res = await fetch(url, {
@@ -309,7 +336,9 @@ export default function OwnerStaffPage({ params }) {
 
       resetForm();
       await fetchStaff(staffStatusFilter);
-      await fetchPayoutSummary(range);
+      if (payoutsEnabled) {
+        await fetchPayoutSummary(range);
+      }
     } catch (err) {
       console.error(err);
       setStaffError(err.message || "Could not save staff.");
@@ -326,8 +355,7 @@ export default function OwnerStaffPage({ params }) {
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900">Staff</h1>
         <p className="mt-2 text-sm text-gray-500">
-          Manage staff records, assign employment roles, and review payout totals
-          by date range.
+          Manage staff records, update details, and keep team status current.
         </p>
       </section>
 
@@ -340,8 +368,8 @@ export default function OwnerStaffPage({ params }) {
             Staff Directory
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Add staff, update details later, assign their employment role, and
-            mark people inactive when they leave.
+            Add staff, update details later, and mark people inactive when they
+            leave.
           </p>
         </div>
 
@@ -362,13 +390,13 @@ export default function OwnerStaffPage({ params }) {
           ))}
         </div>
 
-        {policiesError ? (
+        {payoutsEnabled && policiesError ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {policiesError}
           </div>
         ) : null}
 
-        {policies.length === 0 && !policiesLoading ? (
+        {payoutsEnabled && policies.length === 0 && !policiesLoading ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             No employment roles found yet. Create at least one role in
             Employment Roles & Payout before adding staff.
@@ -383,8 +411,8 @@ export default function OwnerStaffPage({ params }) {
                   {formMode === "edit" ? "Edit Staff" : "Add Staff"}
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Basic staff profile for owner use, payroll notes, tax
-                  reference, and employment role.
+                  Basic staff profile for owner use, contact records, and team
+                  status.
                 </p>
               </div>
 
@@ -447,37 +475,41 @@ export default function OwnerStaffPage({ params }) {
                   />
                 </div>
 
-                <div>
-                  <FieldLabel>Employment Role *</FieldLabel>
-                  <select
-                    value={form.payout_policy_id || ""}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        payout_policy_id: e.target.value || "",
-                      }))
-                    }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
-                    disabled={policiesLoading}
-                    required
-                  >
-                    <option value="">
-                      {policiesLoading ? "Loading roles..." : "Select role"}
-                    </option>
-                    {policies.map((policy) => (
-                      <option key={policy.id} value={policy.id}>
-                        {getRoleLabel(policy)}
-                        {policy.is_active === false ? " (inactive)" : ""}
+                {payoutsEnabled ? (
+                  <div>
+                    <FieldLabel>Employment Role *</FieldLabel>
+                    <select
+                      value={form.payout_policy_id || ""}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          payout_policy_id: e.target.value || "",
+                        }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
+                      disabled={policiesLoading}
+                      required
+                    >
+                      <option value="">
+                        {policiesLoading ? "Loading roles..." : "Select role"}
                       </option>
-                    ))}
-                  </select>
-                </div>
+                      {policies.map((policy) => (
+                        <option key={policy.id} value={policy.id}>
+                          {getRoleLabel(policy)}
+                          {policy.is_active === false ? " (inactive)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
               </div>
 
-              <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                Role controls how payout is calculated. Create or edit roles in
-                Employment Roles & Payout.
-              </p>
+              {payoutsEnabled ? (
+                <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                  Role controls how payout is calculated. Create or edit roles
+                  in Employment Roles & Payout.
+                </p>
+              ) : null}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -622,7 +654,9 @@ export default function OwnerStaffPage({ params }) {
                       <tr>
                         <th className="px-4 py-3 font-medium">Staff</th>
                         <th className="px-4 py-3 font-medium">Code</th>
-                        <th className="px-4 py-3 font-medium">Role</th>
+                        {payoutsEnabled ? (
+                          <th className="px-4 py-3 font-medium">Role</th>
+                        ) : null}
                         <th className="px-4 py-3 font-medium">ABN</th>
                         <th className="px-4 py-3 font-medium">Start</th>
                         <th className="px-4 py-3 font-medium">Status</th>
@@ -649,17 +683,19 @@ export default function OwnerStaffPage({ params }) {
                               </div>
                             </td>
                             <td className="px-4 py-4">{row.staff_code || "-"}</td>
-                            <td className="px-4 py-4">
-                              {policy ? (
-                                <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
-                                  {getRoleLabel(policy)}
-                                </span>
-                              ) : (
-                                <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
-                                  No role
-                                </span>
-                              )}
-                            </td>
+                            {payoutsEnabled ? (
+                              <td className="px-4 py-4">
+                                {policy ? (
+                                  <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                                    {getRoleLabel(policy)}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                                    No role
+                                  </span>
+                                )}
+                              </td>
+                            ) : null}
                             <td className="px-4 py-4">{row.abn || "-"}</td>
                             <td className="px-4 py-4">
                               {safeDateInputValue(row.start_date) || "-"}
@@ -696,157 +732,166 @@ export default function OwnerStaffPage({ params }) {
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Section 2
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-gray-900">
-            Staff Payout Summary
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Select a date range to see how much each staff member earned.
-          </p>
-        </div>
-
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="grid gap-4 lg:grid-cols-[1fr,1fr,auto,auto]">
-            <div>
-              <FieldLabel>From</FieldLabel>
-              <input
-                type="date"
-                value={safeDateInputValue(range.from)}
-                onChange={(e) =>
-                  setRange((prev) => ({
-                    ...prev,
-                    from: e.target.value,
-                  }))
-                }
-                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
-              />
-            </div>
-
-            <div>
-              <FieldLabel>To</FieldLabel>
-              <input
-                type="date"
-                value={safeDateInputValue(range.to)}
-                onChange={(e) =>
-                  setRange((prev) => ({
-                    ...prev,
-                    to: e.target.value,
-                  }))
-                }
-                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
-              />
-            </div>
-
-            <label className="flex items-end gap-3 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={range.activeOnly}
-                onChange={(e) =>
-                  setRange((prev) => ({
-                    ...prev,
-                    activeOnly: e.target.checked,
-                  }))
-                }
-              />
-              Active only
-            </label>
-
-            <label className="flex items-end gap-3 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={range.abnOnly}
-                onChange={(e) =>
-                  setRange((prev) => ({
-                    ...prev,
-                    abnOnly: e.target.checked,
-                  }))
-                }
-              />
-              ABN only
-            </label>
+      {payoutsEnabled ? (
+        <section className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Section 2
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+              Staff Payout Summary
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Select a date range to see how much each staff member earned.
+            </p>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
-            {payoutSummaryCards.map((card) => (
-              <div
-                key={card.title}
-                className="rounded-2xl border border-gray-200 bg-white p-4"
-              >
-                <p className="text-sm text-gray-500">{card.title}</p>
-                <p className="mt-1 text-2xl font-semibold text-gray-900">
-                  {card.value}
-                </p>
-                {card.subtitle ? (
-                  <p className="mt-1 text-xs text-gray-500">{card.subtitle}</p>
-                ) : null}
+          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[1fr,1fr,auto,auto]">
+              <div>
+                <FieldLabel>From</FieldLabel>
+                <input
+                  type="date"
+                  value={safeDateInputValue(range.from)}
+                  onChange={(e) =>
+                    setRange((prev) => ({
+                      ...prev,
+                      from: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
+                />
               </div>
-            ))}
-          </div>
 
-          {payoutError ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {payoutError}
-            </div>
-          ) : null}
+              <div>
+                <FieldLabel>To</FieldLabel>
+                <input
+                  type="date"
+                  value={safeDateInputValue(range.to)}
+                  onChange={(e) =>
+                    setRange((prev) => ({
+                      ...prev,
+                      to: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
+                />
+              </div>
 
-          {payoutLoading ? (
-            <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-              Loading payout summary...
-            </div>
-          ) : payoutRows.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
-              No payout rows found for this date range.
-            </div>
-          ) : (
-            <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 text-left text-sm text-gray-500">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Staff</th>
-                      <th className="px-4 py-3 font-medium">Code</th>
-                      <th className="px-4 py-3 font-medium">Role</th>
-                      <th className="px-4 py-3 font-medium">ABN</th>
-                      <th className="px-4 py-3 font-medium">Jobs</th>
-                      <th className="px-4 py-3 font-medium">Hours</th>
-                      <th className="px-4 py-3 font-medium">Payout</th>
-                    </tr>
-                  </thead>
+              <label className="flex items-end gap-3 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={range.activeOnly}
+                  onChange={(e) =>
+                    setRange((prev) => ({
+                      ...prev,
+                      activeOnly: e.target.checked,
+                    }))
+                  }
+                />
+                Active only
+              </label>
 
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {payoutRows.map((row) => (
-                      <tr key={row.staff_id} className="text-sm text-gray-700">
-                        <td className="px-4 py-4 font-medium text-gray-900">
-                          {row.staff_name || "-"}
-                        </td>
-                        <td className="px-4 py-4">{row.staff_code || "-"}</td>
-                        <td className="px-4 py-4">
-                          {row.role_name ||
-                            row.payout_role_name ||
-                            row.payout_policy_name ||
-                            formatEmploymentType(row.employment_type)}
-                        </td>
-                        <td className="px-4 py-4">{row.abn || "-"}</td>
-                        <td className="px-4 py-4">{row.jobs_count || 0}</td>
-                        <td className="px-4 py-4">
-                          {formatMinutes(row.total_minutes || 0)}
-                        </td>
-                        <td className="px-4 py-4 font-semibold text-gray-900">
-                          {currency(row.payout_total || 0)}
-                        </td>
+              <label className="flex items-end gap-3 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={range.abnOnly}
+                  onChange={(e) =>
+                    setRange((prev) => ({
+                      ...prev,
+                      abnOnly: e.target.checked,
+                    }))
+                  }
+                />
+                ABN only
+              </label>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
+              {payoutSummaryCards.map((card) => (
+                <div
+                  key={card.title}
+                  className="rounded-2xl border border-gray-200 bg-white p-4"
+                >
+                  <p className="text-sm text-gray-500">{card.title}</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">
+                    {card.value}
+                  </p>
+                  {card.subtitle ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {card.subtitle}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
+            {payoutError ? (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {payoutError}
+              </div>
+            ) : null}
+
+            {payoutLoading ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
+                Loading payout summary...
+              </div>
+            ) : payoutRows.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500">
+                No payout rows found for this date range.
+              </div>
+            ) : (
+              <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50 text-left text-sm text-gray-500">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Staff</th>
+                        <th className="px-4 py-3 font-medium">Code</th>
+                        <th className="px-4 py-3 font-medium">Role</th>
+                        <th className="px-4 py-3 font-medium">ABN</th>
+                        <th className="px-4 py-3 font-medium">Jobs</th>
+                        <th className="px-4 py-3 font-medium">Hours</th>
+                        <th className="px-4 py-3 font-medium">Payout</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {payoutRows.map((row) => (
+                        <tr
+                          key={row.staff_id}
+                          className="text-sm text-gray-700"
+                        >
+                          <td className="px-4 py-4 font-medium text-gray-900">
+                            {row.staff_name || "-"}
+                          </td>
+                          <td className="px-4 py-4">
+                            {row.staff_code || "-"}
+                          </td>
+                          <td className="px-4 py-4">
+                            {row.role_name ||
+                              row.payout_role_name ||
+                              row.payout_policy_name ||
+                              formatEmploymentType(row.employment_type)}
+                          </td>
+                          <td className="px-4 py-4">{row.abn || "-"}</td>
+                          <td className="px-4 py-4">{row.jobs_count || 0}</td>
+                          <td className="px-4 py-4">
+                            {formatMinutes(row.total_minutes || 0)}
+                          </td>
+                          <td className="px-4 py-4 font-semibold text-gray-900">
+                            {currency(row.payout_total || 0)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      </section>
+            )}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

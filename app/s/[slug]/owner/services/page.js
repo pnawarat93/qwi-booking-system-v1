@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
+import { FEATURES } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
 
 function apiPath(slug, path) {
@@ -40,6 +41,7 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function OwnerServicesPage({ params }) {
   const { slug } = use(params);
+  const payoutsEnabled = FEATURES.PAYOUTS;
 
   const [serviceStatusFilter, setServiceStatusFilter] = useState("all");
   const [serviceLoading, setServiceLoading] = useState(false);
@@ -83,10 +85,6 @@ export default function OwnerServicesPage({ params }) {
   const serviceSummaryCards = useMemo(() => {
     const total = serviceRows.length;
     const active = serviceRows.filter((row) => row.is_active).length;
-    const withPayout = serviceRows.filter(
-      (row) => row.staff_payout_fixed !== null && row.staff_payout_fixed !== undefined
-    ).length;
-
     const averagePrice =
       total > 0
         ? currency(
@@ -94,13 +92,24 @@ export default function OwnerServicesPage({ params }) {
           )
         : "$0.00";
 
-    return [
+    const cards = [
       summaryCard("Services in view", total),
       summaryCard("Active", active),
-      summaryCard("With fixed payout", withPayout),
       summaryCard("Average price", averagePrice),
     ];
-  }, [serviceRows]);
+
+    if (payoutsEnabled) {
+      const withPayout = serviceRows.filter(
+        (row) =>
+          row.staff_payout_fixed !== null &&
+          row.staff_payout_fixed !== undefined
+      ).length;
+
+      cards.splice(2, 0, summaryCard("With fixed payout", withPayout));
+    }
+
+    return cards;
+  }, [serviceRows, payoutsEnabled]);
 
   function resetForm() {
     setForm(EMPTY_FORM);
@@ -143,7 +152,9 @@ export default function OwnerServicesPage({ params }) {
         duration: Number(form.duration),
         price: form.price === "" ? "" : Number(form.price),
         staff_payout_fixed:
-          form.staff_payout_fixed === "" ? "" : Number(form.staff_payout_fixed),
+          form.staff_payout_fixed === ""
+            ? null
+            : Number(form.staff_payout_fixed),
       };
 
       const res = await fetch(url, {
@@ -176,7 +187,7 @@ export default function OwnerServicesPage({ params }) {
         <p className="text-sm font-semibold text-emerald-600">Owner Dashboard</p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900">Services</h1>
         <p className="mt-2 text-sm text-gray-500">
-          Manage service list, pricing, duration, and fixed staff payout.
+          Manage service list, pricing, and duration.
         </p>
       </section>
 
@@ -292,23 +303,25 @@ export default function OwnerServicesPage({ params }) {
                 </div>
               </div>
 
-              <div>
-                <FieldLabel optional>Fixed staff payout</FieldLabel>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.staff_payout_fixed}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      staff_payout_fixed: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
-                  placeholder="Optional fixed payout per service"
-                />
-              </div>
+              {payoutsEnabled ? (
+                <div>
+                  <FieldLabel optional>Fixed staff payout</FieldLabel>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.staff_payout_fixed}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        staff_payout_fixed: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none transition focus:border-gray-400"
+                    placeholder="Optional fixed payout per service"
+                  />
+                </div>
+              ) : null}
 
               <label className="flex items-center gap-3 rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
                 <input
@@ -392,7 +405,11 @@ export default function OwnerServicesPage({ params }) {
                         <th className="px-4 py-3 font-medium">Service</th>
                         <th className="px-4 py-3 font-medium">Duration</th>
                         <th className="px-4 py-3 font-medium">Price</th>
-                        <th className="px-4 py-3 font-medium">Staff payout</th>
+                        {payoutsEnabled ? (
+                          <th className="px-4 py-3 font-medium">
+                            Staff payout
+                          </th>
+                        ) : null}
                         <th className="px-4 py-3 font-medium">Status</th>
                         <th className="px-4 py-3 font-medium text-right">
                           Action
@@ -410,12 +427,14 @@ export default function OwnerServicesPage({ params }) {
                             {row.duration ? `${row.duration} min` : "-"}
                           </td>
                           <td className="px-4 py-4">{currency(row.price)}</td>
-                          <td className="px-4 py-4">
-                            {row.staff_payout_fixed === null ||
-                            row.staff_payout_fixed === undefined
-                              ? "-"
-                              : currency(row.staff_payout_fixed)}
-                          </td>
+                          {payoutsEnabled ? (
+                            <td className="px-4 py-4">
+                              {row.staff_payout_fixed === null ||
+                              row.staff_payout_fixed === undefined
+                                ? "-"
+                                : currency(row.staff_payout_fixed)}
+                            </td>
+                          ) : null}
                           <td className="px-4 py-4">
                             <span
                               className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
