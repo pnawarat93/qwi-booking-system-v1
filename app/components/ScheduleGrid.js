@@ -443,7 +443,7 @@ export default function ScheduleGrid({
   }
 
   return (
-    <div className="h-full w-full overflow-hidden bg-white">
+    <div className="relative h-full w-full overflow-hidden bg-white">
       <div className="relative h-full overflow-auto">
         <div
           className="relative"
@@ -654,6 +654,10 @@ export default function ScheduleGrid({
           </div>
         </div>
       </div>
+
+      {staffList.length > 4 ? (
+        <div className="pointer-events-none absolute right-0 top-0 z-40 h-full w-8 bg-gradient-to-l from-white to-transparent" />
+      ) : null}
 
       <BookingDetailsModal
         booking={selectedBooking}
