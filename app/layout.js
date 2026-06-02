@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Qwi",
+  title: "Keenie",
   description: "Booking system",
 };
 

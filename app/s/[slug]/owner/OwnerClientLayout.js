@@ -68,7 +68,7 @@ export default function OwnerClientLayout({ children, activeSlug, storeName }) {
       <aside className="hidden w-72 shrink-0 border-r border-[#E8D8CC] bg-white lg:flex lg:flex-col">
         <div className="border-b border-[#E8D8CC] px-6 py-6">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#C87D87]">
-            Qwi Owner
+            Keenie Owner
           </p>
           <h1 className="mt-2 text-2xl font-semibold text-[#4A3A34]">
             {storeName}
@@ -118,7 +118,7 @@ export default function OwnerClientLayout({ children, activeSlug, storeName }) {
           <div className="flex items-center justify-between px-4 py-4 sm:px-6">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#C87D87] lg:hidden">
-                Qwi Owner
+                Keenie Owner
               </p>
               <h2 className="truncate text-lg font-semibold text-[#4A3A34]">
                 Store Management

@@ -215,7 +215,7 @@ export default function StoreHomePage() {
             <div className="w-full min-w-0">
               <div className="mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-[#E5BCA9]/60 bg-white/70 px-3 py-1 text-xs text-[#7A675F] shadow-sm sm:text-sm">
                 <Sparkles className="h-4 w-4 shrink-0 text-[#C87D87]" />
-                <span className="truncate">Powered by Qwi</span>
+                <span className="truncate">Powered by Keenie</span>
               </div>
 
               <h1 className="text-3xl font-semibold tracking-tight text-[#4A3A34] sm:text-4xl lg:text-5xl">

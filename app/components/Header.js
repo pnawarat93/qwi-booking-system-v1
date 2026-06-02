@@ -11,10 +11,10 @@ export default function Header({ storeName }) {
 
           <div className="flex flex-col leading-tight">
             <span className="text-lg font-semibold tracking-[0.18em] text-[#4A3A34]">
-              {storeName || "Qwi Store"}
+              {storeName || "Keenie Store"}
             </span>
             <span className="text-xs text-[#7A675F]">
-              Elegant booking experience powered by Qwi
+              Elegant booking experience powered by Keenie
             </span>
           </div>
         </div>

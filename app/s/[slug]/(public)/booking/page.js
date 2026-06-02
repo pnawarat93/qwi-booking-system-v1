@@ -341,7 +341,7 @@ export default function BookingPage() {
           <div className="rounded-[1.75rem] border border-[#E8D8CC] bg-white/65 px-4 py-7 text-center shadow-[0_10px_30px_rgba(180,140,120,0.10)] backdrop-blur-sm sm:rounded-4xl sm:px-6 sm:py-10">
             <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-[#E5BCA9]/60 bg-[#FBEAD6]/80 px-3 py-1.5 text-xs text-[#6B7556] sm:text-sm">
               <Sparkles className="h-4 w-4 text-[#C87D87]" />
-              Smooth booking experience powered by Qwi
+              Smooth booking experience powered by Keenie
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight text-[#4A3A34] sm:text-4xl md:text-5xl">
@@ -358,7 +358,7 @@ export default function BookingPage() {
           <div className="rounded-[1.75rem] border border-[#E8D8CC] bg-white/75 p-4 shadow-[0_12px_36px_rgba(180,140,120,0.10)] backdrop-blur-sm sm:rounded-4xl sm:p-6">
             <div className="text-center">
               <p className="mb-1 text-xs uppercase tracking-[0.24em] text-[#C87D87] sm:text-sm">
-                Qwi Booking System
+                Keenie Booking System
               </p>
               <h2 className="text-2xl font-semibold text-[#4A3A34] sm:text-3xl">
                 Start booking your service

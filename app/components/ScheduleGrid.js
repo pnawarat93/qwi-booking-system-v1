@@ -20,6 +20,9 @@ const ACTIVE_GRID_STATUSES = ["pending", "paid"];
 const INACTIVE_DAY_STATUSES = ["cancelled", "no_show"];
 const NEEDS_REASSIGN_PENDING_STATUSES = [
   "pending",
+  "confirmed",
+  "in_progress",
+  "in-progress",
 ];
 const MISSING_ASSIGNED_PAID_STATUSES = [];
 
@@ -69,6 +72,12 @@ function compareDateStrings(a, b) {
   return a.localeCompare(b);
 }
 
+function needsReassignWarning(booking) {
+  return NEEDS_REASSIGN_PENDING_STATUSES.includes(
+    booking.status?.toLowerCase()
+  );
+}
+
 export default function ScheduleGrid({
   selectedDate = getSydneyTodayDate(),
   onDataChange,
@@ -92,7 +101,12 @@ export default function ScheduleGrid({
 
     try {
       const [staffRes, bookingsRes, hoursRes] = await Promise.all([
-        fetch(apiPath(storeSlug, `/effective-staff?date=${selectedDate}`)),
+        fetch(
+          apiPath(
+            storeSlug,
+            `/effective-staff?date=${selectedDate}&include_all=true`
+          )
+        ),
         fetch(apiPath(storeSlug, `/booking?date=${selectedDate}`)),
         fetch(apiPath(storeSlug, `/business-hours?date=${selectedDate}`)),
       ]);
@@ -113,8 +127,16 @@ export default function ScheduleGrid({
         throw new Error(hoursData?.error || "Failed to load business hours");
       }
 
-      const normalizedStaff = Array.isArray(staffData?.items)
-        ? staffData.items.map((staff) => ({
+      const visibleEffectiveStaff = Array.isArray(staffData?.items)
+        ? staffData.items.filter((staff) => {
+          if (staff.is_working === true) return true;
+
+          return staff.source === "override" && Boolean(staff.override_id);
+        })
+        : [];
+
+      const normalizedStaff = visibleEffectiveStaff
+        .map((staff) => ({
           id: staff.staff_id,
           name: staff.name_display || staff.name,
           staff_code: staff.staff_code || null,
@@ -124,8 +146,7 @@ export default function ScheduleGrid({
           note: staff.note || "",
           source: staff.source || "roster",
           is_working: staff.is_working,
-        }))
-        : [];
+        }));
 
       setStaffList(normalizedStaff);
       setBookings(Array.isArray(bookingsData) ? bookingsData : []);
@@ -193,9 +214,17 @@ export default function ScheduleGrid({
     );
   }, [bookings]);
 
-  const workingStaffIds = useMemo(() => {
+  const visibleStaffIds = useMemo(() => {
     return new Set(staffList.map((staff) => String(staff.id)));
   }, [staffList]);
+
+  const workingStaffList = useMemo(() => {
+    return staffList.filter((staff) => staff.is_working === true);
+  }, [staffList]);
+
+  const workingStaffIds = useMemo(() => {
+    return new Set(workingStaffList.map((staff) => String(staff.id)));
+  }, [workingStaffList]);
 
   const unassignedBookings = useMemo(() => {
     const dateComparison = compareDateStrings(
@@ -226,11 +255,11 @@ export default function ScheduleGrid({
       }
       // Only pending bookings should become
       // operationally unassigned when staff
-      // is no longer working today.
+      // is no longer visible on today's grid.
       if (
         status === "pending" &&
         booking.staff_id &&
-        !workingStaffIds.has(
+        !visibleStaffIds.has(
           String(booking.staff_id)
         )
       ) {
@@ -241,7 +270,7 @@ export default function ScheduleGrid({
     });
   }, [
     bookings,
-    workingStaffIds,
+    visibleStaffIds,
     selectedDate,
     todaySydney,
   ]);
@@ -441,9 +470,17 @@ export default function ScheduleGrid({
             {staffList.map((staff) => (
               <div
                 key={staff.id}
-                className="border-b border-l bg-gray-50 px-4 py-3 text-center text-sm font-semibold text-gray-800"
+                className={`border-b border-l px-4 py-3 text-center text-sm font-semibold ${staff.is_working === true
+                  ? "bg-gray-50 text-gray-800"
+                  : "bg-gray-100 text-gray-500"
+                  }`}
               >
-                {staff.name}
+                <div>{staff.name}</div>
+                {staff.is_working !== true && (
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                    Off
+                  </div>
+                )}
               </div>
             ))}
 
@@ -474,7 +511,10 @@ export default function ScheduleGrid({
                   {staffList.map((staff) => (
                     <div
                       key={`${staff.id}-${slot.label}`}
-                      className={`border-l bg-white ${slot.isMajor
+                      className={`border-l ${staff.is_working === true
+                        ? "bg-white"
+                        : "bg-gray-50"
+                        } ${slot.isMajor
                         ? "border-t border-gray-300"
                         : "border-t border-gray-100"
                         }`}
@@ -496,8 +536,7 @@ export default function ScheduleGrid({
             {staffList.map((staff, staffIndex) => {
               const staffBookings = activeBookings.filter(
                 (booking) =>
-                  String(booking.staff_id) === String(staff.id) &&
-                  workingStaffIds.has(String(booking.staff_id))
+                  String(booking.staff_id) === String(staff.id)
               );
 
               return (
@@ -605,7 +644,7 @@ export default function ScheduleGrid({
                           ""
                         }
                         is_walk_in={Boolean(booking.is_walk_in)}
-                        is_unassigned={true}
+                        is_unassigned={needsReassignWarning(booking)}
                       />
                     </div>
                   </button>
@@ -622,7 +661,7 @@ export default function ScheduleGrid({
         onClose={closeBookingDetails}
         onSave={handleSaveBooking}
         onRefresh={forceRefreshGrid}
-        availableStaffOptions={staffList}
+        availableStaffOptions={workingStaffList}
         allBookings={bookings}
         storeSlug={storeSlug}
       />

@@ -29,6 +29,12 @@ function getDefaultGuaranteeForDate(storeConfig, selectedDate) {
   return Number(config?.[weekdayKey] || 0);
 }
 
+function isVisibleOnGrid(staff) {
+  if (staff?.is_working === true) return true;
+
+  return staff?.source === "override" && Boolean(staff?.override_id);
+}
+
 export default function StaffControlsModal({
   open,
   onClose,
@@ -171,8 +177,12 @@ export default function StaffControlsModal({
     selectedDate
   );
 
+  const visibleTodayStaff = useMemo(() => {
+    return (effectiveStaff || []).filter(isVisibleOnGrid);
+  }, [effectiveStaff]);
+
   const todaysStaff = useMemo(() => {
-    return (effectiveStaff || [])
+    return (visibleTodayStaff || [])
       .map((s, index) => ({
         staff_id: s.staff_id,
 
@@ -226,7 +236,7 @@ export default function StaffControlsModal({
 
         return (a.name || "").localeCompare(b.name || "");
       });
-  }, [effectiveStaff, businessHours]);
+  }, [visibleTodayStaff, businessHours]);
 
   const availableToAdd = useMemo(() => {
     const existingIds = new Set(
