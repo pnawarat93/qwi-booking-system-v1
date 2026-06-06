@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
-import { FEATURES } from "@/lib/config/features";
 import {
   LayoutGrid,
   CalendarDays,
@@ -41,7 +39,7 @@ const ownerNavItems = [
     href: (slug) => `/s/${slug}/owner/business-hours`,
     icon: Clock3,
   },
-  FEATURES.ADVANCED_REPORTS && {
+  {
     label: "Reports",
     href: (slug) => `/s/${slug}/owner/reports`,
     icon: FileText,

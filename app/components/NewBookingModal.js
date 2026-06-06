@@ -323,186 +323,223 @@ export default function NewBookingModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-6 py-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-[#E3D6C8] bg-[#FFFDF9] shadow-[0_18px_48px_rgba(47,41,38,0.18)]">
+        <div className="flex flex-col gap-2 border-b border-[#E3D6C8] bg-[#F8F3EC] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">New booking</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Manual booking for phone calls and future appointments
+            <h2 className="text-xl font-semibold tracking-tight text-[#2F2926]">
+              New booking
+            </h2>
+            <p className="mt-1 text-sm text-[#7A675F]">
+              Create a phone or future appointment for the schedule.
             </p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-2xl border border-[#E3D6C8] bg-white px-3 py-2 text-sm font-semibold text-[#7A675F] transition hover:bg-[#FFFDF9]"
           >
             Close
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 px-6 py-6">
-          {formData.date && businessHours?.is_open === false && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <p className="font-semibold">Store is closed on this date.</p>
-              <p className="mt-1">
-                {businessHours?.note || "Please choose another date."}
-              </p>
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+            {formData.date && businessHours?.is_open === false && (
+              <div className="rounded-2xl border border-[#D6B894] bg-[#F1E4D5] px-4 py-3 text-sm text-[#6B4F35]">
+                <p className="font-semibold">Store is closed on this date.</p>
+                <p className="mt-1">
+                  {businessHours?.note || "Please choose another date."}
+                </p>
+              </div>
+            )}
 
-          {formData.date && businessHours?.is_open && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              Hours for this date: {safeTimeLabel(businessHours.open_time)} -{" "}
-              {safeTimeLabel(businessHours.close_time)}
-              {businessHours?.note ? ` · ${businessHours.note}` : ""}
-            </div>
-          )}
+            {formData.date && businessHours?.is_open && (
+              <div className="rounded-2xl border border-[#BFCDBF] bg-[#E8EFE8] px-4 py-3 text-sm text-[#3F5747]">
+                Hours for this date: {safeTimeLabel(businessHours.open_time)} -{" "}
+                {safeTimeLabel(businessHours.close_time)}
+                {businessHours?.note ? ` · ${businessHours.note}` : ""}
+              </div>
+            )}
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Customer name
+            <section className="rounded-3xl border border-[#E3D6C8] bg-white px-4 py-4 shadow-sm">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#4F6A55]">
+                  Customer
+                </p>
+                <p className="mt-1 text-sm text-[#7A675F]">
+                  Details for the person making the booking.
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Customer name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.customer_name}
+                    onChange={(e) =>
+                      updateField("customer_name", e.target.value)
+                    }
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                    placeholder="Customer name"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.customer_phone}
+                    onChange={(e) =>
+                      updateField("customer_phone", e.target.value)
+                    }
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                    placeholder="Phone number"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-[#E3D6C8] bg-white px-4 py-4 shadow-sm">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#4F6A55]">
+                  Appointment
+                </p>
+                <p className="mt-1 text-sm text-[#7A675F]">
+                  Choose the service, time, and preferred staff.
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Service
+                  </label>
+                  <select
+                    value={formData.service_id}
+                    onChange={(e) => updateField("service_id", e.target.value)}
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                    disabled={
+                      loadingOptions || businessHours?.is_open === false
+                    }
+                  >
+                    <option value="">Select service</option>
+                    {services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name} ({service.duration} mins)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    min={getSydneyTodayDate()}
+                    onChange={(e) => updateField("date", e.target.value)}
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Time
+                  </label>
+                  <input
+                    type="time"
+                    step="300"
+                    value={formData.time}
+                    onChange={(e) => updateField("time", e.target.value)}
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                    disabled={businessHours?.is_open === false}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Staff
+                  </label>
+                  <select
+                    value={formData.staff_id}
+                    onChange={(e) => updateField("staff_id", e.target.value)}
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                    disabled={
+                      loadingOptions || businessHours?.is_open === false
+                    }
+                  >
+                    <option value="">Auto assign available staff</option>
+                    {availableStaffList.map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.name}
+                        {staff.staff_code ? ` (${staff.staff_code})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-[#8A7A72]">
+                    Keenie will choose available staff based on today&apos;s grid
+                    order.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Party size
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.party_size}
+                    onChange={(e) => updateField("party_size", e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                    Status
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => updateField("status", e.target.value)}
+                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                  >
+                    <option value="pending">pending</option>
+                    <option value="paid">paid</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-[#E3D6C8] bg-white px-4 py-4 shadow-sm">
+              <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
+                Notes
               </label>
-              <input
-                type="text"
-                value={formData.customer_name}
-                onChange={(e) => updateField("customer_name", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                placeholder="Customer name"
+              <textarea
+                rows={3}
+                value={formData.notes}
+                onChange={(e) => updateField("notes", e.target.value)}
+                className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
+                placeholder="Optional request or phone note"
               />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Phone
-              </label>
-              <input
-                type="text"
-                value={formData.customer_phone}
-                onChange={(e) => updateField("customer_phone", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                placeholder="Phone number"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Service
-              </label>
-              <select
-                value={formData.service_id}
-                onChange={(e) => updateField("service_id", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                disabled={loadingOptions || businessHours?.is_open === false}
-              >
-                <option value="">Select service</option>
-                {services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.name} ({service.duration} mins)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Staff
-              </label>
-              <select
-                value={formData.staff_id}
-                onChange={(e) => updateField("staff_id", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                disabled={loadingOptions || businessHours?.is_open === false}
-              >
-                <option value="">Unassigned</option>
-                {availableStaffList.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.name}
-                    {staff.staff_code ? ` (${staff.staff_code})` : ""}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Shows only staff working on this date and free at this time. You
-                can leave it unassigned.
-              </p>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Date
-              </label>
-              <input
-                type="date"
-                value={formData.date}
-                min={getSydneyTodayDate()}
-                onChange={(e) => updateField("date", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Time
-              </label>
-              <input
-                type="time"
-                step="300"
-                value={formData.time}
-                onChange={(e) => updateField("time", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-                disabled={businessHours?.is_open === false}
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Party size
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={formData.party_size}
-                onChange={(e) => updateField("party_size", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => updateField("status", e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              >
-                <option value="pending">pending</option>
-                <option value="paid">paid</option>
-              </select>
-            </div>
+            </section>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Notes
-            </label>
-            <textarea
-              rows={3}
-              value={formData.notes}
-              onChange={(e) => updateField("notes", e.target.value)}
-              className="w-full rounded-lg border px-3 py-2 text-sm"
-              placeholder="Optional request or phone note"
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-3 border-t pt-4">
+          <div className="flex shrink-0 flex-col gap-3 border-t border-[#E3D6C8] bg-[#FFFDF9] px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-2xl border border-[#E3D6C8] bg-white px-4 py-2 text-sm font-semibold text-[#7A675F] hover:bg-[#FFFDF9]"
             >
               Cancel
             </button>
@@ -510,7 +547,7 @@ export default function NewBookingModal({
             <button
               type="submit"
               disabled={saving || businessHours?.is_open === false}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+              className="rounded-2xl bg-[#4A3A34] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#3A2D28] disabled:opacity-50"
             >
               {saving ? "Saving..." : "Create booking"}
             </button>

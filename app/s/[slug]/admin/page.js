@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  CalendarPlus,
+  ClipboardList,
+  ShieldCheck,
+  SlidersHorizontal,
+} from "lucide-react";
 
 import StoreInfoBar from "@/app/components/StoreInfoBar";
 import ScheduleToolbar from "@/app/components/ScheduleToolbar";
@@ -84,6 +90,24 @@ function ClosedDayState({ dateLabel, closedAtLabel, isTodaySelected }) {
         </p>
       </div>
     </div>
+  );
+}
+
+function SidebarButton({ title, icon: Icon, onClick, accent = false }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-sm transition ${
+        accent
+          ? "border-[#4F6A55] bg-[#4F6A55] text-white shadow-sm hover:bg-[#435B49]"
+          : "border-[#E3D6C8] bg-white text-[#4F6A55] hover:border-[#BFCDBF] hover:bg-[#E8EFE8]"
+      }`}
+    >
+      <Icon size={18} />
+    </button>
   );
 }
 
@@ -344,158 +368,200 @@ export default function StoreAdminPage() {
   }
 
   return (
-    <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-white">
-      <div className="sticky top-0 z-40 shrink-0 border-b bg-white">
-        <StoreInfoBar
-          shopName={store.name}
-          shopPhone={store.phone}
-          shopAddress={store.address}
-          ownerHref={`/s/${store.slug}/owner-login`}
-        />
-      </div>
-
-      <div className="sticky top-[73px] z-30 shrink-0 border-b bg-white">
-        <ScheduleToolbar
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
-          dateLabel={dateLabel}
-          onOpenWalkIn={() =>
-            guardClosedDay(() => setShowWalkInModal(true))
-          }
-          onOpenNewBooking={() =>
-            guardClosedDay(() => setShowNewBookingModal(true))
-          }
-        />
-      </div>
-
-      {isStoreDayClosed ? (
-        <div className="shrink-0 border-b border-green-200 bg-green-50 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-green-800">
-              <span className="font-semibold">Store closed</span>
-              <span className="ml-2 text-green-700">
-                Today&apos;s records are finalized. Front desk actions are
-                locked for this date.
-              </span>
-            </div>
-
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
-              Finalized
-            </span>
-          </div>
+    <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#F6F1EA] p-3">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border border-[#E3D6C8] bg-[#FFFDF9] shadow-[0_18px_48px_rgba(47,41,38,0.12)]">
+        <div className="sticky top-0 z-40 shrink-0 border-b border-[#E3D6C8] bg-[#FFFDF9]/95">
+          <StoreInfoBar
+            shopName={store.name}
+            shopPhone={store.phone}
+            shopAddress={store.address}
+            ownerHref={`/s/${store.slug}/owner-login`}
+          />
         </div>
-      ) : null}
 
-      {!isStoreDayClosed && endDayGuardMessage ? (
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
-          <div className="text-sm text-amber-800">
-            <span className="font-semibold">End Day unavailable</span>
-            <span className="ml-2 text-amber-700">{endDayGuardMessage}</span>
-          </div>
-        </div>
-      ) : null}
-
-      {!isStoreDayClosed && unassignedCount > 0 && (
-        <div className="sticky top-[146px] z-20 shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-amber-800">
-              <span className="font-semibold">
-                {unassignedCount} booking
-                {unassignedCount > 1 ? "s" : ""} need reassignment
-              </span>
-              <span className="ml-2 text-amber-700">
-                These are pending bookings without an active staff.
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowUnassignedBookingsModal(true)}
-              className="rounded-lg border border-amber-300 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
-            >
-              Review unassigned
-            </button>
-          </div>
-        </div>
-      )}
-
-      {!isStoreDayClosed && missingAssignedPaidCount > 0 && (
-        <div className="sticky top-[146px] z-20 shrink-0 border-b border-blue-200 bg-blue-50 px-4 py-3">
-          <div className="text-sm text-blue-800">
-            <span className="font-semibold">
-              {missingAssignedPaidCount} paid booking
-              {missingAssignedPaidCount > 1 ? "s are" : " is"} linked to staff
-              not on today&apos;s grid
-            </span>
-            <span className="ml-2 text-blue-700">
-              Check if the service is still ongoing or staff has changed.
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {loadingStoreDay ? (
-          <div className="flex h-full items-center justify-center bg-gray-50 text-sm text-gray-500">
-            Loading day status...
-          </div>
-        ) : isStoreDayClosed ? (
-          <ClosedDayState
+        <div className="sticky top-[73px] z-30 shrink-0 border-b border-[#E3D6C8] bg-[#FFFDF9]/95">
+          <ScheduleToolbar
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
             dateLabel={dateLabel}
-            closedAtLabel={closedAtLabel}
-            isTodaySelected={isTodaySelected}
-          />
-        ) : (
-          <ScheduleGrid
-            selectedDate={selectedDate}
-            onDataChange={setTrayData}
-            refreshToken={gridRefreshToken}
-            externalSelectedBooking={bookingToOpenFromUnassigned}
-            onExternalBookingHandled={() =>
-              setBookingToOpenFromUnassigned(null)
+            onOpenWalkIn={() =>
+              guardClosedDay(() => setShowWalkInModal(true))
             }
-            storeSlug={store.slug}
-          />
-        )}
-      </div>
-
-      {!isStoreDayClosed && (
-        <div className="shrink-0 border-t bg-white">
-          <BottomDayTray
-            selectedDate={selectedDate}
-            totalBookings={trayData.bookings?.length || 0}
-            activeCount={trayData.activeBookings?.length || 0}
-            cancelledCount={
-              trayData.inactiveBookings?.filter(
-                (booking) => booking.status?.toLowerCase() === "cancelled"
-              ).length || 0
-            }
-            noShowCount={
-              trayData.inactiveBookings?.filter(
-                (booking) => booking.status?.toLowerCase() === "no_show"
-              ).length || 0
-            }
-            unassignedCount={trayData.unassignedBookings?.length || 0}
-            onOpenInactive={() => setShowInactiveBookingsModal(true)}
-            onOpenUnassigned={() => setShowUnassignedBookingsModal(true)}
-            onOpenStaffControls={() => setShowStaffControlsModal(true)}
-            onOpenEndDay={handleOpenEndDay}
-            storeDay={storeDay}
-            startTill={
-              endDaySummary?.startTill ??
-              endDaySummary?.stats?.startTill ??
-              storeDay?.start_till ??
-              0
-            }
-            cashOnTill={
-              endDaySummary?.cashOnTill ??
-              endDaySummary?.stats?.cashOnTill ??
-              storeDay?.start_till ??
-              0
+            onOpenNewBooking={() =>
+              guardClosedDay(() => setShowNewBookingModal(true))
             }
           />
         </div>
-      )}
+
+        <div className="flex min-h-0 flex-1 bg-[#FFFDF9]">
+          <aside className="flex w-16 shrink-0 flex-col items-center justify-between border-r border-[#E3D6C8] bg-[#F8F3EC] px-2 py-4">
+            <div className="flex flex-col items-center gap-3">
+              <SidebarButton
+                title="New Booking"
+                icon={CalendarPlus}
+                accent
+                onClick={() =>
+                  guardClosedDay(() => setShowNewBookingModal(true))
+                }
+              />
+
+              <SidebarButton
+                title="Add Walk-in"
+                icon={ClipboardList}
+                onClick={() =>
+                  guardClosedDay(() => setShowWalkInModal(true))
+                }
+              />
+
+              <SidebarButton
+                title="Staff Controls"
+                icon={SlidersHorizontal}
+                onClick={() =>
+                  guardClosedDay(() => setShowStaffControlsModal(true))
+                }
+              />
+            </div>
+
+            <SidebarButton
+              title="Owner Dashboard"
+              icon={ShieldCheck}
+              onClick={() => router.push(`/s/${store.slug}/owner-login`)}
+            />
+          </aside>
+
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {isStoreDayClosed ? (
+              <div className="shrink-0 border-b border-[#BFCDBF] bg-[#E8EFE8] px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-[#3F5747]">
+                    <span className="font-semibold">Store closed</span>
+                    <span className="ml-2 text-[#4F6A55]">
+                      Today&apos;s records are finalized. Front desk actions are
+                      locked for this date.
+                    </span>
+                  </div>
+
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#4F6A55] ring-1 ring-[#BFCDBF]">
+                    Finalized
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
+            {!isStoreDayClosed && endDayGuardMessage ? (
+              <div className="shrink-0 border-b border-[#D6B894] bg-[#F1E4D5] px-4 py-3">
+                <div className="text-sm text-[#6B4F35]">
+                  <span className="font-semibold">End Day unavailable</span>
+                  <span className="ml-2">{endDayGuardMessage}</span>
+                </div>
+              </div>
+            ) : null}
+
+            {!isStoreDayClosed && unassignedCount > 0 && (
+              <div className="sticky top-[146px] z-20 shrink-0 border-b border-[#D6B894] bg-[#F1E4D5] px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-[#6B4F35]">
+                    <span className="font-semibold">
+                      {unassignedCount} booking
+                      {unassignedCount > 1 ? "s" : ""} need reassignment
+                    </span>
+                    <span className="ml-2">
+                      These are pending bookings without an active staff.
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowUnassignedBookingsModal(true)}
+                    className="rounded-xl border border-[#D6B894] bg-white/80 px-3 py-2 text-sm font-medium text-[#6B4F35] hover:bg-white"
+                  >
+                    Review unassigned
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!isStoreDayClosed && missingAssignedPaidCount > 0 && (
+              <div className="sticky top-[146px] z-20 shrink-0 border-b border-[#BFCDBF] bg-[#E8EFE8] px-4 py-3">
+                <div className="text-sm text-[#3F5747]">
+                  <span className="font-semibold">
+                    {missingAssignedPaidCount} paid booking
+                    {missingAssignedPaidCount > 1 ? "s are" : " is"} linked to
+                    staff not on today&apos;s grid
+                  </span>
+                  <span className="ml-2 text-[#4F6A55]">
+                    Check if the service is still ongoing or staff has changed.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="min-h-0 flex-1 overflow-hidden bg-white">
+              {loadingStoreDay ? (
+                <div className="flex h-full items-center justify-center bg-[#FFFDF9] text-sm text-[#7A675F]">
+                  Loading day status...
+                </div>
+              ) : isStoreDayClosed ? (
+                <ClosedDayState
+                  dateLabel={dateLabel}
+                  closedAtLabel={closedAtLabel}
+                  isTodaySelected={isTodaySelected}
+                />
+              ) : (
+                <ScheduleGrid
+                  selectedDate={selectedDate}
+                  onDataChange={setTrayData}
+                  refreshToken={gridRefreshToken}
+                  externalSelectedBooking={bookingToOpenFromUnassigned}
+                  onExternalBookingHandled={() =>
+                    setBookingToOpenFromUnassigned(null)
+                  }
+                  storeSlug={store.slug}
+                />
+              )}
+            </div>
+
+            {!isStoreDayClosed && (
+              <div className="shrink-0 border-t border-[#E3D6C8] bg-[#FFFDF9]">
+                <BottomDayTray
+                  selectedDate={selectedDate}
+                  totalBookings={trayData.bookings?.length || 0}
+                  activeCount={trayData.activeBookings?.length || 0}
+                  cancelledCount={
+                    trayData.inactiveBookings?.filter(
+                      (booking) =>
+                        booking.status?.toLowerCase() === "cancelled"
+                    ).length || 0
+                  }
+                  noShowCount={
+                    trayData.inactiveBookings?.filter(
+                      (booking) => booking.status?.toLowerCase() === "no_show"
+                    ).length || 0
+                  }
+                  unassignedCount={trayData.unassignedBookings?.length || 0}
+                  onOpenInactive={() => setShowInactiveBookingsModal(true)}
+                  onOpenUnassigned={() => setShowUnassignedBookingsModal(true)}
+                  onOpenStaffControls={() => setShowStaffControlsModal(true)}
+                  onOpenEndDay={handleOpenEndDay}
+                  storeDay={storeDay}
+                  startTill={
+                    endDaySummary?.startTill ??
+                    endDaySummary?.stats?.startTill ??
+                    storeDay?.start_till ??
+                    0
+                  }
+                  cashOnTill={
+                    endDaySummary?.cashOnTill ??
+                    endDaySummary?.stats?.cashOnTill ??
+                    storeDay?.start_till ??
+                    0
+                  }
+                />
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
 
       <StartDayModal
         open={shouldBlockTodayOps}

@@ -43,6 +43,7 @@ export async function GET(request, context) {
         open_time,
         close_time,
         slug,
+        subscription_plan,
         enable_daily_guarantee,
         daily_guarantee_config
       `)
@@ -104,6 +105,7 @@ export async function PATCH(request, context) {
         open_time,
         close_time,
         slug,
+        subscription_plan,
         enable_daily_guarantee,
         daily_guarantee_config
       `)

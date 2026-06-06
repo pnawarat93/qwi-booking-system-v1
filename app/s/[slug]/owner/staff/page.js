@@ -1,8 +1,9 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
-import { FEATURES } from "@/lib/config/features";
+import { getStoreFeatures } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
+import { useStore } from "../../StoreContext";
 
 function apiPath(slug, path) {
   return slug ? storeApiUrl(slug, path) : `/api${path}`;
@@ -71,7 +72,9 @@ const EMPTY_FORM = {
 
 export default function OwnerStaffPage({ params }) {
   const { slug } = use(params);
-  const payoutsEnabled = FEATURES.PAYOUTS;
+  const store = useStore();
+  const storeFeatures = getStoreFeatures(store);
+  const payoutsEnabled = storeFeatures.PAYOUTS;
 
   const [staffStatusFilter, setStaffStatusFilter] = useState("all");
   const [staffLoading, setStaffLoading] = useState(false);

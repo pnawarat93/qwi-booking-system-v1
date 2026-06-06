@@ -1,7 +1,9 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
+import { getStoreFeatures } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
+import { useStore } from "../../StoreContext";
 
 function apiPath(slug, path) {
   return slug ? storeApiUrl(slug, path) : `/api${path}`;
@@ -22,6 +24,11 @@ function summaryCard(title, value, subtitle = "") {
 
 export default function OwnerReportsPage({ params }) {
   const { slug } = use(params);
+  const store = useStore();
+  const storeFeatures = getStoreFeatures(store);
+  const payoutsEnabled = storeFeatures.PAYOUTS;
+  const guaranteesEnabled = storeFeatures.GUARANTEES;
+  const bookingLogColumnCount = payoutsEnabled ? 18 : 17;
 
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
@@ -69,7 +76,7 @@ export default function OwnerReportsPage({ params }) {
   const summaryCards = useMemo(() => {
     if (!report) return [];
 
-    return [
+    const cards = [
       summaryCard("Total Jobs", report.total_jobs ?? 0, `${report.paid_jobs ?? 0} paid`),
       summaryCard(
         "Payments",
@@ -81,13 +88,20 @@ export default function OwnerReportsPage({ params }) {
         currency(report.net_revenue || 0),
         `Outstanding ${currency(report.outstanding || 0)}`
       ),
-      summaryCard(
-        "Staff Payout",
-        currency(report.total_staff_payout || 0),
-        `Store Keeps ${currency(report.store_keeps || 0)}`
-      ),
     ];
-  }, [report]);
+
+    if (payoutsEnabled) {
+      cards.push(
+        summaryCard(
+          "Staff Payout",
+          currency(report.total_staff_payout || 0),
+          `Store Keeps ${currency(report.store_keeps || 0)}`
+        )
+      );
+    }
+
+    return cards;
+  }, [report, payoutsEnabled]);
 
   const staffPayoutRows = useMemo(() => {
     const map = new Map();
@@ -107,7 +121,12 @@ export default function OwnerReportsPage({ params }) {
       map.set(name, current);
     });
 
-    const guaranteeEnabled = Boolean(report?.enable_daily_guarantee);
+    if (!payoutsEnabled) return [];
+
+    const guaranteeEnabled =
+      payoutsEnabled &&
+      guaranteesEnabled &&
+      Boolean(report?.enable_daily_guarantee);
     const dailyGuarantee = Number(report?.daily_guarantee || report?.dailyGuarantee || 0);
 
     return Array.from(map.values())
@@ -131,7 +150,7 @@ export default function OwnerReportsPage({ params }) {
         };
       })
       .sort((a, b) => a.staff_name.localeCompare(b.staff_name));
-  }, [rows, report]);
+  }, [rows, report, payoutsEnabled, guaranteesEnabled]);
 
   const hasReport = Boolean(report);
 
@@ -296,67 +315,75 @@ export default function OwnerReportsPage({ params }) {
                   ) : null}
                 </div>
 
-                <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
-                    Staff Payout Summary
-                  </p>
+                {payoutsEnabled ? (
+                  <div className="rounded-[1.5rem] border border-gray-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+                      Staff Payout Summary
+                    </p>
 
-                  {report?.enable_daily_guarantee ? (
-                    <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-                      Daily guarantee is enabled for this report.
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 space-y-3">
-                    {staffPayoutRows.length === 0 ? (
-                      <div className="rounded-xl border bg-gray-50 px-4 py-4 text-sm text-gray-400">
-                        No staff payout rows for this day.
+                    {guaranteesEnabled && report?.enable_daily_guarantee ? (
+                      <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                        Daily guarantee is enabled for this report.
                       </div>
-                    ) : (
-                      staffPayoutRows.map((staff) => (
-                        <div
-                          key={staff.staff_name}
-                          className="rounded-xl border bg-gray-50 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <p className="font-semibold text-[#4A3A34]">
-                                {staff.staff_name}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {staff.jobs} job{staff.jobs === 1 ? "" : "s"}
-                              </p>
-                            </div>
+                    ) : null}
 
-                            <div className="text-right">
-                              {report?.enable_daily_guarantee ? (
-                                <div className="mb-2 space-y-1">
-                                  <p className="text-xs text-gray-500">
-                                    Calculated:{" "}
-                                    {currency(staff.calculated_payout_total || 0)}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    Guarantee: {currency(staff.daily_guarantee || 0)}
-                                  </p>
-                                  {staff.guarantee_top_up > 0 ? (
-                                    <p className="text-xs font-semibold text-emerald-700">
-                                      Top-up: +{currency(staff.guarantee_top_up)}
+                    <div className="mt-4 space-y-3">
+                      {staffPayoutRows.length === 0 ? (
+                        <div className="rounded-xl border bg-gray-50 px-4 py-4 text-sm text-gray-400">
+                          No staff payout rows for this day.
+                        </div>
+                      ) : (
+                        staffPayoutRows.map((staff) => (
+                          <div
+                            key={staff.staff_name}
+                            className="rounded-xl border bg-gray-50 px-4 py-3"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="font-semibold text-[#4A3A34]">
+                                  {staff.staff_name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {staff.jobs} job{staff.jobs === 1 ? "" : "s"}
+                                </p>
+                              </div>
+
+                              <div className="text-right">
+                                {guaranteesEnabled &&
+                                report?.enable_daily_guarantee ? (
+                                  <div className="mb-2 space-y-1">
+                                    <p className="text-xs text-gray-500">
+                                      Calculated:{" "}
+                                      {currency(
+                                        staff.calculated_payout_total || 0
+                                      )}
                                     </p>
-                                  ) : null}
-                                </div>
-                              ) : null}
+                                    <p className="text-xs text-gray-500">
+                                      Guarantee:{" "}
+                                      {currency(staff.daily_guarantee || 0)}
+                                    </p>
+                                    {staff.guarantee_top_up > 0 ? (
+                                      <p className="text-xs font-semibold text-emerald-700">
+                                        Top-up: +{currency(staff.guarantee_top_up)}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                ) : null}
 
-                              <p className="text-xs text-gray-500">Final Payout</p>
-                              <p className="text-lg font-bold text-[#4A3A34]">
-                                {currency(staff.payout_total || 0)}
-                              </p>
+                                <p className="text-xs text-gray-500">
+                                  Final Payout
+                                </p>
+                                <p className="text-lg font-bold text-[#4A3A34]">
+                                  {currency(staff.payout_total || 0)}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
-                    )}
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
             </section>
 
@@ -389,7 +416,9 @@ export default function OwnerReportsPage({ params }) {
                       <th className="px-4 py-3">Other</th>
                       <th className="px-4 py-3">Paid Total</th>
                       <th className="px-4 py-3">Refund</th>
-                      <th className="px-4 py-3">Payout</th>
+                      {payoutsEnabled ? (
+                        <th className="px-4 py-3">Payout</th>
+                      ) : null}
                       <th className="px-4 py-3">Ref Code</th>
                       <th className="px-4 py-3">Staff Note</th>
                     </tr>
@@ -398,7 +427,10 @@ export default function OwnerReportsPage({ params }) {
                   <tbody>
                     {rows.length === 0 ? (
                       <tr>
-                        <td colSpan={18} className="px-4 py-10 text-center text-gray-400">
+                        <td
+                          colSpan={bookingLogColumnCount}
+                          className="px-4 py-10 text-center text-gray-400"
+                        >
                           No booking rows found for this date.
                         </td>
                       </tr>
@@ -452,9 +484,11 @@ export default function OwnerReportsPage({ params }) {
                           <td className="px-4 py-3 text-gray-700">
                             {currency(row.refund_total || 0)}
                           </td>
-                          <td className="px-4 py-3 font-semibold text-[#4A3A34]">
-                            {currency(row.staff_payout || 0)}
-                          </td>
+                          {payoutsEnabled ? (
+                            <td className="px-4 py-3 font-semibold text-[#4A3A34]">
+                              {currency(row.staff_payout || 0)}
+                            </td>
+                          ) : null}
                           <td className="px-4 py-3 text-gray-700">
                             {row.payment_reference_code || "-"}
                           </td>
@@ -495,9 +529,11 @@ export default function OwnerReportsPage({ params }) {
                         <td className="px-4 py-3">
                           {currency(rows.reduce((sum, r) => sum + Number(r.refund_total || 0), 0))}
                         </td>
-                        <td className="px-4 py-3">
-                          {currency(rows.reduce((sum, r) => sum + Number(r.staff_payout || 0), 0))}
-                        </td>
+                        {payoutsEnabled ? (
+                          <td className="px-4 py-3">
+                            {currency(rows.reduce((sum, r) => sum + Number(r.staff_payout || 0), 0))}
+                          </td>
+                        ) : null}
                         <td colSpan={2} className="px-4 py-3" />
                       </tr>
                     </tfoot>

@@ -38,6 +38,7 @@ export default async function StoreLayout({ children, params }) {
     address: store.address || "",
     logo_url: store.logo_url || "",
     theme_color: store.theme_color || "#C87D87",
+    subscription_plan: store.subscription_plan || "lite",
     // Map actual DB columns → what the app expects
     business_hours_start: store.open_time || "09:00",
     business_hours_end: store.close_time || "20:00",

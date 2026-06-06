@@ -11,7 +11,7 @@ import {
   ExternalLink,
   ShieldCheck,
 } from "lucide-react";
-import { FEATURES } from "@/lib/config/features";
+import { getStoreFeatures } from "@/lib/config/features";
 import { useStore } from "../../StoreContext";
 
 function apiPath(slug, path) {
@@ -55,17 +55,26 @@ function handleNumberWheel(event) {
 
 export default function OwnerSettingsPage() {
   const store = useStore();
-  const payoutsEnabled = FEATURES.PAYOUTS;
-  const guaranteesEnabled = FEATURES.GUARANTEES;
 
   const [storeInfo, setStoreInfo] = useState({
     name: "",
     phone: "",
     address: "",
     slug: "",
+    subscription_plan: "",
     enable_daily_guarantee: false,
     daily_guarantee_config: DEFAULT_DAILY_GUARANTEE_CONFIG,
   });
+
+  const storeForFeatures = {
+    ...store,
+    subscription_plan:
+      storeInfo.subscription_plan || store.subscription_plan,
+  };
+
+  const storeFeatures = getStoreFeatures(storeForFeatures);
+  const payoutsEnabled = storeFeatures.PAYOUTS;
+  const guaranteesEnabled = storeFeatures.GUARANTEES;
 
   const [payoutPolicies, setPayoutPolicies] = useState([]);
   const [loadingPayoutPolicies, setLoadingPayoutPolicies] = useState(false);
@@ -102,6 +111,7 @@ export default function OwnerSettingsPage() {
         phone: data?.phone || "",
         address: data?.address || "",
         slug: data?.slug || "",
+        subscription_plan: data?.subscription_plan || "",
         enable_daily_guarantee:
           data?.enable_daily_guarantee ?? false,
         daily_guarantee_config:

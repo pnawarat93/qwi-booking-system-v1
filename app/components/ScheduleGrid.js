@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import BookingCard from "./BookingCard";
 import BookingDetailsModal from "./BookingDetailsModal";
+import { useStore } from "@/app/s/[slug]/StoreContext";
+import { getStoreFeatures } from "@/lib/config/features";
 import { getSydneyTodayDate } from "@/lib/sydneyDate";
 import { storeApiUrl } from "@/lib/storeApi";
 
@@ -86,6 +88,9 @@ export default function ScheduleGrid({
   onExternalBookingHandled,
   storeSlug,
 }) {
+  const store = useStore();
+  const storeFeatures = getStoreFeatures(store);
+
   const [staffList, setStaffList] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [businessHours, setBusinessHours] = useState(null);
@@ -421,7 +426,7 @@ export default function ScheduleGrid({
 
   if (loading && bookings.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center bg-white italic text-gray-500">
+      <div className="flex h-64 items-center justify-center bg-[#FFFDF9] italic text-[#7A675F]">
         Loading schedule...
       </div>
     );
@@ -429,12 +434,12 @@ export default function ScheduleGrid({
 
   if (!isStoreOpenThatDay) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-white p-6">
-        <div className="max-w-xl rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
-          <h3 className="text-lg font-semibold text-amber-900">
+      <div className="flex h-full w-full items-center justify-center bg-[#FFFDF9] p-6">
+        <div className="max-w-xl rounded-3xl border border-[#E3D6C8] bg-white px-6 py-8 text-center shadow-sm">
+          <h3 className="text-lg font-semibold text-[#2F2926]">
             Store is closed on this date
           </h3>
-          <p className="mt-2 text-sm text-amber-800">
+          <p className="mt-2 text-sm text-[#7A675F]">
             {businessHours?.note || "No business hours available for this day."}
           </p>
         </div>
@@ -453,15 +458,15 @@ export default function ScheduleGrid({
           }}
         >
           <div
-            className="sticky top-0 z-30 grid bg-gray-50"
+            className="sticky top-0 z-30 grid bg-[#FFFDF9]"
             style={{
               gridTemplateColumns: `${TIME_COLUMN_WIDTH}px repeat(${staffList.length}, ${STAFF_COLUMN_WIDTH}px) ${UNASSIGNED_COLUMN_WIDTH}px`,
             }}
           >
-            <div className="sticky left-0 z-40 border-b bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-600">
+            <div className="sticky left-0 z-40 border-b border-[#D8CABC] bg-[#F6F1EA] px-3 py-3 text-sm font-semibold text-[#7A675F]">
               <button
                 onClick={forceRefreshGrid}
-                className="text-[10px] uppercase tracking-tighter text-blue-500 hover:underline"
+                className="rounded-full border border-[#BFCDBF] bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#4F6A55] transition hover:border-[#AEBFAE] hover:bg-[#E8EFE8]"
               >
                 Refresh
               </button>
@@ -470,21 +475,21 @@ export default function ScheduleGrid({
             {staffList.map((staff) => (
               <div
                 key={staff.id}
-                className={`border-b border-l px-4 py-3 text-center text-sm font-semibold ${staff.is_working === true
-                  ? "bg-gray-50 text-gray-800"
-                  : "bg-gray-100 text-gray-500"
+                className={`border-b border-l border-[#D8CABC] px-4 py-3 text-center text-sm font-semibold ${staff.is_working === true
+                  ? "bg-[#FFFDF9] text-[#2F2926]"
+                  : "bg-[#F0EDE8] text-[#7A675F]"
                   }`}
               >
                 <div>{staff.name}</div>
                 {staff.is_working !== true && (
-                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8A7A72]">
                     Off
                   </div>
                 )}
               </div>
             ))}
 
-            <div className="border-b border-l border-amber-200 bg-amber-50 px-2 py-3 text-center text-sm font-semibold text-amber-700">
+            <div className="border-b border-l border-[#D8CABC] bg-[#F1E4D5] px-2 py-3 text-center text-sm font-semibold text-[#6B4F35]">
               Unassigned
             </div>
           </div>
@@ -499,9 +504,9 @@ export default function ScheduleGrid({
               {timeSlots.map((slot) => (
                 <React.Fragment key={slot.label}>
                   <div
-                    className={`sticky left-0 z-10 flex items-center justify-end border-r px-3 text-xs ${slot.isMajor
-                      ? "border-t border-gray-300 bg-gray-50 text-gray-700"
-                      : "border-t border-gray-100 bg-white text-gray-400"
+                    className={`sticky left-0 z-10 flex items-center justify-end border-r border-[#D8CABC] px-3 text-xs ${slot.isMajor
+                      ? "border-t border-[#D8CABC] bg-[#F6F1EA] text-[#4A3A34]"
+                      : "border-t border-[#EDE3D9] bg-[#FAF7F2] text-[#8A7A72]"
                       }`}
                     style={{ height: SLOT_HEIGHT }}
                   >
@@ -511,21 +516,21 @@ export default function ScheduleGrid({
                   {staffList.map((staff) => (
                     <div
                       key={`${staff.id}-${slot.label}`}
-                      className={`border-l ${staff.is_working === true
+                      className={`border-l border-[#E6D9CC] ${staff.is_working === true
                         ? "bg-white"
-                        : "bg-gray-50"
+                        : "bg-[#F4F1EC]"
                         } ${slot.isMajor
-                        ? "border-t border-gray-300"
-                        : "border-t border-gray-100"
+                        ? "border-t border-[#D8CABC]"
+                        : "border-t border-[#EDE3D9]"
                         }`}
                       style={{ height: SLOT_HEIGHT }}
                     />
                   ))}
 
                   <div
-                    className={`border-l border-amber-100 bg-amber-50/30 ${slot.isMajor
-                      ? "border-t border-gray-300"
-                      : "border-t border-gray-100"
+                    className={`border-l border-[#D8CABC] bg-[#F8EFE3] ${slot.isMajor
+                      ? "border-t border-[#D8CABC]"
+                      : "border-t border-[#EDE3D9]"
                       }`}
                     style={{ height: SLOT_HEIGHT }}
                   />
@@ -668,6 +673,7 @@ export default function ScheduleGrid({
         availableStaffOptions={workingStaffList}
         allBookings={bookings}
         storeSlug={storeSlug}
+        storeFeatures={storeFeatures}
       />
     </div>
   );

@@ -1,8 +1,9 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
-import { FEATURES } from "@/lib/config/features";
+import { getStoreFeatures } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
+import { useStore } from "../../StoreContext";
 
 function apiPath(slug, path) {
   return slug ? storeApiUrl(slug, path) : `/api${path}`;
@@ -41,7 +42,9 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function OwnerServicesPage({ params }) {
   const { slug } = use(params);
-  const payoutsEnabled = FEATURES.PAYOUTS;
+  const store = useStore();
+  const storeFeatures = getStoreFeatures(store);
+  const payoutsEnabled = storeFeatures.PAYOUTS;
 
   const [serviceStatusFilter, setServiceStatusFilter] = useState("all");
   const [serviceLoading, setServiceLoading] = useState(false);

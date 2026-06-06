@@ -98,7 +98,10 @@ export default function BookingDetailsModal({
   availableStaffOptions = [],
   allBookings = [],
   storeSlug,
+  storeFeatures,
 }) {
+  void storeFeatures;
+
   const [formData, setFormData] = useState({
     customer_name: "",
     customer_phone: "",
