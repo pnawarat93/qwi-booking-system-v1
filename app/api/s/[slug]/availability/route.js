@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 import { resolveStoreFromParams } from "@/lib/storeResolver";
 
+const ACTIVE_BOOKING_STATUSES = ["pending", "paid", "completed"];
+
 export async function GET(request, context) {
   const store = await resolveStoreFromParams(context.params);
   if (!store) {
@@ -20,7 +22,7 @@ export async function GET(request, context) {
     .select("time, staff_id, service_duration_snapshot, services(duration)")
     .eq("store_id", store.id)
     .eq("date", date)
-    .neq("status", "cancelled");
+    .in("status", ACTIVE_BOOKING_STATUSES);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

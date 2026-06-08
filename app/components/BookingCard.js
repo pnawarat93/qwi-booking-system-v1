@@ -54,6 +54,15 @@ export default function BookingCard({
       label: "Paid",
     },
 
+    completed: {
+      card:
+        "border-teal-200 bg-gradient-to-br from-teal-50 to-[#F7FBF8]",
+      badge:
+        "border-teal-200 bg-teal-100 text-teal-800",
+      accent: "bg-teal-500",
+      label: "Completed",
+    },
+
     cancelled: {
       card:
         "border-rose-200 bg-gradient-to-br from-rose-50 to-[#FFF8F8] opacity-85",

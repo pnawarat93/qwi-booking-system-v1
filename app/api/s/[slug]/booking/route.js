@@ -372,7 +372,7 @@ export async function POST(request, context) {
       `)
       .eq("store_id", store.id)
       .eq("date", date)
-      .in("status", ["pending", "paid"]);
+      .in("status", ["pending", "paid", "completed"]);
 
     if (existingError) {
       console.error("POST booking existing bookings error:", existingError);

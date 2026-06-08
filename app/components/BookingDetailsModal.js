@@ -8,8 +8,16 @@ function apiPath(slug, path) {
   return slug ? storeApiUrl(slug, path) : `/api${path}`;
 }
 
-const STATUS_OPTIONS = ["pending", "paid", "cancelled", "no_show"];
-const ACTIVE_BOOKING_STATUSES = ["pending", "paid"];
+const LITE_STATUS_OPTIONS = ["pending", "completed", "cancelled", "no_show"];
+const PAID_STATUS_OPTIONS = ["pending", "paid", "cancelled", "no_show"];
+const ACTIVE_BOOKING_STATUSES = ["pending", "paid", "completed"];
+const STATUS_LABELS = {
+  pending: "Pending",
+  paid: "Paid",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  no_show: "No-show",
+};
 
 function timeToMinutes(timeString) {
   if (!timeString) return null;
@@ -100,8 +108,6 @@ export default function BookingDetailsModal({
   storeSlug,
   storeFeatures,
 }) {
-  void storeFeatures;
-
   const [formData, setFormData] = useState({
     customer_name: "",
     customer_phone: "",
@@ -153,6 +159,9 @@ export default function BookingDetailsModal({
     booking?.notes_customer ||
     booking?.customer_notes ||
     "";
+
+  const financialControlsEnabled =
+    storeFeatures?.FINANCIAL_CONTROLS === true;
 
   useEffect(() => {
     if (!booking) return;
@@ -207,7 +216,7 @@ export default function BookingDetailsModal({
   }, [booking]);
 
   useEffect(() => {
-    if (!open || !booking) return;
+    if (!open || !booking || !financialControlsEnabled) return;
 
     async function fetchExistingPayment() {
       try {
@@ -263,7 +272,7 @@ export default function BookingDetailsModal({
     }
 
     fetchExistingPayment();
-  }, [open, booking, storeSlug, paymentScope]);
+  }, [open, booking, storeSlug, paymentScope, financialControlsEnabled]);
 
   const assignableStaff = useMemo(() => {
     if (!booking) return [];
@@ -331,6 +340,10 @@ export default function BookingDetailsModal({
     !isWalkInBooking &&
     (booking?.requested_staff_id || booking?.is_staff_requested)
   );
+  const isLiteStore =
+    storeFeatures?.LITE_MODE === true ||
+    !financialControlsEnabled;
+  const statusOptions = isLiteStore ? LITE_STATUS_OPTIONS : PAID_STATUS_OPTIONS;
 
   const originalStaffId = booking?.staff_id ? String(booking.staff_id) : "";
   const staffChanged = String(formData.staff_id || "") !== originalStaffId;
@@ -409,7 +422,7 @@ export default function BookingDetailsModal({
   }
 
   function handleStatusChange(nextStatus) {
-    if (!STATUS_OPTIONS.includes(nextStatus)) return;
+    if (!statusOptions.includes(nextStatus)) return;
 
     setSaveError("");
 
@@ -418,7 +431,7 @@ export default function BookingDetailsModal({
       status: nextStatus,
     }));
 
-    if (nextStatus === "paid") {
+    if (nextStatus === "paid" && financialControlsEnabled) {
       setShowPaymentForm(true);
       setShowRefundForm(false);
       setTimeout(() => {
@@ -427,7 +440,12 @@ export default function BookingDetailsModal({
       return;
     }
 
-    if (nextStatus === "cancelled" && existingPayment && !hasFullyRefunded) {
+    if (
+      financialControlsEnabled &&
+      nextStatus === "cancelled" &&
+      existingPayment &&
+      !hasFullyRefunded
+    ) {
       setShowRefundForm(true);
       setShowPaymentForm(false);
       setSaveError(
@@ -737,7 +755,11 @@ export default function BookingDetailsModal({
         if (!confirmed) return;
       }
 
-      if (formData.status === "paid" && !existingPayment) {
+      if (
+        financialControlsEnabled &&
+        formData.status === "paid" &&
+        !existingPayment
+      ) {
         setSaveError(
           "You cannot save this booking as paid without recording payment first."
         );
@@ -745,13 +767,18 @@ export default function BookingDetailsModal({
         return;
       }
 
-      if (formData.status === "pending" && existingPayment) {
+      if (
+        financialControlsEnabled &&
+        formData.status === "pending" &&
+        existingPayment
+      ) {
         await handleBackToPendingWithVoid();
         return;
       }
 
       if (
         formData.status === "cancelled" &&
+        financialControlsEnabled &&
         existingPayment &&
         remainingRefundable > 0
       ) {
@@ -836,7 +863,7 @@ export default function BookingDetailsModal({
               </span>
             )}
 
-            {hasFullyRefunded && (
+            {financialControlsEnabled && hasFullyRefunded && (
               <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">
                 Fully refunded
               </span>
@@ -1020,7 +1047,7 @@ export default function BookingDetailsModal({
                   </div>
                 )}
 
-                {isGroupBooking && (
+                {financialControlsEnabled && isGroupBooking && (
                   <div className="rounded-2xl border border-[#D1D0EA] bg-[#F9F6FE] px-3 py-2 text-sm text-[#5B4B45]">
                     This booking is part of a group booking. Payments and refunds
                     are handled at group level.
@@ -1055,20 +1082,15 @@ export default function BookingDetailsModal({
               </h3>
 
               <p className="mt-1 text-xs text-[#6F625C]">
-                Update booking progress and payment flow
+                {financialControlsEnabled
+                  ? "Update booking progress and payment flow"
+                  : "Update booking progress"}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {STATUS_OPTIONS.map((status) => {
+              {statusOptions.map((status) => {
                 const active = formData.status === status;
-
-                const labelMap = {
-                  pending: "Pending",
-                  paid: "Paid",
-                  cancelled: "Cancelled",
-                  no_show: "No-show",
-                };
 
                 return (
                   <button
@@ -1080,13 +1102,13 @@ export default function BookingDetailsModal({
                         : "border-[#E8DED6] bg-[#FFFCFA] text-[#5B4B45] hover:bg-[#FFF5F1]"
                       }`}
                   >
-                    {labelMap[status]}
+                    {STATUS_LABELS[status]}
                   </button>
                 );
               })}
             </div>
 
-            {formData.status === "paid" ? (
+            {financialControlsEnabled && formData.status === "paid" ? (
               <div className="mt-3 rounded-2xl border border-[#D9E9DE] bg-[#EFF8F3] px-3 py-2.5">
                 <p className="text-sm font-semibold text-[#186C4D]">
                   Payment section is ready below
@@ -1095,6 +1117,7 @@ export default function BookingDetailsModal({
             ) : null}
           </section>
 
+          {financialControlsEnabled && (
           <section ref={paymentSectionRef} className="rounded-2xl border border-[#E8DED6] bg-white p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-sm font-semibold text-[#3F3733]">
@@ -1621,6 +1644,7 @@ export default function BookingDetailsModal({
               </div>
             )}
           </section>
+          )}
 
           <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
             <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">

@@ -209,7 +209,7 @@ export default function NewBookingModal({
       }
 
       const hasConflict = bookings.some((booking) => {
-        if (!["pending", "paid"].includes(booking.status?.toLowerCase())) {
+        if (!["pending", "paid", "completed"].includes(booking.status?.toLowerCase())) {
           return false;
         }
 
@@ -294,7 +294,7 @@ export default function NewBookingModal({
         date: formData.date,
         time: formData.time,
         party_size: Number(formData.party_size),
-        status: formData.status,
+        status: "pending",
         is_walk_in: false,
         notes: formData.notes?.trim() || null,
       };
@@ -505,19 +505,6 @@ export default function NewBookingModal({
                   />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => updateField("status", e.target.value)}
-                    className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
-                  >
-                    <option value="pending">pending</option>
-                    <option value="paid">paid</option>
-                  </select>
-                </div>
               </div>
             </section>
 

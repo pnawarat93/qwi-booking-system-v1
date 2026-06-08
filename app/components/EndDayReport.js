@@ -21,6 +21,8 @@ function currency(value) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
+const FINALIZED_JOB_STATUSES = ["paid", "completed"];
+
 export default function EndDayReport({
   bookings = [],
   selectedDate,
@@ -69,7 +71,9 @@ export default function EndDayReport({
   const fallbackStats = useMemo(() => {
     return {
       totalJobs: bookings.length,
-      paidJobs: bookings.filter((b) => b.status === "paid").length,
+      paidJobs: bookings.filter((b) =>
+        FINALIZED_JOB_STATUSES.includes(b.status)
+      ).length,
       pendingJobs: bookings.filter((b) => b.status === "pending").length,
       cancelledJobs: bookings.filter((b) => b.status === "cancelled").length,
       noShowJobs: bookings.filter((b) => b.status === "no_show").length,
@@ -214,8 +218,8 @@ export default function EndDayReport({
 
                       <p className="mt-1 text-sm text-amber-800">
                         All active bookings must be finalized before the store
-                        can be closed. Please mark each pending booking as paid,
-                        cancelled, or no-show first.
+                        can be closed. Please finish or close each pending
+                        booking first.
                       </p>
 
                       <div className="mt-4 overflow-hidden rounded-2xl border border-amber-200 bg-white">

@@ -11,7 +11,7 @@ function apiPath(slug, path) {
   return slug ? storeApiUrl(slug, path) : `/api${path}`;
 }
 
-const ACTIVE_BOOKING_STATUSES = ["pending", "paid"];
+const ACTIVE_BOOKING_STATUSES = ["pending", "paid", "completed"];
 
 function safeTimeLabel(value, fallback = "09:00") {
   if (!value) return fallback;

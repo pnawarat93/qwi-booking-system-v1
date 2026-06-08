@@ -18,7 +18,7 @@ const TIME_COLUMN_WIDTH = 80;
 const STAFF_COLUMN_WIDTH = 280;
 const UNASSIGNED_COLUMN_WIDTH = 180;
 
-const ACTIVE_GRID_STATUSES = ["pending", "paid"];
+const ACTIVE_GRID_STATUSES = ["pending", "paid", "completed"];
 const INACTIVE_DAY_STATUSES = ["cancelled", "no_show"];
 const NEEDS_REASSIGN_PENDING_STATUSES = [
   "pending",

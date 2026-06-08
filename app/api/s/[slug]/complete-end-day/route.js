@@ -12,6 +12,8 @@ const DEFAULT_DAILY_GUARANTEE_CONFIG = {
   sun: 0,
 };
 
+const FINALIZED_JOB_STATUSES = ["paid", "completed"];
+
 function getDayKey(dateStr) {
   const date = new Date(dateStr);
   const day = date.getDay();
@@ -593,7 +595,9 @@ export async function POST(request, context) {
     const voidTotals = sumPaymentRows(activeVoidRows);
 
     const totalJobs = safeJobs.length;
-    const paidJobs = safeJobs.filter((job) => job.status === "paid").length;
+    const paidJobs = safeJobs.filter((job) =>
+      FINALIZED_JOB_STATUSES.includes(job.status)
+    ).length;
     const pendingJobs = safeJobs.filter((job) => job.status === "pending").length;
     const cancelledJobs = safeJobs.filter(
       (job) => job.status === "cancelled"

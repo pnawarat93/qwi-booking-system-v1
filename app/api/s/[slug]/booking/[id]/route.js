@@ -536,7 +536,7 @@ export async function PATCH(request, context) {
         .eq("store_id", store.id)
         .eq("date", mergedDate)
         .eq("staff_id", mergedStaffId)
-        .in("status", ["pending", "paid"]);
+        .in("status", ["pending", "paid", "completed"]);
 
       if (otherBookingsError) {
         return NextResponse.json(
