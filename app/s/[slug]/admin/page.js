@@ -23,6 +23,7 @@ import StartDayModal from "@/app/components/StartDayModal";
 
 import useAuthStore from "@/store/useAuthStore";
 import { useStore } from "../StoreContext";
+import { getStoreFeatures } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
 
 function getTodayInTimeZone(timeZone = "Australia/Sydney") {
@@ -113,6 +114,7 @@ function SidebarButton({ title, icon: Icon, onClick, accent = false }) {
 
 export default function StoreAdminPage() {
   const store = useStore();
+  const storeFeatures = getStoreFeatures(store);
   const storeTimeZone = store.timezone || "Australia/Sydney";
   const todayInStoreTz = getTodayInTimeZone(storeTimeZone);
 
@@ -657,6 +659,7 @@ export default function StoreAdminPage() {
           bookings={trayData.bookings || []}
           selectedDate={selectedDate}
           storeSlug={store.slug}
+          storeFeatures={storeFeatures}
           onClose={() => setShowEndDayReport(false)}
           onFinish={() => {
             setShowEndDayReport(false);

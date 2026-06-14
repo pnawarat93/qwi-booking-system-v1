@@ -195,6 +195,104 @@ function roundMoney(value) {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
+const MONEY_FIELDS = ["cash", "card", "hicaps", "transfer", "other"];
+
+function emptyMoneyRow() {
+  return {
+    cash: 0,
+    card: 0,
+    hicaps: 0,
+    transfer: 0,
+    other: 0,
+  };
+}
+
+function toCents(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100);
+}
+
+function combineTransactionRows(rows) {
+  const combined = (Array.isArray(rows) ? rows : []).reduce(
+    (acc, row) => {
+      MONEY_FIELDS.forEach((field) => {
+        acc[field] += Number(row?.[field] || 0);
+      });
+
+      if (row?.id !== undefined) acc.id = row.id;
+      if (row?.notes !== undefined && row.notes !== null) acc.notes = row.notes;
+      if (row?.staff_note !== undefined && row.staff_note !== null) {
+        acc.staff_note = row.staff_note;
+      }
+      if (
+        row?.reference_code !== undefined &&
+        row.reference_code !== null
+      ) {
+        acc.reference_code = row.reference_code;
+      }
+
+      return acc;
+    },
+    {
+      id: null,
+      notes: null,
+      staff_note: null,
+      reference_code: null,
+      ...emptyMoneyRow(),
+    }
+  );
+
+  MONEY_FIELDS.forEach((field) => {
+    combined[field] = roundMoney(combined[field]);
+  });
+
+  return combined;
+}
+
+function allocateTransactionRowAcrossJobs(row, jobs) {
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const allocations = new Map();
+
+  if (safeJobs.length === 0) return allocations;
+
+  const rawWeights = safeJobs.map((job) =>
+    Math.max(Number(getJobServicePrice(job) || 0), 0)
+  );
+  const totalWeight = rawWeights.reduce((sum, weight) => sum + weight, 0);
+  const effectiveWeights =
+    totalWeight > 0 ? rawWeights : safeJobs.map(() => 1);
+  const effectiveWeightTotal = effectiveWeights.reduce(
+    (sum, weight) => sum + weight,
+    0
+  );
+
+  safeJobs.forEach((job) => {
+    allocations.set(String(job.id), emptyMoneyRow());
+  });
+
+  MONEY_FIELDS.forEach((field) => {
+    const totalCents = toCents(row?.[field] || 0);
+    let remainingCents = totalCents;
+
+    safeJobs.forEach((job, index) => {
+      const key = String(job.id);
+      const current = allocations.get(key) || emptyMoneyRow();
+
+      const cents =
+        index === safeJobs.length - 1
+          ? remainingCents
+          : Math.round(
+              (totalCents * effectiveWeights[index]) / effectiveWeightTotal
+            );
+
+      current[field] = cents / 100;
+      allocations.set(key, current);
+      remainingCents -= cents;
+    });
+  });
+
+  return allocations;
+}
+
 function getJobServicePrice(job) {
   return Number(job.service_price_snapshot ?? job.services?.price ?? 0);
 }
@@ -464,14 +562,20 @@ export async function GET(request, context) {
     const paymentRowsByJobId = new Map();
     activePaymentRows.forEach((row) => {
       if (row.job_id !== null && row.job_id !== undefined) {
-        paymentRowsByJobId.set(String(row.job_id), row);
+        const key = String(row.job_id);
+        const existing = paymentRowsByJobId.get(key) || [];
+        existing.push(row);
+        paymentRowsByJobId.set(key, existing);
       }
     });
 
     const paymentRowsByGroupId = new Map();
     activePaymentRows.forEach((row) => {
       if (row.job_group_id !== null && row.job_group_id !== undefined) {
-        paymentRowsByGroupId.set(String(row.job_group_id), row);
+        const key = String(row.job_group_id);
+        const existing = paymentRowsByGroupId.get(key) || [];
+        existing.push(row);
+        paymentRowsByGroupId.set(key, existing);
       }
     });
 
@@ -481,6 +585,87 @@ export async function GET(request, context) {
       const existing = refundRowsByParentPaymentId.get(key) || [];
       existing.push(row);
       refundRowsByParentPaymentId.set(key, existing);
+    });
+
+    const jobsByGroupId = new Map();
+    safeJobs.forEach((job) => {
+      if (job.job_group_id === null || job.job_group_id === undefined) return;
+
+      const key = String(job.job_group_id);
+      const existing = jobsByGroupId.get(key) || [];
+      existing.push(job);
+      jobsByGroupId.set(key, existing);
+    });
+
+    const paymentDataByJobId = new Map();
+
+    safeJobs.forEach((job) => {
+      const jobPaymentRows = paymentRowsByJobId.get(String(job.id)) || [];
+
+      if (jobPaymentRows.length === 0) return;
+
+      const paymentRow = combineTransactionRows(jobPaymentRows);
+      const refundRowsForJobPayments = jobPaymentRows.flatMap(
+        (row) => refundRowsByParentPaymentId.get(String(row.id)) || []
+      );
+
+      paymentDataByJobId.set(String(job.id), {
+        paymentRow,
+        refundRows:
+          refundRowsForJobPayments.length > 0
+            ? [combineTransactionRows(refundRowsForJobPayments)]
+            : [],
+      });
+    });
+
+    jobsByGroupId.forEach((groupJobs, groupId) => {
+      const groupPaymentRows = paymentRowsByGroupId.get(String(groupId)) || [];
+
+      if (groupPaymentRows.length === 0) return;
+
+      const allocatableJobs = groupJobs.filter(
+        (job) => !paymentDataByJobId.has(String(job.id))
+      );
+
+      if (allocatableJobs.length === 0) return;
+
+      const combinedGroupPaymentRow = combineTransactionRows(groupPaymentRows);
+      const paymentAllocations = allocateTransactionRowAcrossJobs(
+        combinedGroupPaymentRow,
+        allocatableJobs
+      );
+
+      const groupRefundRows = groupPaymentRows.flatMap(
+        (row) => refundRowsByParentPaymentId.get(String(row.id)) || []
+      );
+      const combinedGroupRefundRow =
+        groupRefundRows.length > 0
+          ? combineTransactionRows(groupRefundRows)
+          : null;
+      const refundAllocations = combinedGroupRefundRow
+        ? allocateTransactionRowAcrossJobs(
+            combinedGroupRefundRow,
+            allocatableJobs
+          )
+        : new Map();
+
+      allocatableJobs.forEach((job) => {
+        const paymentAllocation =
+          paymentAllocations.get(String(job.id)) || emptyMoneyRow();
+        const refundAllocation =
+          refundAllocations.get(String(job.id)) || emptyMoneyRow();
+
+        paymentDataByJobId.set(String(job.id), {
+          paymentRow: {
+            ...combinedGroupPaymentRow,
+            ...paymentAllocation,
+          },
+          refundRows:
+            totalRowAmount(refundAllocation) > 0
+              ? [{ ...refundAllocation }]
+              : [],
+        });
+      });
     });
 
     const totalJobs = safeJobs.length;
@@ -553,16 +738,12 @@ export async function GET(request, context) {
 
       const entry = staffMap.get(String(staffId));
 
-      const paymentRow =
-        paymentRowsByJobId.get(String(job.id)) ||
-        (job.job_group_id
-          ? paymentRowsByGroupId.get(String(job.job_group_id))
-          : null);
+      const paymentData = paymentDataByJobId.get(String(job.id)) || null;
+      const paymentRow = paymentData?.paymentRow || null;
 
       if (!paymentRow) return;
 
-      const refundRows =
-        refundRowsByParentPaymentId.get(String(paymentRow.id)) || [];
+      const refundRows = paymentData?.refundRows || [];
 
       const result = computePayoutForJob({
         job,

@@ -22,6 +22,30 @@ function currency(value) {
 }
 
 const FINALIZED_JOB_STATUSES = ["paid", "completed"];
+const COMPLETED_JOB_STATUSES = ["paid", "completed"];
+
+function bookingStatus(booking) {
+  return String(booking?.status || "").toLowerCase();
+}
+
+function bookingServiceValue(booking) {
+  return Number(
+    booking?.service_price_snapshot ??
+    booking?.services?.price ??
+    booking?.price ??
+    0
+  );
+}
+
+function bookingStaffName(booking) {
+  return (
+    booking?.staff?.name_display ||
+    booking?.staff?.name ||
+    booking?.staff_name ||
+    booking?.staff_name_snapshot ||
+    (booking?.staff_id ? `Staff #${booking.staff_id}` : "Unassigned")
+  );
+}
 
 export default function EndDayReport({
   bookings = [],
@@ -29,6 +53,7 @@ export default function EndDayReport({
   onClose,
   onFinish,
   storeSlug,
+  storeFeatures,
 }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -36,6 +61,10 @@ export default function EndDayReport({
   const [isCompleting, setIsCompleting] = useState(false);
   const [completeError, setCompleteError] = useState("");
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+
+  const isLiteStore =
+    storeFeatures?.LITE_MODE === true ||
+    storeFeatures?.FINANCIAL_CONTROLS !== true;
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -105,6 +134,61 @@ export default function EndDayReport({
   };
 
   const staffPayouts = summary?.staffPayouts || [];
+
+  const liteStats = useMemo(() => {
+    const completedBookings = bookings.filter((booking) =>
+      COMPLETED_JOB_STATUSES.includes(bookingStatus(booking))
+    );
+
+    return {
+      estimatedRevenue: completedBookings.reduce(
+        (sum, booking) => sum + bookingServiceValue(booking),
+        0
+      ),
+      completedJobs: completedBookings.length,
+      cancelledJobs: bookings.filter(
+        (booking) => bookingStatus(booking) === "cancelled"
+      ).length,
+      noShowJobs: bookings.filter(
+        (booking) => bookingStatus(booking) === "no_show"
+      ).length,
+    };
+  }, [bookings]);
+
+  const staffActivitySummary = useMemo(() => {
+    const activityByStaff = new Map();
+
+    bookings.forEach((booking) => {
+      const staffKey = booking?.staff_id ? String(booking.staff_id) : "unassigned";
+      const status = bookingStatus(booking);
+      const existing =
+        activityByStaff.get(staffKey) || {
+          staffKey,
+          staffName: bookingStaffName(booking),
+          completedJobs: 0,
+          cancelledJobs: 0,
+          noShowJobs: 0,
+          estimatedRevenue: 0,
+        };
+
+      if (COMPLETED_JOB_STATUSES.includes(status)) {
+        existing.completedJobs += 1;
+        existing.estimatedRevenue += bookingServiceValue(booking);
+      } else if (status === "cancelled") {
+        existing.cancelledJobs += 1;
+      } else if (status === "no_show") {
+        existing.noShowJobs += 1;
+      }
+
+      activityByStaff.set(staffKey, existing);
+    });
+
+    return Array.from(activityByStaff.values()).sort((a, b) => {
+      if (a.staffKey === "unassigned") return 1;
+      if (b.staffKey === "unassigned") return -1;
+      return a.staffName.localeCompare(b.staffName);
+    });
+  }, [bookings]);
 
   const startTill =
     summary?.startTill ??
@@ -183,7 +267,9 @@ export default function EndDayReport({
           </div>
 
           <p className="mt-1 max-w-2xl text-sm text-[#7B6B64]">
-            Review today&apos;s records before closing store operations.
+            {isLiteStore
+              ? "Review today&apos;s operations before closing the day."
+              : "Review today&apos;s records before closing store operations."}
           </p>
         </div>
 
@@ -259,6 +345,141 @@ export default function EndDayReport({
                 </div>
               )}
 
+              {isLiteStore ? (
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
+                      <div className="mb-2 flex items-center gap-2">
+                        <TrendingUp size={16} className="text-[#C87D87]" />
+
+                        <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
+                          Estimated Revenue
+                        </span>
+                      </div>
+
+                      <p className="text-2xl font-semibold tracking-tight text-[#4A3A34] sm:text-3xl">
+                        {currency(liteStats.estimatedRevenue)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
+                      <div className="mb-2 flex items-center gap-2">
+                        <CheckCircle size={16} className="text-emerald-500" />
+
+                        <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
+                          Completed Jobs
+                        </span>
+                      </div>
+
+                      <p className="text-2xl font-semibold tracking-tight text-[#4A3A34] sm:text-3xl">
+                        {liteStats.completedJobs}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
+                      <div className="mb-2 flex items-center gap-2">
+                        <AlertCircle size={16} className="text-amber-600" />
+
+                        <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
+                          Cancelled
+                        </span>
+                      </div>
+
+                      <p className="text-2xl font-semibold tracking-tight text-[#4A3A34] sm:text-3xl">
+                        {liteStats.cancelledJobs}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
+                      <div className="mb-2 flex items-center gap-2">
+                        <X size={16} className="text-rose-500" />
+
+                        <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
+                          No Show
+                        </span>
+                      </div>
+
+                      <p className="text-2xl font-semibold tracking-tight text-[#4A3A34] sm:text-3xl">
+                        {liteStats.noShowJobs}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
+                      Staff Activity Summary
+                    </h3>
+
+                    <div className="overflow-hidden rounded-3xl border border-[#E8DED6] bg-white shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-[#FAF5F1] text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
+                            <tr>
+                              <th className="px-4 py-3">Staff</th>
+                              <th className="px-4 py-3">Completed</th>
+                              <th className="px-4 py-3">Cancelled</th>
+                              <th className="px-4 py-3">No Show</th>
+                              <th className="px-4 py-3">Estimated Value</th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {staffActivitySummary.length === 0 ? (
+                              <tr>
+                                <td
+                                  className="px-4 py-6 text-center text-[#9A8A84]"
+                                  colSpan={5}
+                                >
+                                  No staff activity for this day.
+                                </td>
+                              </tr>
+                            ) : (
+                              staffActivitySummary.map((staff) => (
+                                <tr
+                                  key={staff.staffKey}
+                                  className="border-t border-[#F3EAE4]"
+                                >
+                                  <td className="px-4 py-3 font-semibold text-[#3F3733]">
+                                    {staff.staffName}
+                                  </td>
+
+                                  <td className="px-4 py-3 text-[#6F625C]">
+                                    {staff.completedJobs}
+                                  </td>
+
+                                  <td className="px-4 py-3 text-[#6F625C]">
+                                    {staff.cancelledJobs}
+                                  </td>
+
+                                  <td className="px-4 py-3 text-[#6F625C]">
+                                    {staff.noShowJobs}
+                                  </td>
+
+                                  <td className="px-4 py-3 font-semibold text-[#3F3733]">
+                                    {currency(staff.estimatedRevenue)}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] p-5">
+                    <h3 className="text-sm font-semibold text-[#3F3733]">
+                      Closing note
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#7B6B64]">
+                      Confirm the day once bookings have been reviewed and any
+                      outstanding operational tasks are complete.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-[#E8DED6] bg-white p-4 shadow-sm sm:p-5">
                   <div className="mb-2 flex items-center gap-2">
@@ -553,6 +774,8 @@ export default function EndDayReport({
                   </div>
                 </div>
               </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -600,9 +823,9 @@ export default function EndDayReport({
             </h3>
 
             <p className="mt-2 text-center text-sm leading-6 text-[#7B6B64]">
-              After this day is finalized, front desk can no longer edit
-              bookings, payments, refunds, staff assignment, or notes for this
-              date.
+              {isLiteStore
+                ? "After this day is finalized, front desk can no longer edit bookings, staff assignment, or notes for this date."
+                : "After this day is finalized, front desk can no longer edit bookings, payments, refunds, staff assignment, or notes for this date."}
             </p>
 
             <div className="mt-5 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3 text-sm font-semibold text-[#9F3A2E]">

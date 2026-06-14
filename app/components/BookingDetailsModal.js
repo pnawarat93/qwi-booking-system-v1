@@ -355,7 +355,7 @@ export default function BookingDetailsModal({
   const refundDraftTotal = totalPaymentAmount(refundInfo);
   const paidTotal = totalPaymentAmount(existingPayment);
   const remainingAmount = Math.max(selectedPaymentPrice - paidTotal, 0);
-  const paymentDraftTotal = totalPaymentAmount(paymentInfo);
+  const paymentDraftTotal = getPaymentDraftTotal();
   const paymentTargetAmount = existingPayment ? remainingAmount : selectedPaymentPrice;
   const remainingAfterDraft = Math.max(selectedPaymentPrice - paymentDraftTotal, 0);
   const overpaymentAmount = Math.max(paymentDraftTotal - selectedPaymentPrice, 0);
@@ -475,6 +475,80 @@ export default function BookingDetailsModal({
     setRemainingRefundable(Number(result.remainingRefundable || 0));
   }
 
+  function getPaymentDraftTotal() {
+    return totalPaymentAmount(paymentInfo);
+  }
+
+  function buildBookingSavePayload(status = formData.status) {
+    return {
+      ...booking,
+      customer_name: formData.customer_name,
+      customer_phone: formData.customer_phone,
+      service_name: formData.service_name,
+      time: formData.time,
+      duration: Number(formData.duration),
+      status,
+      notes: formData.notes,
+      staff_id: formData.staff_id ? Number(formData.staff_id) : null,
+    };
+  }
+
+  function buildNewPaymentPayload() {
+    const basePaymentPayload = {
+      cash: paymentInfo.cash,
+      card: paymentInfo.card,
+      hicaps: paymentInfo.hicaps,
+      transfer: paymentInfo.transfer,
+      other: paymentInfo.other,
+      staff_note: paymentInfo.staff_note,
+      reference_code: paymentInfo.reference_code,
+      notes: "Created from booking details modal",
+    };
+
+    return paymentScope === "group"
+      ? {
+        jobgroup_id: booking.job_group_id,
+        ...basePaymentPayload,
+      }
+      : {
+        job_id: booking.id,
+        ...basePaymentPayload,
+      };
+  }
+
+  async function postNewPayment() {
+    const response = await fetch(apiPath(storeSlug, "/payments"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildNewPaymentPayload()),
+    });
+
+    const result = await response.json().catch(() => null);
+
+    if (response.status === 409 && result?.existingPayment) {
+      setExistingPayment(result.existingPayment);
+      setPaymentInfo({
+        cash: Number(result.existingPayment.cash || 0),
+        card: Number(result.existingPayment.card || 0),
+        hicaps: Number(result.existingPayment.hicaps || 0),
+        transfer: Number(result.existingPayment.transfer || 0),
+        other: Number(result.existingPayment.other || 0),
+        staff_note: result.existingPayment.staff_note || "",
+        reference_code: result.existingPayment.reference_code || "",
+      });
+      throw new Error(
+        "Payment already exists for this booking. Review or update the existing payment instead."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(result?.error || "Failed to record payment");
+    }
+
+    setExistingPayment(result?.data || null);
+    return result;
+  }
+
   async function handleRecordPayment() {
     setIsRecordingPayment(true);
 
@@ -504,17 +578,7 @@ export default function BookingDetailsModal({
 
         setExistingPayment(updateResult?.data || existingPayment);
 
-        await onSave?.({
-          ...booking,
-          customer_name: formData.customer_name,
-          customer_phone: formData.customer_phone,
-          service_name: formData.service_name,
-          time: formData.time,
-          duration: Number(formData.duration),
-          status: "paid",
-          notes: formData.notes,
-          staff_id: formData.staff_id ? Number(formData.staff_id) : null,
-        });
+        await onSave?.(buildBookingSavePayload("paid"));
 
         onRefresh?.();
 
@@ -527,59 +591,7 @@ export default function BookingDetailsModal({
         return;
       }
 
-      const payload = paymentScope === "group"
-        ? {
-          jobgroup_id: booking.job_group_id,
-          cash: paymentInfo.cash,
-          card: paymentInfo.card,
-          hicaps: paymentInfo.hicaps,
-          transfer: paymentInfo.transfer,
-          other: paymentInfo.other,
-          staff_note: paymentInfo.staff_note,
-          reference_code: paymentInfo.reference_code,
-          notes: "Created from booking details modal",
-        }
-        : {
-          job_id: booking.id,
-          cash: paymentInfo.cash,
-          card: paymentInfo.card,
-          hicaps: paymentInfo.hicaps,
-          transfer: paymentInfo.transfer,
-          other: paymentInfo.other,
-          staff_note: paymentInfo.staff_note,
-          reference_code: paymentInfo.reference_code,
-          notes: "Created from booking details modal",
-        };
-
-      const response = await fetch(apiPath(storeSlug, "/payments"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json().catch(() => null);
-
-      if (response.status === 409 && result?.existingPayment) {
-        setExistingPayment(result.existingPayment);
-        setPaymentInfo({
-          cash: Number(result.existingPayment.cash || 0),
-          card: Number(result.existingPayment.card || 0),
-          hicaps: Number(result.existingPayment.hicaps || 0),
-          transfer: Number(result.existingPayment.transfer || 0),
-          other: Number(result.existingPayment.other || 0),
-          staff_note: result.existingPayment.staff_note || "",
-          reference_code: result.existingPayment.reference_code || "",
-        });
-        throw new Error(
-          "Payment already exists for this booking. Review or update the existing payment instead."
-        );
-      }
-
-      if (!response.ok) {
-        throw new Error(result?.error || "Failed to record payment");
-      }
-
-      setExistingPayment(result?.data || null);
+      await postNewPayment();
 
       onRefresh?.();
       toast.success("Payment recorded successfully");
@@ -744,6 +756,8 @@ export default function BookingDetailsModal({
   async function handleSave() {
     if (!booking) return;
 
+    let recordingPaymentBeforeSave = false;
+
     try {
       setSaveError("");
 
@@ -753,6 +767,26 @@ export default function BookingDetailsModal({
         );
 
         if (!confirmed) return;
+      }
+
+      if (
+        financialControlsEnabled &&
+        formData.status === "paid" &&
+        showPaymentForm &&
+        !existingPayment &&
+        getPaymentDraftTotal() > 0
+      ) {
+        recordingPaymentBeforeSave = true;
+        setIsSavingChanges(true);
+        setIsRecordingPayment(true);
+
+        await postNewPayment();
+        await onSave?.(buildBookingSavePayload("paid"));
+
+        toast.success("Payment recorded and booking changes saved successfully.");
+        onRefresh?.();
+        onClose?.();
+        return;
       }
 
       if (
@@ -791,17 +825,7 @@ export default function BookingDetailsModal({
 
       setIsSavingChanges(true);
 
-      await onSave?.({
-        ...booking,
-        customer_name: formData.customer_name,
-        customer_phone: formData.customer_phone,
-        service_name: formData.service_name,
-        time: formData.time,
-        duration: Number(formData.duration),
-        status: formData.status,
-        notes: formData.notes,
-        staff_id: formData.staff_id ? Number(formData.staff_id) : null,
-      });
+      await onSave?.(buildBookingSavePayload());
       toast.success("Booking changes saved successfully.");
       onRefresh?.();
       onClose?.();
@@ -812,6 +836,9 @@ export default function BookingDetailsModal({
       toast.error("Could not save booking changes.");
     } finally {
       setIsSavingChanges(false);
+      if (recordingPaymentBeforeSave) {
+        setIsRecordingPayment(false);
+      }
     }
   }
 
@@ -1039,18 +1066,11 @@ export default function BookingDetailsModal({
               Assigned staff
             </h3>
 
-            {(isRequestedStaffBooking || isGroupBooking) && (
+            {isRequestedStaffBooking && (
               <div className="mb-3 space-y-2">
                 {isRequestedStaffBooking && (
                   <div className="rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-3 py-2 text-sm text-[#9F3A2E]">
                     Customer requested this staff. Reassign only if necessary.
-                  </div>
-                )}
-
-                {financialControlsEnabled && isGroupBooking && (
-                  <div className="rounded-2xl border border-[#D1D0EA] bg-[#F9F6FE] px-3 py-2 text-sm text-[#5B4B45]">
-                    This booking is part of a group booking. Payments and refunds
-                    are handled at group level.
                   </div>
                 )}
               </div>
