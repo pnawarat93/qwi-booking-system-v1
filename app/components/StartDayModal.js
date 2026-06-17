@@ -32,6 +32,7 @@ export default function StartDayModal({
   selectedDate,
   storeSlug,
   storeName,
+  storeFeatures,
   existingStoreDay,
   onStarted,
 }) {
@@ -255,7 +256,13 @@ export default function StartDayModal({
     }
   }, [open, showQuickAdd]);
 
-  const enableDailyGuarantee = Boolean(storeInfo?.enable_daily_guarantee);
+  const financialControlsEnabled =
+    storeFeatures?.FINANCIAL_CONTROLS === true;
+  const isLiteStore =
+    storeFeatures?.LITE_MODE === true || !financialControlsEnabled;
+  const enableDailyGuarantee =
+    !isLiteStore && Boolean(storeInfo?.enable_daily_guarantee);
+  const showGuaranteeControls = !isLiteStore && enableDailyGuarantee;
   const defaultGuarantee = getDefaultGuaranteeForDate(storeInfo, selectedDate);
 
   const defaultStartTime = normalizeTime(businessHours?.open_time, "09:00");
@@ -455,9 +462,12 @@ export default function StartDayModal({
     e.preventDefault();
     setErrorMessage("");
 
-    const numericStartTill = Number(startTill);
+    const numericStartTill = isLiteStore ? 0 : Number(startTill);
 
-    if (!Number.isFinite(numericStartTill) || numericStartTill < 0) {
+    if (
+      !isLiteStore &&
+      (!Number.isFinite(numericStartTill) || numericStartTill < 0)
+    ) {
       setErrorMessage("Please enter a valid starting till amount.");
       return;
     }
@@ -557,7 +567,9 @@ export default function StartDayModal({
           </div>
 
           <p className="max-w-xl text-sm text-[#6F625C] sm:text-right">
-            Review the opening till, staff order, and daily guarantees before starting the day.
+            {isLiteStore
+              ? "Review today's staff order before starting the day."
+              : "Review the opening till, staff order, and daily guarantees before starting the day."}
           </p>
         </div>
 
@@ -595,7 +607,7 @@ export default function StartDayModal({
                     </p>
                   </div>
 
-                  {enableDailyGuarantee ? (
+                  {showGuaranteeControls ? (
                     <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
                         Default guarantee
@@ -608,21 +620,23 @@ export default function StartDayModal({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[#E8DED6] bg-white p-4">
-                <label className="text-sm font-semibold text-[#3F3733]">
-                  Starting till amount
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={startTill}
-                  onWheel={handleNumberWheel}
-                  onChange={(e) => setStartTill(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-                  disabled={saving}
-                />
-              </div>
+              {!isLiteStore ? (
+                <div className="rounded-2xl border border-[#E8DED6] bg-white p-4">
+                  <label className="text-sm font-semibold text-[#3F3733]">
+                    Starting till amount
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={startTill}
+                    onWheel={handleNumberWheel}
+                    onChange={(e) => setStartTill(e.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
+                    disabled={saving}
+                  />
+                </div>
+              ) : null}
 
               <div className="rounded-2xl border border-[#E8DED6] bg-white p-4">
                 <label className="text-sm font-semibold text-[#3F3733]">
@@ -698,7 +712,13 @@ export default function StartDayModal({
                           key={staff.staff_id}
                           className="rounded-2xl border border-[#E8DED6] bg-white p-3"
                         >
-                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                          <div
+                            className={`grid gap-3 sm:items-center ${
+                              showGuaranteeControls
+                                ? "sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                                : "sm:grid-cols-[minmax(0,1fr)_auto]"
+                            }`}
+                          >
                             <div className="min-w-0 space-y-2">
                               <p className="truncate text-sm font-semibold text-[#3F3733]">
                                 {index + 1}. {staff.name}
@@ -716,7 +736,7 @@ export default function StartDayModal({
                               </div>
                             </div>
 
-                            {enableDailyGuarantee ? (
+                            {showGuaranteeControls ? (
                               <div className="sm:w-44 rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-3">
                                 <label className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
                                   Guarantee
@@ -742,12 +762,12 @@ export default function StartDayModal({
                               </div>
                             ) : null}
 
-                            <div className="flex flex-wrap items-start justify-end gap-2 sm:flex-col sm:items-end">
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                               <button
                                 type="button"
                                 onClick={() => moveStaff(staff.staff_id, "up")}
                                 disabled={index === 0}
-                                className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6] disabled:opacity-40"
+                                className="h-10 min-w-10 rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6] disabled:opacity-40"
                               >
                                 ↑
                               </button>
@@ -756,7 +776,7 @@ export default function StartDayModal({
                                 type="button"
                                 onClick={() => moveStaff(staff.staff_id, "down")}
                                 disabled={index === workingToday.length - 1}
-                                className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6] disabled:opacity-40"
+                                className="h-10 min-w-10 rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6] disabled:opacity-40"
                               >
                                 ↓
                               </button>
@@ -764,7 +784,7 @@ export default function StartDayModal({
                               <button
                                 type="button"
                                 onClick={() => removeFromToday(staff.staff_id)}
-                                className="rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-3 py-2 text-sm font-semibold text-[#9F3A2E] transition hover:bg-[#FFE7DD]"
+                                className="h-10 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-3 text-sm font-semibold text-[#9F3A2E] transition hover:bg-[#FFE7DD]"
                               >
                                 Remove
                               </button>
@@ -909,7 +929,11 @@ export default function StartDayModal({
               disabled={saving || loadingSetup}
               className="rounded-2xl bg-[#B86F52] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A86248] disabled:opacity-50"
             >
-              {saving ? "Confirming..." : "Confirm Start Day"}
+              {saving
+                ? "Confirming..."
+                : isLiteStore
+                  ? "Start Day"
+                  : "Confirm Start Day"}
             </button>
           </div>
         </form>

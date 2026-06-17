@@ -94,6 +94,38 @@ function ClosedDayState({ dateLabel, closedAtLabel, isTodaySelected }) {
   );
 }
 
+function NotStartedDayState({ dateLabel, onStartDay }) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center bg-gray-50 px-4 py-10">
+      <div className="w-full max-w-xl rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-2xl">
+          +
+        </div>
+
+        <h2 className="mt-5 text-2xl font-semibold text-gray-900">
+          Day not started
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-500">
+          Start this day before taking bookings or closing the day.
+        </p>
+
+        <p className="mt-3 text-sm font-medium text-amber-700">
+          {dateLabel}
+        </p>
+
+        <button
+          type="button"
+          onClick={onStartDay}
+          className="mt-6 rounded-2xl bg-[#4F6A55] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#435B49] hover:shadow-md"
+        >
+          Start Day
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SidebarButton({ title, icon: Icon, onClick, accent = false }) {
   return (
     <button
@@ -141,6 +173,7 @@ export default function StoreAdminPage() {
   const [showUnassignedBookingsModal, setShowUnassignedBookingsModal] =
     useState(false);
   const [showStaffControlsModal, setShowStaffControlsModal] = useState(false);
+  const [showStartDayModal, setShowStartDayModal] = useState(false);
 
   const [gridRefreshToken, setGridRefreshToken] = useState(0);
   const [bookingToOpenFromUnassigned, setBookingToOpenFromUnassigned] =
@@ -305,11 +338,16 @@ export default function StoreAdminPage() {
   const isStoreDayClosed =
     Boolean(storeDay?.closed_at);
 
+  const isStoreDayStarted = Boolean(storeDay);
+
   const shouldBlockTodayOps =
     isTodaySelected &&
     !loadingStoreDay &&
     !storeDay &&
     !isStoreDayClosed;
+
+  const canStartSelectedDay =
+    !loadingStoreDay && !isStoreDayStarted && !isStoreDayClosed;
 
   const closedAtLabel = formatClosedAt(storeDay?.closed_at, storeTimeZone);
 
@@ -330,6 +368,8 @@ export default function StoreAdminPage() {
     if (nextStoreDay) {
       setStoreDay(nextStoreDay);
     }
+
+    setShowStartDayModal(false);
 
     await refreshDayData();
   }
@@ -509,6 +549,11 @@ export default function StoreAdminPage() {
                   closedAtLabel={closedAtLabel}
                   isTodaySelected={isTodaySelected}
                 />
+              ) : canStartSelectedDay ? (
+                <NotStartedDayState
+                  dateLabel={dateLabel}
+                  onStartDay={() => setShowStartDayModal(true)}
+                />
               ) : (
                 <ScheduleGrid
                   selectedDate={selectedDate}
@@ -523,7 +568,7 @@ export default function StoreAdminPage() {
               )}
             </div>
 
-            {!isStoreDayClosed && (
+            {!isStoreDayClosed && !canStartSelectedDay && (
               <div className="shrink-0 border-t border-[#E3D6C8] bg-[#FFFDF9]">
                 <BottomDayTray
                   selectedDate={selectedDate}
@@ -566,10 +611,11 @@ export default function StoreAdminPage() {
       </div>
 
       <StartDayModal
-        open={shouldBlockTodayOps}
+        open={shouldBlockTodayOps || showStartDayModal}
         selectedDate={selectedDate}
         storeSlug={store.slug}
         storeName={store.name}
+        storeFeatures={storeFeatures}
         existingStoreDay={storeDay}
         onStarted={handleStartedDay}
       />
