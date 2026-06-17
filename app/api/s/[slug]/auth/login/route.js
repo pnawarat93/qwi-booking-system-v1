@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { resolveStoreFromParams } from "@/lib/storeResolver";
-import { supabase } from "@/lib/supabase";
 
 export async function POST(request, context) {
   try {
@@ -15,10 +15,7 @@ export async function POST(request, context) {
       return NextResponse.json({ error: "PIN is required" }, { status: 400 });
     }
 
-    // Check store-level PINs first (if columns exist in DB),
-    // then fall back to environment variables for backward compatibility.
     const ownerPin = store.owner_pin || process.env.OWNER_PIN;
-    const staffPin = store.staff_pin || process.env.STAFF_PIN;
 
     if (ownerPin && pin === ownerPin) {
       return NextResponse.json({
@@ -32,7 +29,11 @@ export async function POST(request, context) {
       });
     }
 
-    if (staffPin && pin === staffPin) {
+    const staffPinMatches = store.staff_pin_hash
+      ? await bcrypt.compare(pin, store.staff_pin_hash)
+      : process.env.STAFF_PIN && pin === process.env.STAFF_PIN;
+
+    if (staffPinMatches) {
       return NextResponse.json({
         user: {
           id: "staff",

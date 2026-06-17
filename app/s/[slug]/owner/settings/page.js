@@ -9,6 +9,7 @@ import {
   Link as LinkIcon,
   Copy,
   ExternalLink,
+  KeyRound,
   ShieldCheck,
 } from "lucide-react";
 import { getStoreFeatures } from "@/lib/config/features";
@@ -64,6 +65,7 @@ export default function OwnerSettingsPage() {
     subscription_plan: "",
     enable_daily_guarantee: false,
     daily_guarantee_config: DEFAULT_DAILY_GUARANTEE_CONFIG,
+    has_staff_pin: false,
   });
 
   const storeForFeatures = {
@@ -92,6 +94,10 @@ export default function OwnerSettingsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [copied, setCopied] = useState(false);
+  const [staffPinForm, setStaffPinForm] = useState({
+    pin: "",
+    confirmPin: "",
+  });
 
   async function loadStoreInfo() {
     try {
@@ -118,6 +124,7 @@ export default function OwnerSettingsPage() {
           normalizeDailyGuaranteeConfig(
             data?.daily_guarantee_config
           ),
+        has_staff_pin: Boolean(data?.has_staff_pin),
       });
     } catch (error) {
       console.error(error);
@@ -191,6 +198,26 @@ export default function OwnerSettingsPage() {
         address: storeInfo.address,
       };
 
+      const nextStaffPin = staffPinForm.pin.trim();
+      const nextStaffPinConfirm =
+        staffPinForm.confirmPin.trim();
+
+      if (nextStaffPin || nextStaffPinConfirm) {
+        if (!/^\d{4}$/.test(nextStaffPin)) {
+          throw new Error(
+            "Front Desk PIN must be exactly 4 digits"
+          );
+        }
+
+        if (nextStaffPin !== nextStaffPinConfirm) {
+          throw new Error(
+            "Front Desk PIN confirmation does not match"
+          );
+        }
+
+        payload.staff_pin = nextStaffPin;
+      }
+
       if (guaranteesEnabled) {
         payload.enable_daily_guarantee =
           storeInfo.enable_daily_guarantee;
@@ -225,12 +252,19 @@ export default function OwnerSettingsPage() {
         phone: data?.phone || "",
         address: data?.address || "",
         slug: data?.slug || "",
+        subscription_plan: data?.subscription_plan || "",
         enable_daily_guarantee:
           data?.enable_daily_guarantee ?? false,
         daily_guarantee_config:
           normalizeDailyGuaranteeConfig(
             data?.daily_guarantee_config
           ),
+        has_staff_pin: Boolean(data?.has_staff_pin),
+      });
+
+      setStaffPinForm({
+        pin: "",
+        confirmPin: "",
       });
 
       setSuccessMessage(
@@ -403,6 +437,19 @@ export default function OwnerSettingsPage() {
     }));
   }
 
+  function handleStaffPinChange(field, value) {
+    const pinValue = value.replace(/[^0-9]/g, "").slice(0, 4);
+
+    setStaffPinForm((prev) => ({
+      ...prev,
+      [field]: pinValue,
+    }));
+
+    if (errorMessage) {
+      setErrorMessage("");
+    }
+  }
+
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -549,6 +596,115 @@ export default function OwnerSettingsPage() {
                   {savingStore
                     ? "Saving..."
                     : "Save store settings"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* FRONT DESK PIN */}
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gray-100">
+            <KeyRound className="h-5 w-5 text-gray-700" />
+          </div>
+
+          <div className="w-full">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Front Desk PIN
+                </h2>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Set the 4-digit PIN
+                  staff use to access
+                  the front desk.
+                </p>
+              </div>
+
+              <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium ${
+                storeInfo.has_staff_pin
+                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
+                  : "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200"
+              }`}>
+                {storeInfo.has_staff_pin
+                  ? "PIN set"
+                  : "Using fallback"}
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500">
+                Loading PIN settings...
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      New PIN
+                    </label>
+
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="new-password"
+                      maxLength={4}
+                      value={staffPinForm.pin}
+                      onChange={(e) =>
+                        handleStaffPinChange(
+                          "pin",
+                          e.target.value
+                        )
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                      placeholder="4 digits"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Confirm PIN
+                    </label>
+
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="new-password"
+                      maxLength={4}
+                      value={staffPinForm.confirmPin}
+                      onChange={(e) =>
+                        handleStaffPinChange(
+                          "confirmPin",
+                          e.target.value
+                        )
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+                      placeholder="4 digits"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={
+                    handleSaveStoreInfo
+                  }
+                  disabled={
+                    savingStore ||
+                    staffPinForm.pin.length !== 4 ||
+                    staffPinForm.confirmPin.length !== 4
+                  }
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-black disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+
+                  {savingStore
+                    ? "Saving..."
+                    : "Save Front Desk PIN"}
                 </button>
               </>
             )}

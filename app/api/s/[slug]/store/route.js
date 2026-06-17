@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
-import { resolveStoreFromParams } from "@/lib/storeResolver";
+import { clearStoreCache, resolveStoreFromParams } from "@/lib/storeResolver";
 
 const DEFAULT_DAILY_GUARANTEE_CONFIG = {
   mon: 0,
@@ -24,6 +25,10 @@ function normalizeDailyGuaranteeConfig(value) {
   };
 }
 
+function isValidStaffPin(value) {
+  return /^\d{4}$/.test(String(value || ""));
+}
+
 export async function GET(request, context) {
   try {
     const store = await resolveStoreFromParams(context.params);
@@ -45,7 +50,8 @@ export async function GET(request, context) {
         slug,
         subscription_plan,
         enable_daily_guarantee,
-        daily_guarantee_config
+        daily_guarantee_config,
+        staff_pin_hash
       `)
       .eq("id", store.id)
       .single();
@@ -63,6 +69,8 @@ export async function GET(request, context) {
         daily_guarantee_config: normalizeDailyGuaranteeConfig(
           data?.daily_guarantee_config
         ),
+        has_staff_pin: Boolean(data?.staff_pin_hash),
+        staff_pin_hash: undefined,
       },
       { status: 200 }
     );
@@ -92,6 +100,19 @@ export async function PATCH(request, context) {
       ),
     };
 
+    if (Object.prototype.hasOwnProperty.call(body, "staff_pin")) {
+      const staffPin = String(body.staff_pin || "").trim();
+
+      if (!isValidStaffPin(staffPin)) {
+        return NextResponse.json(
+          { error: "Front Desk PIN must be exactly 4 digits" },
+          { status: 400 }
+        );
+      }
+
+      payload.staff_pin_hash = await bcrypt.hash(staffPin, 10);
+    }
+
     const { data, error } = await supabase
       .from("stores")
       .update(payload)
@@ -107,12 +128,17 @@ export async function PATCH(request, context) {
         slug,
         subscription_plan,
         enable_daily_guarantee,
-        daily_guarantee_config
+        daily_guarantee_config,
+        staff_pin_hash
       `)
       .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (payload.staff_pin_hash) {
+      clearStoreCache();
     }
 
     return NextResponse.json(
@@ -124,6 +150,8 @@ export async function PATCH(request, context) {
         daily_guarantee_config: normalizeDailyGuaranteeConfig(
           data?.daily_guarantee_config
         ),
+        has_staff_pin: Boolean(data?.staff_pin_hash),
+        staff_pin_hash: undefined,
       },
       { status: 200 }
     );
