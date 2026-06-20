@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   Briefcase,
   CalendarDays,
   Clock3,
   Copy,
+  Download,
   ExternalLink,
   FileText,
   KeyRound,
@@ -15,6 +16,7 @@ import {
   Store,
   Users,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { getStoreFeatures } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
 import { useStore } from "../StoreContext";
@@ -33,6 +35,45 @@ function getPlanLabel(plan) {
 
 function pluralize(count, singular, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = String(text || "").split(" ");
+  let line = "";
+  let cursorY = y;
+
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    const metrics = ctx.measureText(testLine);
+
+    if (metrics.width > maxWidth && line) {
+      ctx.fillText(line, x, cursorY);
+      line = word;
+      cursorY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  });
+
+  if (line) {
+    ctx.fillText(line, x, cursorY);
+  }
+
+  return cursorY;
 }
 
 const SETUP_VIEWED_KEYS = [
@@ -182,6 +223,7 @@ export default function OwnerOverviewPage() {
   const [absoluteBookingLink, setAbsoluteBookingLink] = useState("");
   const [copiedBookingLink, setCopiedBookingLink] = useState(false);
   const [viewedSetupCards, setViewedSetupCards] = useState({});
+  const qrCodeRef = useRef(null);
 
   useEffect(() => {
     if (!bookingPath || typeof window === "undefined") return;
@@ -284,6 +326,112 @@ export default function OwnerOverviewPage() {
     }
   }
 
+  async function downloadQrPoster() {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const qrSvg = qrCodeRef.current?.querySelector("svg");
+    const qrValue = absoluteBookingLink || bookingPath;
+
+    if (!qrSvg || !qrValue) return;
+
+    try {
+      const serializedSvg = new XMLSerializer().serializeToString(qrSvg);
+      const svgBlob = new Blob([serializedSvg], {
+        type: "image/svg+xml;charset=utf-8",
+      });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      const qrImage = new Image();
+
+      await new Promise((resolve, reject) => {
+        qrImage.onload = resolve;
+        qrImage.onerror = reject;
+        qrImage.src = svgUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      const width = 1200;
+      const height = 1600;
+      const scale = window.devicePixelRatio || 1;
+
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      ctx.fillStyle = "#FFF9F6";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "#F4D7C8";
+      ctx.beginPath();
+      ctx.arc(1040, 150, 260, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#E8EFE8";
+      ctx.beginPath();
+      ctx.arc(130, 1430, 240, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#FFFFFF";
+      drawRoundedRect(ctx, 120, 120, 960, 1360, 48);
+      ctx.fill();
+
+      ctx.strokeStyle = "#E8D8CC";
+      ctx.lineWidth = 4;
+      drawRoundedRect(ctx, 120, 120, 960, 1360, 48);
+      ctx.stroke();
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#C87D87";
+      ctx.font = "700 34px Arial, sans-serif";
+      ctx.fillText(store.name || "Store", width / 2, 280);
+
+      ctx.fillStyle = "#4A3A34";
+      ctx.font = "700 76px Arial, sans-serif";
+      ctx.fillText("Book your", width / 2, 395);
+      ctx.fillText("appointment", width / 2, 480);
+
+      ctx.fillStyle = "#7A675F";
+      ctx.font = "400 34px Arial, sans-serif";
+      ctx.fillText("Scan to book online", width / 2, 560);
+
+      ctx.fillStyle = "#FFFFFF";
+      drawRoundedRect(ctx, 320, 650, 560, 560, 36);
+      ctx.fill();
+      ctx.strokeStyle = "#E8D8CC";
+      ctx.lineWidth = 3;
+      drawRoundedRect(ctx, 320, 650, 560, 560, 36);
+      ctx.stroke();
+
+      ctx.drawImage(qrImage, 380, 710, 440, 440);
+
+      ctx.fillStyle = "#4A3A34";
+      ctx.font = "700 30px Arial, sans-serif";
+      ctx.fillText("Scan to book online", width / 2, 1285);
+
+      ctx.fillStyle = "#7A675F";
+      ctx.font = "400 26px Arial, sans-serif";
+      drawWrappedText(ctx, qrValue, width / 2, 1340, 760, 34);
+
+      ctx.fillStyle = "#A88B7C";
+      ctx.font = "700 24px Arial, sans-serif";
+      ctx.fillText("Powered by Keenie", width / 2, 1430);
+
+      URL.revokeObjectURL(svgUrl);
+
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = `keenie-${store.slug || "booking"}-qr.png`;
+      link.click();
+    } catch (error) {
+      console.error("Could not download QR poster:", error);
+    }
+  }
+
   function markSetupCardViewed(key) {
     if (!key) return;
 
@@ -331,6 +479,7 @@ export default function OwnerOverviewPage() {
   const serviceCount = overviewData.services.length;
   const staffCount = overviewData.staff.length;
   const bookingUrlForDisplay = absoluteBookingLink || bookingPath;
+  const canDownloadQr = Boolean(bookingUrlForDisplay);
   const hasFrontDeskPin = overviewData.storeInfo?.has_staff_pin === true;
 
   function reviewStatus(key) {
@@ -488,22 +637,27 @@ export default function OwnerOverviewPage() {
           </div>
 
           <div className="flex min-h-60 flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-[#D9C5B8] bg-[#FFF9F6] p-5 text-center">
-            <div className="grid h-32 w-32 grid-cols-5 gap-1 rounded-2xl bg-white p-3 shadow-inner">
-              {Array.from({ length: 25 }).map((_, index) => (
-                <span
-                  key={index}
-                  className={`rounded-sm ${
-                    [0, 1, 2, 5, 7, 10, 11, 12, 14, 16, 18, 20, 21, 24].includes(index)
-                      ? "bg-[#4A3A34]"
-                      : "bg-[#F1E4DA]"
-                  }`}
-                />
-              ))}
+            <div ref={qrCodeRef} className="rounded-2xl bg-white p-3 shadow-inner">
+              <QRCodeSVG
+                value={bookingUrlForDisplay || bookingPath || "/"}
+                size={128}
+                bgColor="#FFFFFF"
+                fgColor="#4A3A34"
+                level="M"
+              />
             </div>
             <p className="mt-4 text-sm font-semibold text-[#4A3A34]">
-              QR code placeholder
+              Scan to book
             </p>
-            <p className="mt-1 text-xs text-[#7A675F]">Scan to book</p>
+            <button
+              type="button"
+              onClick={downloadQrPoster}
+              disabled={!canDownloadQr}
+              className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#D9C5B8] bg-white px-4 py-2.5 text-sm font-semibold text-[#4A3A34] transition hover:bg-[#FFF7F1] disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" />
+              Download QR
+            </button>
           </div>
         </div>
       </section>
