@@ -40,11 +40,17 @@ export default function BottomDayTray({
   onOpenUnassigned,
   onOpenStaffControls,
   onOpenEndDay,
+  storeFeatures,
   storeDay,
   startTill = 0,
   cashOnTill = 0,
 }) {
   const inactiveCount = cancelledCount + noShowCount;
+  const financialControlsEnabled =
+    storeFeatures?.FINANCIAL_CONTROLS === true;
+  const isLiteStore =
+    storeFeatures?.LITE_MODE === true ||
+    !financialControlsEnabled;
 
 
   return (
@@ -77,17 +83,21 @@ export default function BottomDayTray({
             onClick={onOpenUnassigned}
           />
 
-          <StatPill
-            label="Start Till"
-            value={money(startTill)}
-            color="border-[#E9DED8] bg-white text-[#4A3A34]"
-          />
+          {!isLiteStore ? (
+            <>
+              <StatPill
+                label="Start Till"
+                value={money(startTill)}
+                color="border-[#E9DED8] bg-white text-[#4A3A34]"
+              />
 
-          <StatPill
-            label="Cash Till"
-            value={money(cashOnTill)}
-            color="border-emerald-200 bg-emerald-50 text-emerald-800"
-          />
+              <StatPill
+                label="Cash Till"
+                value={money(cashOnTill)}
+                color="border-emerald-200 bg-emerald-50 text-emerald-800"
+              />
+            </>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

@@ -590,6 +590,7 @@ export default function StoreAdminPage() {
                   onOpenUnassigned={() => setShowUnassignedBookingsModal(true)}
                   onOpenStaffControls={() => setShowStaffControlsModal(true)}
                   onOpenEndDay={handleOpenEndDay}
+                  storeFeatures={storeFeatures}
                   storeDay={storeDay}
                   startTill={
                     endDaySummary?.startTill ??
