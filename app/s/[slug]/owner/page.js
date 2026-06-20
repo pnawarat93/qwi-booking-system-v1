@@ -65,6 +65,7 @@ function writeViewedFlag(slug, key) {
 function SetupCard({
   title,
   status,
+  detail,
   href,
   actionLabel,
   icon: Icon,
@@ -111,13 +112,18 @@ function SetupCard({
             <h3 className="text-base font-semibold text-[#4A3A34]">{title}</h3>
             {viewed ? (
               <span className="rounded-full border border-[#E8D8CC] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7A675F]">
-                Viewed
+                Reviewed
               </span>
             ) : null}
           </div>
-          <p className="mt-1 min-h-10 text-sm leading-5 text-[#7A675F]">
+          <p className="mt-1 text-sm font-semibold leading-5 text-[#7A675F]">
             {status}
           </p>
+          {detail ? (
+            <p className="mt-1 min-h-5 text-xs leading-5 text-[#9A8A84]">
+              {detail}
+            </p>
+          ) : null}
 
           <Link
             href={href}
@@ -304,21 +310,21 @@ export default function OwnerOverviewPage() {
           ? "Custom hours set"
           : overviewData.weeklyHours.length > 0
             ? "Default hours active"
-            : "Review hours",
+            : "No hours found",
       services:
         serviceCount > 0
           ? `${pluralize(serviceCount, "service")} available`
-          : "Add your first service",
+          : "No services available",
       staff:
         staffCount > 0
           ? `${pluralize(staffCount, "staff member")} available`
-          : "Add your first staff member",
+          : "No staff available",
       roster:
-        workingRosterRows > 0 ? "Weekly roster active" : "Review roster",
+        workingRosterRows > 0 ? "Weekly roster active" : "No roster rows found",
       frontDeskPin: overviewData.storeInfo?.has_staff_pin
         ? "Configured"
         : "Not configured",
-      testBooking: "Open booking page to test",
+      testBooking: "Recommended",
     };
   }, [overviewData]);
 
@@ -327,11 +333,16 @@ export default function OwnerOverviewPage() {
   const bookingUrlForDisplay = absoluteBookingLink || bookingPath;
   const hasFrontDeskPin = overviewData.storeInfo?.has_staff_pin === true;
 
-  const recommendedSetupCards = [
+  function reviewStatus(key) {
+    return viewedSetupCards[key] ? "Reviewed" : "Needs review";
+  }
+
+  const requiredSetupCards = [
     {
       setupKey: "business_hours",
       title: "Business Hours",
-      status: setupStatuses.businessHours,
+      status: reviewStatus("business_hours"),
+      detail: setupStatuses.businessHours,
       href: `/s/${store.slug}/owner/business-hours`,
       actionLabel: "Review",
       icon: Clock3,
@@ -340,7 +351,8 @@ export default function OwnerOverviewPage() {
     {
       setupKey: "services",
       title: "Services",
-      status: setupStatuses.services,
+      status: reviewStatus("services"),
+      detail: setupStatuses.services,
       href: `/s/${store.slug}/owner/services`,
       actionLabel: serviceCount > 0 ? "Review" : "Add service",
       icon: Briefcase,
@@ -349,20 +361,12 @@ export default function OwnerOverviewPage() {
     {
       setupKey: "staff",
       title: "Staff",
-      status: setupStatuses.staff,
+      status: reviewStatus("staff"),
+      detail: setupStatuses.staff,
       href: `/s/${store.slug}/owner/staff`,
       actionLabel: staffCount > 0 ? "Review" : "Add staff",
       icon: Users,
       viewed: Boolean(viewedSetupCards.staff),
-    },
-    {
-      setupKey: "roster",
-      title: "Roster",
-      status: setupStatuses.roster,
-      href: `/s/${store.slug}/owner/roster`,
-      actionLabel: "Review",
-      icon: CalendarDays,
-      viewed: Boolean(viewedSetupCards.roster),
     },
     {
       setupKey: "front_desk_pin",
@@ -373,6 +377,19 @@ export default function OwnerOverviewPage() {
       icon: KeyRound,
       needsAction: !hasFrontDeskPin,
       viewed: Boolean(viewedSetupCards.front_desk_pin),
+    },
+  ];
+
+  const recommendedSetupCards = [
+    {
+      setupKey: "roster",
+      title: "Roster",
+      status: reviewStatus("roster"),
+      detail: setupStatuses.roster,
+      href: `/s/${store.slug}/owner/roster`,
+      actionLabel: "Review",
+      icon: CalendarDays,
+      viewed: Boolean(viewedSetupCards.roster),
     },
     {
       setupKey: "test_booking",
@@ -494,17 +511,18 @@ export default function OwnerOverviewPage() {
       <section>
         <div className="mb-4 flex flex-col gap-4">
           {!loadingOverview && !overviewError && !hasFrontDeskPin ? (
-            <div className="rounded-[1.5rem] border border-[#E8B9A6] bg-[#FFF7F1] p-5 shadow-[0_10px_26px_rgba(200,125,135,0.12)] sm:p-6">
+            <div className="rounded-[1.75rem] border-2 border-[#D97762] bg-[#FFF1E8] p-5 shadow-[0_18px_42px_rgba(200,125,98,0.2)] sm:p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#C87D87]">
-                    Recommended next step
-                  </p>
+                  <span className="inline-flex rounded-full bg-[#C65F46] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white">
+                    Action needed
+                  </span>
                   <h2 className="mt-2 text-2xl font-semibold text-[#4A3A34]">
-                    Finish setting up your store
+                    Before you take bookings
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[#7A675F]">
-                    A few quick checks help your team start smoothly.
+                    Set your Front Desk PIN and test your booking page before
+                    sharing it with customers.
                   </p>
                 </div>
 
@@ -524,7 +542,7 @@ export default function OwnerOverviewPage() {
                     onClick={() => markSetupCardViewed("test_booking")}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#D9C5B8] bg-white px-4 py-3 text-sm font-semibold text-[#4A3A34] transition hover:bg-[#FFF9F6]"
                   >
-                    Try a test booking
+                    Open Booking Page
                     <ExternalLink className="h-4 w-4" />
                   </Link>
                 </div>
@@ -534,24 +552,45 @@ export default function OwnerOverviewPage() {
 
           <div>
             <h2 className="text-xl font-semibold text-[#4A3A34]">
-              Recommended setup
+              Before you take bookings
             </h2>
             <p className="mt-1 text-sm text-[#7A675F]">
-              {hasFrontDeskPin
-                ? "Review the defaults when you have time."
-                : "Focus on the couple of actions that help your team get started."}
+              Review these items before sharing your booking page with
+              customers.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {recommendedSetupCards.map((card) => (
-            <SetupCard
-              key={card.title}
-              {...card}
-              onView={() => markSetupCardViewed(card.setupKey)}
-            />
-          ))}
+        <div className="space-y-5">
+          <div>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#9A6B5C]">
+              Required
+            </h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {requiredSetupCards.map((card) => (
+                <SetupCard
+                  key={card.title}
+                  {...card}
+                  onView={() => markSetupCardViewed(card.setupKey)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#9A6B5C]">
+              Recommended
+            </h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {recommendedSetupCards.map((card) => (
+                <SetupCard
+                  key={card.title}
+                  {...card}
+                  onView={() => markSetupCardViewed(card.setupKey)}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 

@@ -60,6 +60,15 @@ export default function StartDayModal({
   const [newGuaranteeOverride, setNewGuaranteeOverride] = useState("");
   const [isCreatingStaff, setIsCreatingStaff] = useState(false);
 
+  const financialControlsEnabled =
+    storeFeatures?.FINANCIAL_CONTROLS === true;
+  const isLiteStore =
+    storeFeatures?.LITE_MODE === true || !financialControlsEnabled;
+  const enableDailyGuarantee =
+    !isLiteStore && Boolean(storeInfo?.enable_daily_guarantee);
+  const showGuaranteeControls = !isLiteStore && enableDailyGuarantee;
+  const defaultGuarantee = getDefaultGuaranteeForDate(storeInfo, selectedDate);
+
   useEffect(() => {
     if (!open) return;
 
@@ -82,8 +91,14 @@ export default function StartDayModal({
       setErrorMessage("");
 
       try {
-        const [hoursRes, staffRes, effectiveRes, storeRes, payoutRolesRes] =
-          await Promise.all([
+        let hoursRes;
+        let staffRes;
+        let effectiveRes;
+        let storeRes = null;
+        let payoutRolesRes = null;
+
+        if (isLiteStore) {
+          [hoursRes, staffRes, effectiveRes] = await Promise.all([
             fetch(apiPath(storeSlug, `/business-hours?date=${selectedDate}`)),
             fetch(apiPath(storeSlug, "/staff")),
             fetch(
@@ -92,15 +107,38 @@ export default function StartDayModal({
                 `/effective-staff?date=${selectedDate}&include_all=true`
               )
             ),
-            fetch(apiPath(storeSlug, "/store")),
-            fetch(apiPath(storeSlug, "/payout-policies")),
           ]);
+        } else {
+          [hoursRes, staffRes, effectiveRes, storeRes, payoutRolesRes] =
+            await Promise.all([
+              fetch(apiPath(storeSlug, `/business-hours?date=${selectedDate}`)),
+              fetch(apiPath(storeSlug, "/staff")),
+              fetch(
+                apiPath(
+                  storeSlug,
+                  `/effective-staff?date=${selectedDate}&include_all=true`
+                )
+              ),
+              fetch(apiPath(storeSlug, "/store")),
+              fetch(apiPath(storeSlug, "/payout-policies")),
+            ]);
+        }
 
-        const hoursData = await hoursRes.json();
-        const staffData = await staffRes.json();
-        const effectiveData = await effectiveRes.json();
-        const storeData = await storeRes.json();
-        const payoutRolesData = await payoutRolesRes.json();
+        const [hoursData, staffData, effectiveData] = await Promise.all([
+          hoursRes.json(),
+          staffRes.json(),
+          effectiveRes.json(),
+        ]);
+
+        let storeData = null;
+        let payoutRolesData = [];
+
+        if (!isLiteStore) {
+          [storeData, payoutRolesData] = await Promise.all([
+            storeRes.json(),
+            payoutRolesRes.json(),
+          ]);
+        }
 
         if (!hoursRes.ok) {
           throw new Error(hoursData?.error || "Failed to load business hours");
@@ -116,11 +154,11 @@ export default function StartDayModal({
           );
         }
 
-        if (!storeRes.ok) {
+        if (!isLiteStore && !storeRes.ok) {
           throw new Error(storeData?.error || "Failed to load store");
         }
 
-        if (!payoutRolesRes.ok) {
+        if (!isLiteStore && !payoutRolesRes.ok) {
           throw new Error(
             payoutRolesData?.error || "Failed to load staff roles"
           );
@@ -130,9 +168,10 @@ export default function StartDayModal({
           ? effectiveData.items
           : [];
 
-        const roles = Array.isArray(payoutRolesData)
-          ? payoutRolesData.filter((role) => role.is_active !== false)
-          : [];
+        const roles =
+          !isLiteStore && Array.isArray(payoutRolesData)
+            ? payoutRolesData.filter((role) => role.is_active !== false)
+            : [];
 
         const normalizedWorking = effectiveItems
           .filter((item) => item.is_working === true)
@@ -186,9 +225,9 @@ export default function StartDayModal({
           }));
 
         setBusinessHours(hoursData || null);
-        setStoreInfo(storeData || null);
+        setStoreInfo(isLiteStore ? null : storeData || null);
         setAllStaff(Array.isArray(staffData) ? staffData : []);
-        setPayoutRoles(roles);
+        setPayoutRoles(isLiteStore ? [] : roles);
         setWorkingToday(normalizedWorking);
         setRemovedStaffIds([]);
       } catch (error) {
@@ -211,7 +250,7 @@ export default function StartDayModal({
     }
 
     loadSetupData();
-  }, [open, selectedDate, storeSlug]);
+  }, [open, selectedDate, storeSlug, isLiteStore]);
 
   useEffect(() => {
     if (!open) return;
@@ -255,15 +294,6 @@ export default function StartDayModal({
       });
     }
   }, [open, showQuickAdd]);
-
-  const financialControlsEnabled =
-    storeFeatures?.FINANCIAL_CONTROLS === true;
-  const isLiteStore =
-    storeFeatures?.LITE_MODE === true || !financialControlsEnabled;
-  const enableDailyGuarantee =
-    !isLiteStore && Boolean(storeInfo?.enable_daily_guarantee);
-  const showGuaranteeControls = !isLiteStore && enableDailyGuarantee;
-  const defaultGuarantee = getDefaultGuaranteeForDate(storeInfo, selectedDate);
 
   const defaultStartTime = normalizeTime(businessHours?.open_time, "09:00");
   const defaultEndTime = normalizeTime(businessHours?.close_time, "18:00");
@@ -403,7 +433,9 @@ export default function StartDayModal({
         body: JSON.stringify({
           name_display: newStaffName.trim(),
           staff_code: newStaffCode.trim() || null,
-          payout_policy_id: newRoleId ? Number(newRoleId) : null,
+          ...(!isLiteStore
+            ? { payout_policy_id: newRoleId ? Number(newRoleId) : null }
+            : {}),
         }),
       });
 
@@ -870,23 +902,27 @@ export default function StartDayModal({
                       placeholder="Staff code"
                     />
 
-                    <select
-                      value={newRoleId}
-                      onChange={(e) => setNewRoleId(e.target.value)}
-                      className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-                    >
-                      <option value="">No staff role selected</option>
+                    {!isLiteStore ? (
+                      <>
+                        <select
+                          value={newRoleId}
+                          onChange={(e) => setNewRoleId(e.target.value)}
+                          className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
+                        >
+                          <option value="">No staff role selected</option>
 
-                      {payoutRoles.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.role_name || role.name}
-                        </option>
-                      ))}
-                    </select>
+                          {payoutRoles.map((role) => (
+                            <option key={role.id} value={role.id}>
+                              {role.role_name || role.name}
+                            </option>
+                          ))}
+                        </select>
 
-                    <p className="text-xs text-[#9A8A84]">
-                      Staff role controls payout calculation.
-                    </p>
+                        <p className="text-xs text-[#9A8A84]">
+                          Staff role controls payout calculation.
+                        </p>
+                      </>
+                    ) : null}
 
                     {enableDailyGuarantee ? (
                       <input
