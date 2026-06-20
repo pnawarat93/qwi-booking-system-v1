@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 import { resolveStoreFromParams } from "@/lib/storeResolver";
+import { getStoreFeatures } from "@/lib/config/features";
 
 const STAFF_SELECT = `
   id,
@@ -57,6 +58,14 @@ function normalizeStaffRow(row, role = null) {
       role?.name ||
       null,
   };
+}
+
+function requiresPayoutPolicy(store) {
+  const features = getStoreFeatures(store);
+  return (
+    features?.PAYOUTS === true ||
+    features?.FINANCIAL_CONTROLS === true
+  );
 }
 
 export async function GET(request, context) {
@@ -187,7 +196,9 @@ export async function POST(request, context) {
       ? Number(body.payout_policy_id)
       : null;
 
-    if (!payoutPolicyId) {
+    const payoutPolicyRequired = requiresPayoutPolicy(store);
+
+    if (payoutPolicyRequired && !payoutPolicyId) {
       return NextResponse.json(
         {
           error:
@@ -197,12 +208,14 @@ export async function POST(request, context) {
       );
     }
 
-    const role = await getRoleById(
-      store.id,
-      payoutPolicyId
-    );
+    const role = payoutPolicyId
+      ? await getRoleById(
+          store.id,
+          payoutPolicyId
+        )
+      : null;
 
-    if (!role) {
+    if (payoutPolicyId && !role) {
       return NextResponse.json(
         {
           error:
