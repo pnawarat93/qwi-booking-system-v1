@@ -40,7 +40,39 @@ export default function AddWalkInModal({
   onClose,
   onCreated,
   storeSlug,
+  copy = {},
 }) {
+  const labels = {
+    title: "Add walk-in",
+    subtitle: "Add one walk-in customer to the schedule.",
+    customerName: "Customer name",
+    phone: "Phone",
+    service: "Service",
+    time: "Time",
+    staff: "Staff",
+    date: "Date",
+    selectService: "Select service",
+    selectServiceFirst: "Select service first",
+    selectTimeFirst: "Select time first",
+    noStaffAvailable: "No staff available",
+    selectStaff: "Select staff",
+    storeClosed: "Store is closed on this date.",
+    chooseAnotherDate: "Please choose another date.",
+    hoursForDate: "Hours for this date",
+    onePerson: "One person per walk-in",
+    onePersonHelper:
+      "If two people arrive together, add the second walk-in separately.",
+    staffHelper:
+      "Staff options are calculated from the selected service and time.",
+    walkInCustomer: "Walk-in customer",
+    optional: "Optional",
+    close: "Close",
+    cancel: "Cancel",
+    saving: "Saving...",
+    submit: "Add walk-in",
+    ...copy,
+  };
+
   const [services, setServices] = useState([]);
   const [effectiveStaff, setEffectiveStaff] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -336,10 +368,10 @@ export default function AddWalkInModal({
         <div className="flex flex-col gap-2 border-b border-[#E8DED6] bg-[#F8F1EC] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight text-[#3F3733]">
-              Add walk-in
+              {labels.title}
             </h2>
             <p className="mt-1 text-sm text-[#6F625C]">
-              Add one walk-in customer to the schedule.
+              {labels.subtitle}
             </p>
           </div>
 
@@ -348,23 +380,23 @@ export default function AddWalkInModal({
             onClick={onClose}
             className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6]"
           >
-            Close
+            {labels.close}
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5 overflow-y-auto">
           {formData.date && businessHours?.is_open === false && (
             <div className="rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3 text-sm text-[#9F3A2E]">
-              <p className="font-semibold">Store is closed on this date.</p>
+              <p className="font-semibold">{labels.storeClosed}</p>
               <p className="mt-1 text-sm text-[#9F3A2E]">
-                {businessHours?.note || "Please choose another date."}
+                {businessHours?.note || labels.chooseAnotherDate}
               </p>
             </div>
           )}
 
           {formData.date && businessHours?.is_open && (
             <div className="rounded-2xl border border-[#D9E9DE] bg-[#EFF8F3] px-4 py-3 text-sm text-[#186C4D]">
-              Hours for this date: {safeTimeLabel(businessHours.open_time)} -{" "}
+              {labels.hoursForDate}: {safeTimeLabel(businessHours.open_time)} -{" "}
               {safeTimeLabel(businessHours.close_time)}
               {businessHours?.note ? ` · ${businessHours.note}` : ""}
             </div>
@@ -373,33 +405,33 @@ export default function AddWalkInModal({
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                Customer name
+                {labels.customerName}
               </label>
               <input
                 type="text"
                 value={formData.customer_name}
                 onChange={(e) => updateField("customer_name", e.target.value)}
                 className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-                placeholder="Walk-in customer"
+                placeholder={labels.walkInCustomer}
               />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                Phone
+                {labels.phone}
               </label>
               <input
                 type="text"
                 value={formData.customer_phone}
                 onChange={(e) => updateField("customer_phone", e.target.value)}
                 className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-                placeholder="Optional"
+                placeholder={labels.optional}
               />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                Service
+                {labels.service}
               </label>
               <select
                 value={formData.service_id}
@@ -413,7 +445,7 @@ export default function AddWalkInModal({
                 className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                 disabled={loadingOptions || businessHours?.is_open === false}
               >
-                <option value="">Select service</option>
+                <option value="">{labels.selectService}</option>
                 {services.map((service) => (
                   <option key={service.id} value={service.id}>
                     {service.name} ({service.duration} mins)
@@ -424,7 +456,7 @@ export default function AddWalkInModal({
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                Time
+                {labels.time}
               </label>
               <input
                 type="time"
@@ -438,7 +470,7 @@ export default function AddWalkInModal({
 
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                Staff
+                {labels.staff}
               </label>
               <select
                 value={formData.staff_id}
@@ -453,12 +485,12 @@ export default function AddWalkInModal({
               >
                 <option value="">
                   {!formData.service_id
-                    ? "Select service first"
+                    ? labels.selectServiceFirst
                     : !formData.time
-                      ? "Select time first"
+                      ? labels.selectTimeFirst
                       : availableStaffList.length === 0
-                        ? "No staff available"
-                        : "Select staff"}
+                        ? labels.noStaffAvailable
+                        : labels.selectStaff}
                 </option>
 
                 {availableStaffList.map((staff) => (
@@ -469,13 +501,13 @@ export default function AddWalkInModal({
                 ))}
               </select>
               <p className="mt-1 text-xs text-[#9A8A84]">
-                Staff options are calculated from the selected service and time.
+                {labels.staffHelper}
               </p>
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                Date
+                {labels.date}
               </label>
               <input
                 type="date"
@@ -486,9 +518,9 @@ export default function AddWalkInModal({
             </div>
 
             <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-3 text-sm text-[#6F625C]">
-              <p className="font-semibold text-[#3F3733]">One person per walk-in</p>
+              <p className="font-semibold text-[#3F3733]">{labels.onePerson}</p>
               <p className="mt-1 text-xs text-[#9A8A84]">
-                If two people arrive together, add the second walk-in separately.
+                {labels.onePersonHelper}
               </p>
             </div>
           </div>
@@ -499,7 +531,7 @@ export default function AddWalkInModal({
               onClick={onClose}
               className="rounded-2xl border border-[#E8DED6] bg-white px-4 py-2 text-sm font-semibold text-[#6F625C] hover:bg-[#FFF9F6]"
             >
-              Cancel
+              {labels.cancel}
             </button>
 
             <button
@@ -507,7 +539,7 @@ export default function AddWalkInModal({
               disabled={saving || businessHours?.is_open === false}
               className="rounded-2xl bg-[#B86F52] px-4 py-2 text-sm font-semibold text-white hover:bg-[#A86248] disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Add walk-in"}
+              {saving ? labels.saving : labels.submit}
             </button>
           </div>
         </form>

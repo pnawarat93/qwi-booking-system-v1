@@ -20,6 +20,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { getStoreFeatures } from "@/lib/config/features";
 import { storeApiUrl } from "@/lib/storeApi";
 import { useStore } from "../StoreContext";
+import { useOwnerLocale } from "./OwnerClientLayout";
 
 function apiPath(slug, path) {
   return storeApiUrl(slug, path);
@@ -113,6 +114,7 @@ function SetupCard({
   external,
   needsAction,
   viewed,
+  reviewedLabel = "Reviewed",
   onView,
 }) {
   const showNeedsAction = needsAction && !viewed;
@@ -153,7 +155,7 @@ function SetupCard({
             <h3 className="text-base font-semibold text-[#4A3A34]">{title}</h3>
             {viewed ? (
               <span className="rounded-full border border-[#E8D8CC] bg-white px-2 py-0.5 text-[11px] font-semibold text-[#7A675F]">
-                Reviewed
+                {reviewedLabel}
               </span>
             ) : null}
           </div>
@@ -207,6 +209,8 @@ function QuickAccessCard({ title, href, icon: Icon }) {
 
 export default function OwnerOverviewPage() {
   const store = useStore();
+  const { t: ownerCopy } = useOwnerLocale();
+  const t = ownerCopy.overview;
   const storeFeatures = getStoreFeatures(store);
   const planLabel = getPlanLabel(storeFeatures.subscriptionPlan);
   const bookingPath = store.slug ? `/s/${store.slug}/booking` : "";
@@ -392,12 +396,12 @@ export default function OwnerOverviewPage() {
 
       ctx.fillStyle = "#4A3A34";
       ctx.font = "700 76px Arial, sans-serif";
-      ctx.fillText("Book your", width / 2, 395);
-      ctx.fillText("appointment", width / 2, 480);
+      ctx.fillText(t.posterTitleLines[0], width / 2, 395);
+      ctx.fillText(t.posterTitleLines[1], width / 2, 480);
 
       ctx.fillStyle = "#7A675F";
       ctx.font = "400 34px Arial, sans-serif";
-      ctx.fillText("Scan to book online", width / 2, 560);
+      ctx.fillText(t.posterScanOnline, width / 2, 560);
 
       ctx.fillStyle = "#FFFFFF";
       drawRoundedRect(ctx, 320, 650, 560, 560, 36);
@@ -411,7 +415,7 @@ export default function OwnerOverviewPage() {
 
       ctx.fillStyle = "#4A3A34";
       ctx.font = "700 30px Arial, sans-serif";
-      ctx.fillText("Scan to book online", width / 2, 1285);
+      ctx.fillText(t.posterScanOnline, width / 2, 1285);
 
       ctx.fillStyle = "#7A675F";
       ctx.font = "400 26px Arial, sans-serif";
@@ -419,7 +423,7 @@ export default function OwnerOverviewPage() {
 
       ctx.fillStyle = "#A88B7C";
       ctx.font = "700 24px Arial, sans-serif";
-      ctx.fillText("Powered by Keenie", width / 2, 1430);
+      ctx.fillText(t.poweredBy, width / 2, 1430);
 
       URL.revokeObjectURL(svgUrl);
 
@@ -455,26 +459,26 @@ export default function OwnerOverviewPage() {
     return {
       businessHours:
         customHoursCount > 0
-          ? "Custom hours set"
+          ? t.customHoursSet
           : overviewData.weeklyHours.length > 0
-            ? "Default hours active"
-            : "No hours found",
+            ? t.defaultHoursActive
+            : t.noHoursFound,
       services:
         serviceCount > 0
-          ? `${pluralize(serviceCount, "service")} available`
-          : "No services available",
+          ? `${pluralize(serviceCount, t.service, t.services)} ${t.available}`
+          : t.noServicesAvailable,
       staff:
         staffCount > 0
-          ? `${pluralize(staffCount, "staff member")} available`
-          : "No staff available",
+          ? `${pluralize(staffCount, t.staffMember, t.staffMembers)} ${t.available}`
+          : t.noStaffAvailable,
       roster:
-        workingRosterRows > 0 ? "Weekly roster active" : "No roster rows found",
+        workingRosterRows > 0 ? t.weeklyRosterActive : t.noRosterRowsFound,
       frontDeskPin: overviewData.storeInfo?.has_staff_pin
-        ? "Configured"
-        : "Not configured",
-      testBooking: "Recommended",
+        ? t.configured
+        : t.notConfigured,
+      testBooking: t.recommended,
     };
-  }, [overviewData]);
+  }, [overviewData, t]);
 
   const serviceCount = overviewData.services.length;
   const staffCount = overviewData.staff.length;
@@ -483,46 +487,46 @@ export default function OwnerOverviewPage() {
   const hasFrontDeskPin = overviewData.storeInfo?.has_staff_pin === true;
 
   function reviewStatus(key) {
-    return viewedSetupCards[key] ? "Reviewed" : "Needs review";
+    return viewedSetupCards[key] ? t.reviewed : t.needsReview;
   }
 
   const requiredSetupCards = [
     {
       setupKey: "business_hours",
-      title: "Business Hours",
+      title: t.businessHours,
       status: reviewStatus("business_hours"),
       detail: setupStatuses.businessHours,
       href: `/s/${store.slug}/owner/business-hours`,
-      actionLabel: "Review",
+      actionLabel: t.review,
       icon: Clock3,
       viewed: Boolean(viewedSetupCards.business_hours),
     },
     {
       setupKey: "services",
-      title: "Services",
+      title: t.servicesTitle,
       status: reviewStatus("services"),
       detail: setupStatuses.services,
       href: `/s/${store.slug}/owner/services`,
-      actionLabel: serviceCount > 0 ? "Review" : "Add service",
+      actionLabel: serviceCount > 0 ? t.review : t.addService,
       icon: Briefcase,
       viewed: Boolean(viewedSetupCards.services),
     },
     {
       setupKey: "staff",
-      title: "Staff",
+      title: t.staffTitle,
       status: reviewStatus("staff"),
       detail: setupStatuses.staff,
       href: `/s/${store.slug}/owner/staff`,
-      actionLabel: staffCount > 0 ? "Review" : "Add staff",
+      actionLabel: staffCount > 0 ? t.review : t.addStaff,
       icon: Users,
       viewed: Boolean(viewedSetupCards.staff),
     },
     {
       setupKey: "front_desk_pin",
-      title: "Front Desk PIN",
+      title: t.frontDeskPin,
       status: setupStatuses.frontDeskPin,
       href: `/s/${store.slug}/owner/settings`,
-      actionLabel: hasFrontDeskPin ? "Manage" : "Set PIN",
+      actionLabel: hasFrontDeskPin ? t.manage : t.setPin,
       icon: KeyRound,
       needsAction: !hasFrontDeskPin,
       viewed: Boolean(viewedSetupCards.front_desk_pin),
@@ -532,20 +536,20 @@ export default function OwnerOverviewPage() {
   const recommendedSetupCards = [
     {
       setupKey: "roster",
-      title: "Roster",
+      title: t.roster,
       status: reviewStatus("roster"),
       detail: setupStatuses.roster,
       href: `/s/${store.slug}/owner/roster`,
-      actionLabel: "Review",
+      actionLabel: t.review,
       icon: CalendarDays,
       viewed: Boolean(viewedSetupCards.roster),
     },
     {
       setupKey: "test_booking",
-      title: "Test Booking",
+      title: t.testBooking,
       status: setupStatuses.testBooking,
       href: bookingPath || `/s/${store.slug}`,
-      actionLabel: "Open booking page",
+      actionLabel: t.openBookingPageLower,
       icon: ExternalLink,
       external: true,
       needsAction: !hasFrontDeskPin,
@@ -566,26 +570,28 @@ export default function OwnerOverviewPage() {
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#E8EFE8] px-3 py-1.5 text-sm font-semibold text-[#4F6A55]">
-                Booking page active
+                {t.bookingPageActive}
               </span>
               <span className="rounded-full bg-[#FFF9F6] px-3 py-1.5 text-sm font-medium text-[#7A675F] ring-1 ring-[#E8D8CC]">
-                {pluralize(staffCount, "staff member")}
+                {pluralize(staffCount, t.staffMember, t.staffMembers)}
               </span>
               <span className="rounded-full bg-[#FFF9F6] px-3 py-1.5 text-sm font-medium text-[#7A675F] ring-1 ring-[#E8D8CC]">
-                {pluralize(serviceCount, "service")}
+                {pluralize(serviceCount, t.service, t.services)}
               </span>
             </div>
           </div>
 
-          {overviewError ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {overviewError}
-            </div>
-          ) : loadingOverview ? (
-            <div className="rounded-2xl border border-[#E8D8CC] bg-[#FFFDFC] px-4 py-3 text-sm text-[#7A675F]">
-              Loading store overview...
-            </div>
-          ) : null}
+          <div className="flex flex-col items-start gap-3 lg:items-end">
+            {overviewError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {overviewError}
+              </div>
+            ) : loadingOverview ? (
+              <div className="rounded-2xl border border-[#E8D8CC] bg-[#FFFDFC] px-4 py-3 text-sm text-[#7A675F]">
+                {t.loadingOverview}
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
 
@@ -593,14 +599,13 @@ export default function OwnerOverviewPage() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-stretch">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#C87D87]">
-              Booking Page
+              {t.bookingPage}
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-[#4A3A34]">
-              Share this link with customers
+              {t.shareLinkTitle}
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#7A675F]">
-              Customers can choose services, staff, and appointment times from
-              your public booking page.
+              {t.shareLinkBody}
             </p>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -617,7 +622,7 @@ export default function OwnerOverviewPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#D9C5B8] bg-white px-4 py-3 text-sm font-semibold text-[#4A3A34] transition hover:bg-[#FFF7F1] disabled:opacity-50"
               >
                 <Copy className="h-4 w-4" />
-                {copiedBookingLink ? "Copied" : "Copy Link"}
+                {copiedBookingLink ? t.copied : t.copyLink}
               </button>
 
               <Link
@@ -630,7 +635,7 @@ export default function OwnerOverviewPage() {
                     : "pointer-events-none bg-[#D9B3B8] opacity-60"
                 }`}
               >
-                Open Booking Page
+                {t.openBookingPage}
                 <ExternalLink className="h-4 w-4" />
               </Link>
             </div>
@@ -647,7 +652,7 @@ export default function OwnerOverviewPage() {
               />
             </div>
             <p className="mt-4 text-sm font-semibold text-[#4A3A34]">
-              Scan to book
+              {t.scanToBook}
             </p>
             <button
               type="button"
@@ -656,7 +661,7 @@ export default function OwnerOverviewPage() {
               className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl border border-[#D9C5B8] bg-white px-4 py-2.5 text-sm font-semibold text-[#4A3A34] transition hover:bg-[#FFF7F1] disabled:opacity-50"
             >
               <Download className="h-4 w-4" />
-              Download QR
+              {t.downloadQr}
             </button>
           </div>
         </div>
@@ -669,14 +674,13 @@ export default function OwnerOverviewPage() {
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="max-w-2xl">
                   <span className="inline-flex rounded-full bg-[#C65F46] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white">
-                    Action needed
+                    {t.actionNeeded}
                   </span>
                   <h2 className="mt-2 text-2xl font-semibold text-[#4A3A34]">
-                    Before you take bookings
+                    {t.beforeBookings}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-[#7A675F]">
-                    Set your Front Desk PIN and test your booking page before
-                    sharing it with customers.
+                    {t.beforeBookingsBody}
                   </p>
                 </div>
 
@@ -686,7 +690,7 @@ export default function OwnerOverviewPage() {
                     onClick={() => markSetupCardViewed("front_desk_pin")}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#C87D87] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
                   >
-                    Set Front Desk PIN
+                    {t.setFrontDeskPin}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                   <Link
@@ -696,7 +700,7 @@ export default function OwnerOverviewPage() {
                     onClick={() => markSetupCardViewed("test_booking")}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#D9C5B8] bg-white px-4 py-3 text-sm font-semibold text-[#4A3A34] transition hover:bg-[#FFF9F6]"
                   >
-                    Open Booking Page
+                    {t.openBookingPage}
                     <ExternalLink className="h-4 w-4" />
                   </Link>
                 </div>
@@ -706,11 +710,10 @@ export default function OwnerOverviewPage() {
 
           <div>
             <h2 className="text-xl font-semibold text-[#4A3A34]">
-              Before you take bookings
+              {t.beforeBookings}
             </h2>
             <p className="mt-1 text-sm text-[#7A675F]">
-              Review these items before sharing your booking page with
-              customers.
+              {t.setupSubtitle}
             </p>
           </div>
         </div>
@@ -718,13 +721,14 @@ export default function OwnerOverviewPage() {
         <div className="space-y-5">
           <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#9A6B5C]">
-              Required
+              {t.required}
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {requiredSetupCards.map((card) => (
                 <SetupCard
                   key={card.title}
                   {...card}
+                  reviewedLabel={t.reviewed}
                   onView={() => markSetupCardViewed(card.setupKey)}
                 />
               ))}
@@ -733,13 +737,14 @@ export default function OwnerOverviewPage() {
 
           <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-[#9A6B5C]">
-              Recommended
+              {t.recommended}
             </h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {recommendedSetupCards.map((card) => (
                 <SetupCard
                   key={card.title}
                   {...card}
+                  reviewedLabel={t.reviewed}
                   onView={() => markSetupCardViewed(card.setupKey)}
                 />
               ))}
@@ -751,23 +756,23 @@ export default function OwnerOverviewPage() {
       <section>
         <div className="mb-4">
           <h2 className="text-xl font-semibold text-[#4A3A34]">
-            Quick Access
+            {t.quickAccess}
           </h2>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <QuickAccessCard
-            title="Front Desk"
+            title={t.frontDesk}
             href={`/s/${store.slug}/admin`}
             icon={Store}
           />
           <QuickAccessCard
-            title="Reports"
+            title={t.reports}
             href={`/s/${store.slug}/owner/reports`}
             icon={FileText}
           />
           <QuickAccessCard
-            title="Settings"
+            title={t.settings}
             href={`/s/${store.slug}/owner/settings`}
             icon={Settings}
           />

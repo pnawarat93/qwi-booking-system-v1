@@ -35,6 +35,7 @@ export default function StartDayModal({
   storeFeatures,
   existingStoreDay,
   onStarted,
+  copy = {},
 }) {
   const [startTill, setStartTill] = useState("0");
   const [openingNote, setOpeningNote] = useState("");
@@ -68,6 +69,62 @@ export default function StartDayModal({
     !isLiteStore && Boolean(storeInfo?.enable_daily_guarantee);
   const showGuaranteeControls = !isLiteStore && enableDailyGuarantee;
   const defaultGuarantee = getDefaultGuaranteeForDate(storeInfo, selectedDate);
+  const labels = {
+    title: "Start Day",
+    openDay: "Open Day",
+    startThisDay: "Start this day",
+    eyebrow: "Start of day",
+    confirmOpening: "Confirm today's opening",
+    liteIntro: "Review business hours and staff before opening the grid.",
+    proIntro:
+      "Review the opening till, staff order, and daily guarantees before opening the grid.",
+    store: "Store",
+    date: "Date",
+    businessHours: "Business hours",
+    storeHours: "Store hours",
+    closed: "Closed",
+    defaultGuarantee: "Default guarantee",
+    startingTill: "Starting till",
+    startingTillAmount: "Starting till amount",
+    openingNote: "Opening note (optional)",
+    staffSetup: "Staff setup",
+    todaysGridOrder: "Today's grid order",
+    staffWorkingToday: "Staff working today",
+    availableStaff: "Available staff",
+    noStaffScheduled: "No staff scheduled",
+    noStaffSelected: "No staff selected for today yet.",
+    addStaff: "Add staff",
+    hideAddStaff: "Hide add staff",
+    addExistingStaff: "Add existing staff",
+    addTemporaryStaff: "Add temporary staff",
+    addTemporaryCasual: "Add temporary / casual",
+    hideQuickAdd: "Hide quick add",
+    remove: "Remove",
+    dailyGuarantee: "Daily guarantee",
+    guarantee: "Guarantee",
+    effective: "Effective",
+    staffRole: "Staff role",
+    loading: "Loading...",
+    close: "Close",
+    cancel: "Cancel",
+    saving: "Saving...",
+    confirming: "Confirming...",
+    confirmStartDay: "Confirm Start Day",
+    openGrid: "Open the grid",
+    readyToOpen: "Ready to open",
+    storeClosed: "Store closed",
+    noBusinessHoursFound: "No business hours found",
+    outsideBusinessHours: "This date is outside business hours",
+    noStaffCode: "No staff code",
+    noMoreStaffAvailable: "No more staff available to add.",
+    displayName: "Display name",
+    staffCode: "Staff code",
+    noStaffRoleSelected: "No staff role selected",
+    staffRoleHelper: "Staff role controls payout calculation.",
+    createAndAdd: "Create and add",
+    creating: "Creating...",
+    ...copy,
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -591,17 +648,15 @@ export default function StartDayModal({
         <div className="flex flex-col gap-3 border-b border-[#E8DED6] bg-[#F8F1EC] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
-              Start of day
+              {labels.eyebrow}
             </p>
             <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#3F3733]">
-              Confirm today’s opening
+              {labels.confirmOpening}
             </h2>
           </div>
 
           <p className="max-w-xl text-sm text-[#6F625C] sm:text-right">
-            {isLiteStore
-              ? "Review today's staff order before starting the day."
-              : "Review the opening till, staff order, and daily guarantees before starting the day."}
+            {isLiteStore ? labels.liteIntro : labels.proIntro}
           </p>
         </div>
 
@@ -612,16 +667,16 @@ export default function StartDayModal({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
-                      Store
+                      {labels.store}
                     </p>
                     <p className="mt-2 text-sm text-[#3F3733]">
-                      {storeName || "Store"}
+                      {storeName || labels.store}
                     </p>
                   </div>
 
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
-                      Date
+                      {labels.date}
                     </p>
                     <p className="mt-2 text-sm text-[#3F3733]">{selectedDate}</p>
                   </div>
@@ -630,11 +685,11 @@ export default function StartDayModal({
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
-                      Business hours
+                      {labels.businessHours}
                     </p>
                     <p className="mt-2 text-sm text-[#3F3733]">
                       {businessHours?.is_open === false
-                        ? "Closed"
+                        ? labels.closed
                         : `${defaultStartTime} - ${defaultEndTime}`}
                     </p>
                   </div>
@@ -642,7 +697,7 @@ export default function StartDayModal({
                   {showGuaranteeControls ? (
                     <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
-                        Default guarantee
+                        {labels.defaultGuarantee}
                       </p>
                       <p className="mt-2 text-sm text-[#3F3733]">
                         ${Number(defaultGuarantee || 0).toFixed(0)}
@@ -655,7 +710,7 @@ export default function StartDayModal({
               {!isLiteStore ? (
                 <div className="rounded-2xl border border-[#E8DED6] bg-white p-4">
                   <label className="text-sm font-semibold text-[#3F3733]">
-                    Starting till amount
+                    {labels.startingTill}
                   </label>
                   <input
                     type="number"
@@ -672,7 +727,7 @@ export default function StartDayModal({
 
               <div className="rounded-2xl border border-[#E8DED6] bg-white p-4">
                 <label className="text-sm font-semibold text-[#3F3733]">
-                  Opening note (optional)
+                  {labels.openingNote}
                 </label>
                 <textarea
                   rows={3}
@@ -688,10 +743,10 @@ export default function StartDayModal({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
-                    Staff setup
+                    {labels.staffSetup}
                   </p>
                   <h3 className="mt-1 text-sm font-semibold text-[#3F3733]">
-                    Today&apos;s grid order
+                    {labels.todaysGridOrder}
                   </h3>
                 </div>
 
@@ -704,7 +759,7 @@ export default function StartDayModal({
                     }}
                     className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6]"
                   >
-                    {showAddExisting ? "Hide add staff" : "Add staff"}
+                    {showAddExisting ? labels.hideAddStaff : labels.addStaff}
                   </button>
 
                   <button
@@ -715,20 +770,22 @@ export default function StartDayModal({
                     }}
                     className="rounded-2xl bg-[#B86F52] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#A86248]"
                   >
-                    {showQuickAdd ? "Hide quick add" : "Add temporary / casual"}
+                    {showQuickAdd
+                      ? labels.hideQuickAdd
+                      : labels.addTemporaryCasual}
                   </button>
                 </div>
               </div>
 
               {loadingSetup ? (
                 <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 text-sm text-[#6F625C]">
-                  Loading...
+                  {labels.loading}
                 </div>
               ) : (
                 <div className="space-y-3">
                   {workingToday.length === 0 ? (
                     <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 text-sm text-[#6F625C]">
-                      No staff selected for today yet.
+                      {labels.noStaffSelected}
                     </div>
                   ) : (
                     workingToday.map((staff, index) => {
@@ -758,7 +815,7 @@ export default function StartDayModal({
 
                               <div className="space-y-1 text-xs text-[#6F625C]">
                                 <p className="truncate">
-                                  {staff.staff_code || "No staff code"}
+                                  {staff.staff_code || labels.noStaffCode}
                                   {staff.role_name ? ` • ${staff.role_name}` : ""}
                                 </p>
                                 <p className="truncate">
@@ -771,7 +828,7 @@ export default function StartDayModal({
                             {showGuaranteeControls ? (
                               <div className="sm:w-44 rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-3">
                                 <label className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[#9A8A84]">
-                                  Guarantee
+                                  {labels.guarantee}
                                 </label>
 
                                 <input
@@ -789,7 +846,7 @@ export default function StartDayModal({
                                 />
 
                                 <p className="mt-2 text-[10px] text-[#9A8A84]">
-                                  Effective: ${Number(effectiveGuarantee).toFixed(0)}
+                                  {labels.effective}: ${Number(effectiveGuarantee).toFixed(0)}
                                 </p>
                               </div>
                             ) : null}
@@ -818,7 +875,7 @@ export default function StartDayModal({
                                 onClick={() => removeFromToday(staff.staff_id)}
                                 className="h-10 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-3 text-sm font-semibold text-[#9F3A2E] transition hover:bg-[#FFE7DD]"
                               >
-                                Remove
+                                {labels.remove}
                               </button>
                             </div>
                           </div>
@@ -832,12 +889,12 @@ export default function StartDayModal({
               {showAddExisting ? (
                 <div ref={addExistingRef} className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
                   <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
-                    Add existing staff
+                    {labels.addExistingStaff}
                   </h3>
 
                   {availableToAdd.length === 0 ? (
                     <p className="text-sm text-[#9A8A84]">
-                      No more staff available to add.
+                      {labels.noMoreStaffAvailable}
                     </p>
                   ) : (
                     <div className="max-h-70 space-y-2 overflow-y-auto">
@@ -863,13 +920,13 @@ export default function StartDayModal({
                               </p>
 
                               <p className="mt-1 text-xs text-[#6F625C]">
-                                {staff.staff_code || "No staff code"}
+                                {staff.staff_code || labels.noStaffCode}
                                 {roleName ? ` • ${roleName}` : ""}
                               </p>
                             </div>
 
                             <span className="shrink-0 rounded-full bg-[#EFF5F0] px-3 py-1 text-sm font-semibold text-[#1F4E36]">
-                              Add
+                              {labels.addStaff}
                             </span>
                           </button>
                         );
@@ -882,7 +939,7 @@ export default function StartDayModal({
               {showQuickAdd ? (
                 <div ref={quickAddRef} className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4">
                   <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
-                    Add temporary / casual staff
+                    {labels.addTemporaryStaff}
                   </h3>
 
                   <div className="space-y-3">
@@ -891,7 +948,7 @@ export default function StartDayModal({
                       value={newStaffName}
                       onChange={(e) => setNewStaffName(e.target.value)}
                       className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-                      placeholder="Display name"
+                      placeholder={labels.displayName}
                     />
 
                     <input
@@ -899,7 +956,7 @@ export default function StartDayModal({
                       value={newStaffCode}
                       onChange={(e) => setNewStaffCode(e.target.value)}
                       className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-                      placeholder="Staff code"
+                      placeholder={labels.staffCode}
                     />
 
                     {!isLiteStore ? (
@@ -909,7 +966,7 @@ export default function StartDayModal({
                           onChange={(e) => setNewRoleId(e.target.value)}
                           className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
                         >
-                          <option value="">No staff role selected</option>
+                          <option value="">{labels.noStaffRoleSelected}</option>
 
                           {payoutRoles.map((role) => (
                             <option key={role.id} value={role.id}>
@@ -919,7 +976,7 @@ export default function StartDayModal({
                         </select>
 
                         <p className="text-xs text-[#9A8A84]">
-                          Staff role controls payout calculation.
+                          {labels.staffRoleHelper}
                         </p>
                       </>
                     ) : null}
@@ -933,7 +990,7 @@ export default function StartDayModal({
                           setNewGuaranteeOverride(e.target.value)
                         }
                         className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-                        placeholder={`Guarantee (${defaultGuarantee})`}
+                        placeholder={`${labels.guarantee} (${defaultGuarantee})`}
                       />
                     ) : null}
 
@@ -943,7 +1000,7 @@ export default function StartDayModal({
                       onClick={createTemporaryStaff}
                       className="w-full rounded-2xl bg-[#B86F52] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A86248] disabled:opacity-50"
                     >
-                      {isCreatingStaff ? "Creating..." : "Create and add"}
+                      {isCreatingStaff ? labels.creating : labels.createAndAdd}
                     </button>
                   </div>
                 </div>
@@ -966,10 +1023,10 @@ export default function StartDayModal({
               className="rounded-2xl bg-[#B86F52] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#A86248] disabled:opacity-50"
             >
               {saving
-                ? "Confirming..."
+                ? labels.confirming
                 : isLiteStore
-                  ? "Start Day"
-                  : "Confirm Start Day"}
+                  ? labels.title
+                  : labels.confirmStartDay}
             </button>
           </div>
         </form>

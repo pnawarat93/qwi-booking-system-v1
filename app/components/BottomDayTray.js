@@ -44,7 +44,19 @@ export default function BottomDayTray({
   storeDay,
   startTill = 0,
   cashOnTill = 0,
+  copy = {},
 }) {
+  const labels = {
+    active: "Active",
+    total: "Total",
+    inactive: "Inactive",
+    unassigned: "Unassigned",
+    startTill: "Start Till",
+    cashTill: "Cash Till",
+    staffControls: "Staff Controls",
+    endOfDayReport: "End of Day Report",
+    ...copy,
+  };
   const inactiveCount = cancelledCount + noShowCount;
   const financialControlsEnabled =
     storeFeatures?.FINANCIAL_CONTROLS === true;
@@ -58,26 +70,26 @@ export default function BottomDayTray({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <StatPill
-            label="Active"
+            label={labels.active}
             value={activeCount}
             color="border-amber-200 bg-amber-50 text-amber-800"
           />
 
           <StatPill
-            label="Total"
+            label={labels.total}
             value={totalBookings}
             color="border-[#E9DED8] bg-white text-[#4A3A34]"
           />
 
           <StatPill
-            label="Inactive"
+            label={labels.inactive}
             value={inactiveCount}
             color="border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
             onClick={onOpenInactive}
           />
 
           <StatPill
-            label="Unassigned"
+            label={labels.unassigned}
             value={unassignedCount}
             color="border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
             onClick={onOpenUnassigned}
@@ -86,13 +98,13 @@ export default function BottomDayTray({
           {!isLiteStore ? (
             <>
               <StatPill
-                label="Start Till"
+                label={labels.startTill}
                 value={money(startTill)}
                 color="border-[#E9DED8] bg-white text-[#4A3A34]"
               />
 
               <StatPill
-                label="Cash Till"
+                label={labels.cashTill}
                 value={money(cashOnTill)}
                 color="border-emerald-200 bg-emerald-50 text-emerald-800"
               />
@@ -106,7 +118,7 @@ export default function BottomDayTray({
             onClick={onOpenStaffControls}
             className="rounded-full border border-[#E9DED8] bg-white px-5 py-2.5 text-sm font-semibold text-[#5B4B45] transition hover:border-[#D8B6BD] hover:bg-[#FFF5F7] hover:text-[#4A3A34] hover:shadow-sm"
           >
-            Staff Controls
+            {labels.staffControls}
           </button>
 
           <button
@@ -114,7 +126,7 @@ export default function BottomDayTray({
             onClick={onOpenEndDay}
             className="rounded-full bg-[#4A3A34] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-[#5A4740] hover:shadow-md"
           >
-            End of Day Report
+            {labels.endOfDayReport}
           </button>
         </div>
       </div>

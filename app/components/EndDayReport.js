@@ -54,6 +54,7 @@ export default function EndDayReport({
   onFinish,
   storeSlug,
   storeFeatures,
+  copy = {},
 }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -65,6 +66,65 @@ export default function EndDayReport({
   const isLiteStore =
     storeFeatures?.LITE_MODE === true ||
     storeFeatures?.FINANCIAL_CONTROLS !== true;
+  const labels = {
+    title: "End of Day Report",
+    close: "Close",
+    liteSubtitle: "Review today's operations before closing the day.",
+    proSubtitle: "Review today's records before closing store operations.",
+    loadingSummary: "Loading end of day summary...",
+    pendingBookingsStillExist: "Pending bookings still exist",
+    pendingBookingsWarning:
+      "All active bookings must be finalized before the store can be closed. Please finish or close each pending booking first.",
+    cannotFinalizePending:
+      "Cannot finalize day while pending bookings still exist. Please finalize all pending bookings first.",
+    finalizeBookingsFirst: "Finalize these bookings first to continue.",
+    estimatedRevenue: "Estimated Revenue",
+    completedJobs: "Completed Jobs",
+    cancelled: "Cancelled",
+    noShow: "No Show",
+    staffActivitySummary: "Staff Activity Summary",
+    staff: "Staff",
+    completed: "Completed",
+    estimatedValue: "Estimated Value",
+    noStaffActivity: "No staff activity for this day.",
+    closingNote: "Closing note",
+    closingNoteHelper:
+      "Confirm the day once bookings have been reviewed and any outstanding operational tasks are complete.",
+    backToGrid: "Back to Grid",
+    finalizeDay: "Finalize Day",
+    finalizing: "Finalizing...",
+    pendingBookingsExist: "Pending Bookings Exist",
+    pending: "Pending",
+    finalizeAndLock: "Finalize and lock this day?",
+    liteFinalizeWarning:
+      "After this day is finalized, front desk can no longer edit bookings, staff assignment, or notes for this date.",
+    proFinalizeWarning:
+      "After this day is finalized, front desk can no longer edit bookings, payments, refunds, staff assignment, or notes for this date.",
+    cannotChange: "This action cannot be changed from the front desk.",
+    goBack: "Go back",
+    yesFinalizeDay: "Yes, finalize day",
+    paidJobs: "Paid Jobs",
+    netRevenue: "Net Revenue",
+    totalStaffPayout: "Total Staff Payout",
+    storeKeeps: "Store Keeps",
+    startTill: "Start Till",
+    expectedCashInTill: "Expected Cash in Till",
+    paymentBreakdown: "Payment Breakdown",
+    transactionSummary: "Transaction Summary",
+    payments: "Payments",
+    refunds: "Refunds",
+    deposits: "Deposits",
+    voids: "Voids",
+    staffPayouts: "Staff Payouts",
+    policy: "Policy",
+    gross: "Gross",
+    effective: "Effective",
+    payout: "Payout",
+    noStaffPayoutData: "No staff payout data for this day.",
+    fullRefunds: "Full Refunds",
+    noPolicy: "No policy",
+    ...copy,
+  };
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -208,9 +268,7 @@ export default function EndDayReport({
 
   async function handleCompleteEndDay() {
     if (hasPendingBookings) {
-      setCompleteError(
-        "Cannot finalize day while pending bookings still exist. Please finalize all pending bookings first."
-      );
+      setCompleteError(labels.cannotFinalizePending);
       return;
     }
 
@@ -249,6 +307,7 @@ export default function EndDayReport({
         <div className="relative shrink-0 border-b border-[#E8DED6] bg-[#F8F1EC] p-5 text-[#3F3733] sm:p-6">
           <button
             type="button"
+            aria-label={labels.close}
             onClick={onClose}
             disabled={isCompleting}
             className="absolute right-5 top-5 rounded-full p-2 text-[#8B7A72] transition hover:bg-white hover:text-[#3F3733] disabled:opacity-40 sm:right-6 sm:top-6"
@@ -262,21 +321,19 @@ export default function EndDayReport({
             </div>
 
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              End of Day Report
+              {labels.title}
             </h2>
           </div>
 
           <p className="mt-1 max-w-2xl text-sm text-[#7B6B64]">
-            {isLiteStore
-              ? "Review today&apos;s operations before closing the day."
-              : "Review today&apos;s records before closing store operations."}
+            {isLiteStore ? labels.liteSubtitle : labels.proSubtitle}
           </p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-6 text-sm text-gray-500">
-              Loading end of day summary...
+              {labels.loadingSummary}
             </div>
           ) : loadError ? (
             <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">
@@ -299,13 +356,11 @@ export default function EndDayReport({
 
                     <div className="min-w-0 flex-1">
                       <h3 className="text-lg font-bold text-amber-900">
-                        Pending bookings still exist
+                        {labels.pendingBookingsStillExist}
                       </h3>
 
                       <p className="mt-1 text-sm text-amber-800">
-                        All active bookings must be finalized before the store
-                        can be closed. Please finish or close each pending
-                        booking first.
+                        {labels.pendingBookingsWarning}
                       </p>
 
                       <div className="mt-4 overflow-hidden rounded-2xl border border-amber-200 bg-white">
@@ -330,7 +385,7 @@ export default function EndDayReport({
                               </div>
 
                               <span className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800">
-                                Pending
+                                {labels.pending}
                               </span>
                             </div>
                           ))}
@@ -338,7 +393,7 @@ export default function EndDayReport({
                       </div>
 
                       <p className="mt-4 text-xs font-medium uppercase tracking-wide text-amber-700">
-                        Finalize these bookings first to continue.
+                        {labels.finalizeBookingsFirst}
                       </p>
                     </div>
                   </div>
@@ -353,7 +408,7 @@ export default function EndDayReport({
                         <TrendingUp size={16} className="text-[#C87D87]" />
 
                         <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                          Estimated Revenue
+                          {labels.estimatedRevenue}
                         </span>
                       </div>
 
@@ -367,7 +422,7 @@ export default function EndDayReport({
                         <CheckCircle size={16} className="text-emerald-500" />
 
                         <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                          Completed Jobs
+                          {labels.completedJobs}
                         </span>
                       </div>
 
@@ -381,7 +436,7 @@ export default function EndDayReport({
                         <AlertCircle size={16} className="text-amber-600" />
 
                         <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                          Cancelled
+                          {labels.cancelled}
                         </span>
                       </div>
 
@@ -395,7 +450,7 @@ export default function EndDayReport({
                         <X size={16} className="text-rose-500" />
 
                         <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                          No Show
+                          {labels.noShow}
                         </span>
                       </div>
 
@@ -407,7 +462,7 @@ export default function EndDayReport({
 
                   <div>
                     <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                      Staff Activity Summary
+                      {labels.staffActivitySummary}
                     </h3>
 
                     <div className="overflow-hidden rounded-3xl border border-[#E8DED6] bg-white shadow-sm">
@@ -415,11 +470,11 @@ export default function EndDayReport({
                         <table className="min-w-full text-sm">
                           <thead className="bg-[#FAF5F1] text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
                             <tr>
-                              <th className="px-4 py-3">Staff</th>
-                              <th className="px-4 py-3">Completed</th>
-                              <th className="px-4 py-3">Cancelled</th>
-                              <th className="px-4 py-3">No Show</th>
-                              <th className="px-4 py-3">Estimated Value</th>
+                              <th className="px-4 py-3">{labels.staff}</th>
+                              <th className="px-4 py-3">{labels.completed}</th>
+                              <th className="px-4 py-3">{labels.cancelled}</th>
+                              <th className="px-4 py-3">{labels.noShow}</th>
+                              <th className="px-4 py-3">{labels.estimatedValue}</th>
                             </tr>
                           </thead>
 
@@ -430,7 +485,7 @@ export default function EndDayReport({
                                   className="px-4 py-6 text-center text-[#9A8A84]"
                                   colSpan={5}
                                 >
-                                  No staff activity for this day.
+                                  {labels.noStaffActivity}
                                 </td>
                               </tr>
                             ) : (
@@ -469,12 +524,11 @@ export default function EndDayReport({
 
                   <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] p-5">
                     <h3 className="text-sm font-semibold text-[#3F3733]">
-                      Closing note
+                      {labels.closingNote}
                     </h3>
 
                     <p className="mt-2 text-sm leading-6 text-[#7B6B64]">
-                      Confirm the day once bookings have been reviewed and any
-                      outstanding operational tasks are complete.
+                      {labels.closingNoteHelper}
                     </p>
                   </div>
                 </>
@@ -486,7 +540,7 @@ export default function EndDayReport({
                     <CheckCircle size={16} className="text-emerald-500" />
 
                     <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                      Paid Jobs
+                      {labels.paidJobs}
                     </span>
                   </div>
 
@@ -500,7 +554,7 @@ export default function EndDayReport({
                     <TrendingUp size={16} className="text-[#C87D87]" />
 
                     <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                      Net Revenue
+                      {labels.netRevenue}
                     </span>
                   </div>
 
@@ -514,7 +568,7 @@ export default function EndDayReport({
                     <Banknote size={16} className="text-blue-600" />
 
                     <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                      Total Staff Payout
+                      {labels.totalStaffPayout}
                     </span>
                   </div>
 
@@ -528,7 +582,7 @@ export default function EndDayReport({
                     <AlertCircle size={16} className="text-amber-600" />
 
                     <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                      Store Keeps
+                      {labels.storeKeeps}
                     </span>
                   </div>
 
@@ -542,7 +596,7 @@ export default function EndDayReport({
                     <Banknote size={16} className="text-[#8B5E3C]" />
 
                     <span className="text-xs font-bold uppercase tracking-widest text-[#9A8A84]">
-                      Start Till
+                      {labels.startTill}
                     </span>
                   </div>
 
@@ -556,7 +610,7 @@ export default function EndDayReport({
                     <Banknote size={16} className="text-emerald-600" />
 
                     <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-                      Expected Cash in Till
+                      {labels.expectedCashInTill}
                     </span>
                   </div>
 
@@ -569,7 +623,7 @@ export default function EndDayReport({
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <div>
                   <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                    Payment Breakdown
+                    {labels.paymentBreakdown}
                   </h3>
 
                   <div className="space-y-3">
@@ -663,33 +717,33 @@ export default function EndDayReport({
 
                 <div>
                   <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                    Transaction Summary
+                    {labels.transactionSummary}
                   </h3>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
-                      <p className="text-xs font-medium text-[#9A8A84]">Payments</p>
+                      <p className="text-xs font-medium text-[#9A8A84]">{labels.payments}</p>
                       <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.payments.total)}
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
-                      <p className="text-xs font-medium text-[#9A8A84]">Refunds</p>
+                      <p className="text-xs font-medium text-[#9A8A84]">{labels.refunds}</p>
                       <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.refunds.total)}
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
-                      <p className="text-xs font-medium text-[#9A8A84]">Deposits</p>
+                      <p className="text-xs font-medium text-[#9A8A84]">{labels.deposits}</p>
                       <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.deposits.total)}
                       </p>
                     </div>
 
                     <div className="rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] p-4 shadow-sm">
-                      <p className="text-xs font-medium text-[#9A8A84]">Voids</p>
+                      <p className="text-xs font-medium text-[#9A8A84]">{labels.voids}</p>
                       <p className="mt-1 text-lg font-semibold text-[#3F3733]">
                         {currency(transactions.voids.total)}
                       </p>
@@ -700,7 +754,7 @@ export default function EndDayReport({
 
               <div>
                 <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                  Staff Payouts
+                  {labels.staffPayouts}
                 </h3>
 
                 <div className="overflow-hidden rounded-3xl border border-[#E8DED6] bg-white shadow-sm">
@@ -708,14 +762,14 @@ export default function EndDayReport({
                     <table className="min-w-full text-sm">
                       <thead className="bg-[#FAF5F1] text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
                         <tr>
-                          <th className="px-4 py-3">Staff</th>
-                          <th className="px-4 py-3">Policy</th>
-                          <th className="px-4 py-3">Paid Jobs</th>
-                          <th className="px-4 py-3">Full Refunds</th>
-                          <th className="px-4 py-3">Gross</th>
-                          <th className="px-4 py-3">Refunds</th>
-                          <th className="px-4 py-3">Effective</th>
-                          <th className="px-4 py-3">Payout</th>
+                          <th className="px-4 py-3">{labels.staff}</th>
+                          <th className="px-4 py-3">{labels.policy}</th>
+                          <th className="px-4 py-3">{labels.paidJobs}</th>
+                          <th className="px-4 py-3">{labels.fullRefunds}</th>
+                          <th className="px-4 py-3">{labels.gross}</th>
+                          <th className="px-4 py-3">{labels.refunds}</th>
+                          <th className="px-4 py-3">{labels.effective}</th>
+                          <th className="px-4 py-3">{labels.payout}</th>
                         </tr>
                       </thead>
 
@@ -726,7 +780,7 @@ export default function EndDayReport({
                               className="px-4 py-6 text-center text-[#9A8A84]"
                               colSpan={8}
                             >
-                              No staff payout data for this day.
+                              {labels.noStaffPayoutData}
                             </td>
                           </tr>
                         ) : (
@@ -740,7 +794,7 @@ export default function EndDayReport({
                               </td>
 
                               <td className="px-4 py-3 text-[#6F625C]">
-                                {staff.policy_name || "No policy"}
+                                {staff.policy_name || labels.noPolicy}
                               </td>
 
                               <td className="px-4 py-3 text-[#6F625C]">
@@ -788,7 +842,7 @@ export default function EndDayReport({
               disabled={isCompleting}
               className="flex-1 rounded-2xl border border-[#E2D7CF] bg-white py-3.5 font-semibold text-[#6F625C] transition hover:bg-[#FAF5F1] disabled:opacity-50"
             >
-              Back to Grid
+              {labels.backToGrid}
             </button>
 
             <button
@@ -802,10 +856,10 @@ export default function EndDayReport({
               className="flex-[1.5] rounded-2xl bg-[#B86F52] py-3.5 font-semibold text-white shadow-sm transition hover:bg-[#A86248] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCompleting
-                ? "Finalizing..."
+                ? labels.finalizing
                 : hasPendingBookings
-                  ? "Pending Bookings Exist"
-                  : "Finalize Day"}
+                  ? labels.pendingBookingsExist
+                  : labels.finalizeDay}
             </button>
           </div>
         </div>
@@ -819,17 +873,17 @@ export default function EndDayReport({
             </div>
 
             <h3 className="mt-4 text-center text-xl font-semibold tracking-tight text-[#3F3733]">
-              Finalize and lock this day?
+              {labels.finalizeAndLock}
             </h3>
 
             <p className="mt-2 text-center text-sm leading-6 text-[#7B6B64]">
               {isLiteStore
-                ? "After this day is finalized, front desk can no longer edit bookings, staff assignment, or notes for this date."
-                : "After this day is finalized, front desk can no longer edit bookings, payments, refunds, staff assignment, or notes for this date."}
+                ? labels.liteFinalizeWarning
+                : labels.proFinalizeWarning}
             </p>
 
             <div className="mt-5 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3 text-sm font-semibold text-[#9F3A2E]">
-              This action cannot be changed from the front desk.
+              {labels.cannotChange}
             </div>
 
             <div className="mt-6 flex gap-3">
@@ -839,7 +893,7 @@ export default function EndDayReport({
                 disabled={isCompleting}
                 className="flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
               >
-                Go back
+                {labels.goBack}
               </button>
 
               <button
@@ -851,7 +905,7 @@ export default function EndDayReport({
                 disabled={isCompleting}
                 className="flex-[1.4] rounded-2xl bg-[#B86F52] px-4 py-3 text-sm font-semibold text-white hover:bg-[#A86248] disabled:opacity-50"
               >
-                Yes, finalize day
+                {labels.yesFinalizeDay}
               </button>
             </div>
           </div>

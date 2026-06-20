@@ -8,6 +8,9 @@ export default function StoreInfoBar({
   shopPhone,
   shopAddress,
   ownerHref,
+  ownerLabel = "Owner Dashboard",
+  locale = "en",
+  onLocaleChange,
 }) {
   return (
     <div className="border-b border-[#E9DED8] bg-[#FFF9F6]/95 backdrop-blur">
@@ -44,19 +47,40 @@ export default function StoreInfoBar({
           </div>
         </div>
 
-        {ownerHref ? (
-          <Link
-            href={ownerHref}
-            className="group flex items-center gap-2 rounded-2xl border border-[#E9DED8] bg-white px-4 py-2.5 text-sm font-semibold text-[#5B4B45] shadow-sm transition-all hover:-translate-y-[1px] hover:border-[#D8B6BD] hover:bg-[#FFF5F7] hover:text-[#4A3A34] hover:shadow-md"
-          >
-            <ShieldCheck
-              size={16}
-              className="text-[#C87D87] transition-transform group-hover:scale-105"
-            />
+        <div className="flex items-center gap-2">
+          {onLocaleChange ? (
+            <div className="inline-flex rounded-2xl border border-[#E9DED8] bg-white p-1 shadow-sm">
+              {["en", "th"].map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => onLocaleChange(option)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold uppercase transition ${
+                    locale === option
+                      ? "bg-[#C87D87] text-white shadow-sm"
+                      : "text-[#7B6A63] hover:bg-[#FFF5F7]"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-            <span>Owner Dashboard</span>
-          </Link>
-        ) : null}
+          {ownerHref ? (
+            <Link
+              href={ownerHref}
+              className="group flex items-center gap-2 rounded-2xl border border-[#E9DED8] bg-white px-4 py-2.5 text-sm font-semibold text-[#5B4B45] shadow-sm transition-all hover:-translate-y-[1px] hover:border-[#D8B6BD] hover:bg-[#FFF5F7] hover:text-[#4A3A34] hover:shadow-md"
+            >
+              <ShieldCheck
+                size={16}
+                className="text-[#C87D87] transition-transform group-hover:scale-105"
+              />
+
+              <span>{ownerLabel}</span>
+            </Link>
+          ) : null}
+        </div>
       </div>
     </div>
   );

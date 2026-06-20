@@ -40,7 +40,9 @@ export default function StaffControlsModal({
   onClose,
   selectedDate,
   storeSlug,
+  storeFeatures,
   onUpdated,
+  copy = {},
 }) {
   const [allStaff, setAllStaff] = useState([]);
   const [effectiveStaff, setEffectiveStaff] = useState([]);
@@ -60,46 +62,123 @@ export default function StaffControlsModal({
   const [newRoleId, setNewRoleId] = useState("");
   const [newGuaranteeOverride, setNewGuaranteeOverride] = useState("");
   const [isCreatingStaff, setIsCreatingStaff] = useState(false);
+  const labels = {
+    title: "Staff controls",
+    manageWorkingOn: "Manage who is working on",
+    dateSuffix: ".",
+    close: "Close",
+    todaysStaff: "Today's staff",
+    staffMarkedOffHelper:
+      "Staff marked off remain visible for payout and guarantee adjustments.",
+    liteStaffHelper: "Staff can be switched on or off for today's grid.",
+    addStaff: "Add staff",
+    addTemporaryCasual: "Add temporary / casual",
+    addTemporaryStaff: "Add temporary staff",
+    hideAddStaff: "Hide add staff",
+    hideQuickAdd: "Hide quick add",
+    loading: "Loading...",
+    noStaffOnDate: "No staff on this date yet.",
+    off: "Off",
+    noStaffCode: "No staff code",
+    guarantee: "Guarantee",
+    effective: "Effective",
+    saving: "Saving...",
+    setOff: "Set off",
+    setWorking: "Set working",
+    addExistingStaff: "Add existing staff",
+    noMoreStaffAvailable: "No more staff available to add.",
+    adding: "Adding...",
+    add: "Add",
+    quickAddTemporary: "Quick add temporary / casual staff",
+    displayName: "Display name",
+    staffCodeOptional: "Staff code (optional)",
+    staffRole: "Staff role",
+    noRoleSelected: "No role selected",
+    optionalRoleHelper: "Optional. Staff payout will use this role.",
+    guaranteeToday: "Guarantee today (optional)",
+    defaultGuaranteeHelper: "Leave empty to use default guarantee.",
+    createAndAdd: "Create and add",
+    creating: "Creating...",
+    emptyActionHelperBefore: "Use",
+    emptyActionHelperMiddle: "for existing staff, or",
+    emptyActionHelperAfter: "for last-minute coverage.",
+    displayNameRequired: "Please enter a display name.",
+    ...copy,
+  };
+  const financialControlsEnabled =
+    storeFeatures?.FINANCIAL_CONTROLS === true;
+  const isLiteStore =
+    storeFeatures?.LITE_MODE === true || !financialControlsEnabled;
 
   async function loadData() {
     setLoading(true);
     setErrorMessage("");
 
     try {
-      const [
-        staffRes,
-        effectiveRes,
-        hoursRes,
-        storeRes,
-        payoutRolesRes,
-      ] = await Promise.all([
-        fetch(apiPath(storeSlug, "/staff")),
+      let staffRes;
+      let effectiveRes;
+      let hoursRes;
+      let storeRes = null;
+      let payoutRolesRes = null;
 
-        fetch(
-          apiPath(
-            storeSlug,
-            `/effective-staff?date=${selectedDate}&include_all=true`
-          )
-        ),
+      if (isLiteStore) {
+        [staffRes, effectiveRes, hoursRes] = await Promise.all([
+          fetch(apiPath(storeSlug, "/staff")),
 
-        fetch(
-          apiPath(
-            storeSlug,
-            `/business-hours?date=${selectedDate}`
-          )
-        ),
+          fetch(
+            apiPath(
+              storeSlug,
+              `/effective-staff?date=${selectedDate}&include_all=true`
+            )
+          ),
 
-        fetch(apiPath(storeSlug, "/store")),
+          fetch(
+            apiPath(
+              storeSlug,
+              `/business-hours?date=${selectedDate}`
+            )
+          ),
+        ]);
+      } else {
+        [
+          staffRes,
+          effectiveRes,
+          hoursRes,
+          storeRes,
+          payoutRolesRes,
+        ] = await Promise.all([
+          fetch(apiPath(storeSlug, "/staff")),
 
-        fetch(apiPath(storeSlug, "/payout-policies")),
-      ]);
+          fetch(
+            apiPath(
+              storeSlug,
+              `/effective-staff?date=${selectedDate}&include_all=true`
+            )
+          ),
+
+          fetch(
+            apiPath(
+              storeSlug,
+              `/business-hours?date=${selectedDate}`
+            )
+          ),
+
+          fetch(apiPath(storeSlug, "/store")),
+
+          fetch(apiPath(storeSlug, "/payout-policies")),
+        ]);
+      }
 
       const staffData = await staffRes.json();
       const effectiveData = await effectiveRes.json();
       const hoursData = await hoursRes.json();
-      const storeData = await storeRes.json();
-      const payoutRolesData =
-        await payoutRolesRes.json();
+      let storeData = null;
+      let payoutRolesData = [];
+
+      if (!isLiteStore) {
+        storeData = await storeRes.json();
+        payoutRolesData = await payoutRolesRes.json();
+      }
 
       if (!staffRes.ok) {
         throw new Error(staffData?.error || "Failed to load staff");
@@ -117,11 +196,11 @@ export default function StaffControlsModal({
         );
       }
 
-      if (!storeRes.ok) {
+      if (!isLiteStore && !storeRes.ok) {
         throw new Error(storeData?.error || "Failed to load store");
       }
 
-      if (!payoutRolesRes.ok) {
+      if (!isLiteStore && !payoutRolesRes.ok) {
         throw new Error(
           payoutRolesData?.error ||
           "Failed to load payout roles"
@@ -138,10 +217,10 @@ export default function StaffControlsModal({
 
       setBusinessHours(hoursData || null);
 
-      setStoreInfo(storeData || null);
+      setStoreInfo(isLiteStore ? null : storeData || null);
 
       setPayoutRoles(
-        Array.isArray(payoutRolesData)
+        !isLiteStore && Array.isArray(payoutRolesData)
           ? payoutRolesData.filter(
             (role) => role.is_active !== false
           )
@@ -167,10 +246,10 @@ export default function StaffControlsModal({
   useEffect(() => {
     if (!open) return;
     loadData();
-  }, [open, selectedDate, storeSlug]);
+  }, [open, selectedDate, storeSlug, isLiteStore]);
 
   const enableDailyGuarantee =
-    Boolean(storeInfo?.enable_daily_guarantee);
+    !isLiteStore && Boolean(storeInfo?.enable_daily_guarantee);
 
   const defaultGuarantee = getDefaultGuaranteeForDate(
     storeInfo,
@@ -624,7 +703,7 @@ export default function StaffControlsModal({
     try {
       if (!newStaffName.trim()) {
         setErrorMessage(
-          "Please enter a display name."
+          labels.displayNameRequired
         );
 
         return;
@@ -652,10 +731,14 @@ export default function StaffControlsModal({
               newStaffCode.trim() ||
               null,
 
-            payout_policy_id:
-              newRoleId
-                ? Number(newRoleId)
-                : null,
+            ...(!isLiteStore
+              ? {
+                payout_policy_id:
+                  newRoleId
+                    ? Number(newRoleId)
+                    : null,
+              }
+              : {}),
           }),
         }
       );
@@ -750,11 +833,11 @@ export default function StaffControlsModal({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E8DED6] bg-[#F8F1EC] px-6 py-4">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight text-[#3F3733]">
-              Staff controls
+              {labels.title}
             </h2>
 
             <p className="mt-1 text-sm leading-5 text-[#6F625C]">
-              Manage who is working on {selectedDate}.
+              {labels.manageWorkingOn} {selectedDate}{labels.dateSuffix}
             </p>
           </div>
 
@@ -763,7 +846,7 @@ export default function StaffControlsModal({
             onClick={onClose}
             className="rounded-2xl border border-[#E8DED6] bg-white px-3.5 py-2 text-sm font-semibold text-[#3F3733] transition hover:bg-[#FFF8F4]"
           >
-            Close
+            {labels.close}
           </button>
         </div>
 
@@ -772,11 +855,13 @@ export default function StaffControlsModal({
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold tracking-tight text-[#3F3733]">
-                  Today’s staff
+                  {labels.todaysStaff}
                 </h3>
 
                 <p className="mt-1 text-sm leading-5 text-[#6F625C]">
-                  Staff marked off remain visible for payout and guarantee adjustments.
+                  {isLiteStore
+                    ? labels.liteStaffHelper
+                    : labels.staffMarkedOffHelper}
                 </p>
               </div>
 
@@ -795,8 +880,8 @@ export default function StaffControlsModal({
                   className="rounded-2xl border border-[#E8DED6] bg-white px-3.5 py-2 text-sm font-semibold text-[#3F3733] transition hover:bg-[#FFF8F4]"
                 >
                   {showAddExisting
-                    ? "Hide add staff"
-                    : "Add staff"}
+                    ? labels.hideAddStaff
+                    : labels.addStaff}
                 </button>
 
                 <button
@@ -813,8 +898,10 @@ export default function StaffControlsModal({
                   className="rounded-2xl bg-[#B86F52] px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-[#A86248]"
                 >
                   {showQuickAdd
-                    ? "Hide quick add"
-                    : "Add temporary / casual"}
+                    ? labels.hideQuickAdd
+                    : isLiteStore
+                      ? labels.addTemporaryStaff
+                      : labels.addTemporaryCasual}
                 </button>
               </div>
             </div>
@@ -827,11 +914,11 @@ export default function StaffControlsModal({
 
             {loading ? (
               <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
-                Loading...
+                {labels.loading}
               </div>
             ) : todaysStaff.length === 0 ? (
               <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
-                No staff on this date yet.
+                {labels.noStaffOnDate}
               </div>
             ) : (
               <div className="space-y-3">
@@ -871,13 +958,13 @@ export default function StaffControlsModal({
 
                               {!staff.is_working && (
                                 <span className="rounded-full bg-[#FFF1EE] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#9F3A2E]">
-                                  Off
+                                  {labels.off}
                                 </span>
                               )}
                             </div>
 
                             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#6F625C]">
-                              <span>{staff.staff_code || "No staff code"}</span>
+                              <span>{staff.staff_code || labels.noStaffCode}</span>
                               <span>•</span>
                               <span>
                                 {normalizeTime(
@@ -897,7 +984,7 @@ export default function StaffControlsModal({
                             {enableDailyGuarantee && (
                               <div className="w-30 min-w-30">
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                                  Guarantee
+                                  {labels.guarantee}
                                 </label>
 
                                 <input
@@ -931,7 +1018,7 @@ export default function StaffControlsModal({
                                 />
 
                                 <p className="mt-1 text-[10px] text-[#9A8A84]">
-                                  Effective: ${Number(
+                                  {labels.effective}: ${Number(
                                     effectiveGuarantee
                                   ).toFixed(0)}
                                 </p>
@@ -983,10 +1070,10 @@ export default function StaffControlsModal({
                                 }`}
                             >
                               {saving
-                                ? "Saving..."
+                                ? labels.saving
                                 : staff.is_working
-                                  ? "Set off"
-                                  : "Set working"}
+                                  ? labels.setOff
+                                  : labels.setWorking}
                             </button>
                           </div>
                         </div>
@@ -1003,17 +1090,17 @@ export default function StaffControlsModal({
               <div className="rounded-3xl border border-[#E8DED6] bg-white p-4">
                 <div className="mb-3">
                   <h3 className="text-sm font-semibold tracking-tight text-[#3F3733]">
-                    Add existing staff
+                    {labels.addExistingStaff}
                   </h3>
                 </div>
 
                 {loading ? (
                   <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
-                    Loading...
+                    {labels.loading}
                   </div>
                 ) : availableToAdd.length === 0 ? (
                   <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm text-[#6F625C]">
-                    No more staff available to add.
+                    {labels.noMoreStaffAvailable}
                   </div>
                 ) : (
                   <div className="max-h-80 space-y-3 overflow-auto pr-1">
@@ -1036,7 +1123,7 @@ export default function StaffControlsModal({
                             </p>
 
                             <p className="mt-1 text-xs text-[#6F625C]">
-                              {staff.staff_code || "No staff code"}
+                              {staff.staff_code || labels.noStaffCode}
                             </p>
                           </div>
 
@@ -1046,7 +1133,7 @@ export default function StaffControlsModal({
                             onClick={() => addExistingStaff(staff)}
                             className="rounded-2xl border border-[#D7E8DF] bg-[#F7FCF8] px-3 py-2 text-sm font-semibold text-[#166B3A] transition hover:bg-[#E6F8E8] disabled:opacity-50"
                           >
-                            {saving ? "Adding..." : "Add"}
+                            {saving ? labels.adding : labels.add}
                           </button>
                         </div>
                       );
@@ -1060,14 +1147,16 @@ export default function StaffControlsModal({
               <div className="rounded-3xl border border-[#E8DED6] bg-white p-4">
                 <div className="mb-3">
                   <h3 className="text-sm font-semibold tracking-tight text-[#3F3733]">
-                    Quick add temporary / casual staff
+                    {isLiteStore
+                      ? labels.addTemporaryStaff
+                      : labels.quickAddTemporary}
                   </h3>
                 </div>
 
                 <div className="space-y-3">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                      Display name
+                      {labels.displayName}
                     </label>
 
                     <input
@@ -1081,7 +1170,7 @@ export default function StaffControlsModal({
 
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                      Staff code (optional)
+                      {labels.staffCodeOptional}
                     </label>
 
                     <input
@@ -1093,33 +1182,35 @@ export default function StaffControlsModal({
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                      Staff role
-                    </label>
+                  {!isLiteStore ? (
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
+                        {labels.staffRole}
+                      </label>
 
-                    <select
-                      value={newRoleId}
-                      onChange={(e) => setNewRoleId(e.target.value)}
-                      className="w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52]"
-                    >
-                      <option value="">No role selected</option>
-                      {payoutRoles.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.role_name || role.name}
-                        </option>
-                      ))}
-                    </select>
+                      <select
+                        value={newRoleId}
+                        onChange={(e) => setNewRoleId(e.target.value)}
+                        className="w-full rounded-2xl border border-[#E8DED6] bg-[#FFFCFA] px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52]"
+                      >
+                        <option value="">{labels.noRoleSelected}</option>
+                        {payoutRoles.map((role) => (
+                          <option key={role.id} value={role.id}>
+                            {role.role_name || role.name}
+                          </option>
+                        ))}
+                      </select>
 
-                    <p className="mt-1 text-xs text-[#9A8A84]">
-                      Optional. Staff payout will use this role.
-                    </p>
-                  </div>
+                      <p className="mt-1 text-xs text-[#9A8A84]">
+                        {labels.optionalRoleHelper}
+                      </p>
+                    </div>
+                  ) : null}
 
                   {enableDailyGuarantee && (
                     <div>
                       <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.18em] text-[#9A8A84]">
-                        Guarantee today (optional)
+                        {labels.guaranteeToday}
                       </label>
 
                       <input
@@ -1132,7 +1223,7 @@ export default function StaffControlsModal({
                       />
 
                       <p className="mt-1 text-xs text-[#9A8A84]">
-                        Leave empty to use default guarantee.
+                        {labels.defaultGuaranteeHelper}
                       </p>
                     </div>
                   )}
@@ -1143,7 +1234,7 @@ export default function StaffControlsModal({
                     onClick={createTemporaryStaff}
                     className="w-full rounded-2xl bg-[#B86F52] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#A86248] disabled:opacity-50"
                   >
-                    {isCreatingStaff ? "Creating..." : "Create and add"}
+                    {isCreatingStaff ? labels.creating : labels.createAndAdd}
                   </button>
                 </div>
               </div>
@@ -1151,7 +1242,17 @@ export default function StaffControlsModal({
 
             {!showAddExisting && !showQuickAdd && (
               <div className="rounded-3xl border border-[#E8DED6] bg-[#FFFCFA] px-4 py-4 text-sm leading-6 text-[#6F625C]">
-                Use <span className="font-semibold text-[#3F3733]">Add staff</span> for existing staff, or <span className="font-semibold text-[#3F3733]">Add temporary / casual</span> for last-minute coverage.
+                {labels.emptyActionHelperBefore}{" "}
+                <span className="font-semibold text-[#3F3733]">
+                  {labels.addStaff}
+                </span>{" "}
+                {labels.emptyActionHelperMiddle}{" "}
+                <span className="font-semibold text-[#3F3733]">
+                  {isLiteStore
+                    ? labels.addTemporaryStaff
+                    : labels.addTemporaryCasual}
+                </span>{" "}
+                {labels.emptyActionHelperAfter}
               </div>
             )}
           </section>

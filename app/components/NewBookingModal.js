@@ -38,7 +38,39 @@ export default function NewBookingModal({
   onClose,
   onCreated,
   storeSlug,
+  copy = {},
 }) {
+  const labels = {
+    title: "New booking",
+    subtitle: "Create a phone or future appointment for the schedule.",
+    customer: "Customer",
+    customerHelper: "Details for the person making the booking.",
+    appointment: "Appointment",
+    appointmentHelper: "Choose the service, time, and preferred staff.",
+    notes: "Notes",
+    customerName: "Customer name",
+    phone: "Phone",
+    service: "Service",
+    date: "Date",
+    time: "Time",
+    staff: "Staff",
+    partySize: "Party size",
+    selectService: "Select service",
+    autoAssign: "Auto assign available staff",
+    staffHelper:
+      "Keenie will choose available staff based on today's grid order.",
+    optionalNote: "Optional request or phone note",
+    storeClosed: "Store is closed on this date.",
+    chooseAnotherDate: "Please choose another date.",
+    hoursForDate: "Hours for this date",
+    phoneNumber: "Phone number",
+    close: "Close",
+    cancel: "Cancel",
+    saving: "Saving...",
+    submit: "Create booking",
+    ...copy,
+  };
+
   const [services, setServices] = useState([]);
   const [effectiveStaff, setEffectiveStaff] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -328,10 +360,10 @@ export default function NewBookingModal({
         <div className="flex flex-col gap-2 border-b border-[#E3D6C8] bg-[#F8F3EC] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight text-[#2F2926]">
-              New booking
+              {labels.title}
             </h2>
             <p className="mt-1 text-sm text-[#7A675F]">
-              Create a phone or future appointment for the schedule.
+              {labels.subtitle}
             </p>
           </div>
 
@@ -340,7 +372,7 @@ export default function NewBookingModal({
             onClick={onClose}
             className="rounded-2xl border border-[#E3D6C8] bg-white px-3 py-2 text-sm font-semibold text-[#7A675F] transition hover:bg-[#FFFDF9]"
           >
-            Close
+            {labels.close}
           </button>
         </div>
 
@@ -348,16 +380,16 @@ export default function NewBookingModal({
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
             {formData.date && businessHours?.is_open === false && (
               <div className="rounded-2xl border border-[#D6B894] bg-[#F1E4D5] px-4 py-3 text-sm text-[#6B4F35]">
-                <p className="font-semibold">Store is closed on this date.</p>
+                <p className="font-semibold">{labels.storeClosed}</p>
                 <p className="mt-1">
-                  {businessHours?.note || "Please choose another date."}
+                  {businessHours?.note || labels.chooseAnotherDate}
                 </p>
               </div>
             )}
 
             {formData.date && businessHours?.is_open && (
               <div className="rounded-2xl border border-[#BFCDBF] bg-[#E8EFE8] px-4 py-3 text-sm text-[#3F5747]">
-                Hours for this date: {safeTimeLabel(businessHours.open_time)} -{" "}
+                {labels.hoursForDate}: {safeTimeLabel(businessHours.open_time)} -{" "}
                 {safeTimeLabel(businessHours.close_time)}
                 {businessHours?.note ? ` · ${businessHours.note}` : ""}
               </div>
@@ -366,17 +398,17 @@ export default function NewBookingModal({
             <section className="rounded-3xl border border-[#E3D6C8] bg-white px-4 py-4 shadow-sm">
               <div className="mb-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#4F6A55]">
-                  Customer
+                  {labels.customer}
                 </p>
                 <p className="mt-1 text-sm text-[#7A675F]">
-                  Details for the person making the booking.
+                  {labels.customerHelper}
                 </p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Customer name
+                    {labels.customerName}
                   </label>
                   <input
                     type="text"
@@ -385,13 +417,13 @@ export default function NewBookingModal({
                       updateField("customer_name", e.target.value)
                     }
                     className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
-                    placeholder="Customer name"
+                    placeholder={labels.customerName}
                   />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Phone
+                    {labels.phone}
                   </label>
                   <input
                     type="text"
@@ -400,7 +432,7 @@ export default function NewBookingModal({
                       updateField("customer_phone", e.target.value)
                     }
                     className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
-                    placeholder="Phone number"
+                    placeholder={labels.phoneNumber}
                   />
                 </div>
               </div>
@@ -409,17 +441,17 @@ export default function NewBookingModal({
             <section className="rounded-3xl border border-[#E3D6C8] bg-white px-4 py-4 shadow-sm">
               <div className="mb-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#4F6A55]">
-                  Appointment
+                  {labels.appointment}
                 </p>
                 <p className="mt-1 text-sm text-[#7A675F]">
-                  Choose the service, time, and preferred staff.
+                  {labels.appointmentHelper}
                 </p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Service
+                    {labels.service}
                   </label>
                   <select
                     value={formData.service_id}
@@ -429,7 +461,7 @@ export default function NewBookingModal({
                       loadingOptions || businessHours?.is_open === false
                     }
                   >
-                    <option value="">Select service</option>
+                    <option value="">{labels.selectService}</option>
                     {services.map((service) => (
                       <option key={service.id} value={service.id}>
                         {service.name} ({service.duration} mins)
@@ -440,7 +472,7 @@ export default function NewBookingModal({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Date
+                    {labels.date}
                   </label>
                   <input
                     type="date"
@@ -453,7 +485,7 @@ export default function NewBookingModal({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Time
+                    {labels.time}
                   </label>
                   <input
                     type="time"
@@ -467,7 +499,7 @@ export default function NewBookingModal({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Staff
+                    {labels.staff}
                   </label>
                   <select
                     value={formData.staff_id}
@@ -477,7 +509,7 @@ export default function NewBookingModal({
                       loadingOptions || businessHours?.is_open === false
                     }
                   >
-                    <option value="">Auto assign available staff</option>
+                    <option value="">{labels.autoAssign}</option>
                     {availableStaffList.map((staff) => (
                       <option key={staff.id} value={staff.id}>
                         {staff.name}
@@ -486,14 +518,13 @@ export default function NewBookingModal({
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-[#8A7A72]">
-                    Keenie will choose available staff based on today&apos;s grid
-                    order.
+                    {labels.staffHelper}
                   </p>
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                    Party size
+                    {labels.partySize}
                   </label>
                   <input
                     type="number"
@@ -510,14 +541,14 @@ export default function NewBookingModal({
 
             <section className="rounded-3xl border border-[#E3D6C8] bg-white px-4 py-4 shadow-sm">
               <label className="mb-2 block text-sm font-semibold text-[#5F4E47]">
-                Notes
+                {labels.notes}
               </label>
               <textarea
                 rows={3}
                 value={formData.notes}
                 onChange={(e) => updateField("notes", e.target.value)}
                 className="w-full rounded-2xl border border-[#E3D6C8] bg-[#FFFDF9] px-3 py-2 text-sm text-[#2F2926] outline-none transition focus:border-[#4F6A55] focus:ring-2 focus:ring-[#E8EFE8]"
-                placeholder="Optional request or phone note"
+                placeholder={labels.optionalNote}
               />
             </section>
           </div>
@@ -528,7 +559,7 @@ export default function NewBookingModal({
               onClick={onClose}
               className="rounded-2xl border border-[#E3D6C8] bg-white px-4 py-2 text-sm font-semibold text-[#7A675F] hover:bg-[#FFFDF9]"
             >
-              Cancel
+              {labels.cancel}
             </button>
 
             <button
@@ -536,7 +567,7 @@ export default function NewBookingModal({
               disabled={saving || businessHours?.is_open === false}
               className="rounded-2xl bg-[#4A3A34] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#3A2D28] disabled:opacity-50"
             >
-              {saving ? "Saving..." : "Create booking"}
+              {saving ? labels.saving : labels.submit}
             </button>
           </div>
         </form>

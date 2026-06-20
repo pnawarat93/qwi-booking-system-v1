@@ -107,7 +107,60 @@ export default function BookingDetailsModal({
   allBookings = [],
   storeSlug,
   storeFeatures,
+  copy = {},
 }) {
+  const labels = {
+    title: "Booking details",
+    close: "Close",
+    bookingInformation: "Booking information",
+    bookingInfoHelper: "Customer, service, and time details",
+    editDetails: "Edit details",
+    doneEditing: "Done editing",
+    customerName: "Customer name",
+    phoneNumber: "Phone number",
+    serviceName: "Service name",
+    durationMins: "Duration (mins)",
+    customer: "Customer",
+    phone: "Phone",
+    service: "Service",
+    duration: "Duration",
+    time: "Time",
+    status: "Status",
+    pending: "Pending",
+    paid: "Paid",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    noShow: "No-show",
+    walkIn: "Walk-in",
+    groupBooking: "Group booking",
+    requestedStaffBooking: "Requested staff booking",
+    needsReassignment: "Needs reassignment",
+    fullyRefunded: "Fully refunded",
+    assignedStaff: "Assigned staff",
+    unassigned: "Unassigned",
+    staffRequestedWarning:
+      "Customer requested this staff. Reassign only if necessary.",
+    staffOptionsHelper:
+      "Only staff on the selected date's shift and free at this time are shown here.",
+    notes: "Notes",
+    internalBookingNote: "Internal booking note",
+    internalNotePlaceholder: "Internal note for this booking",
+    cancel: "Cancel",
+    saveChanges: "Save changes",
+    saving: "Saving...",
+    unsavedChanges: "Unsaved changes",
+    noChangesYet: "No changes yet",
+    updateProgress: "Update booking progress",
+    ...copy,
+  };
+  const statusLabels = {
+    pending: labels.pending,
+    paid: labels.paid,
+    completed: labels.completed,
+    cancelled: labels.cancelled,
+    no_show: labels.noShow,
+  };
+
   const [formData, setFormData] = useState({
     customer_name: "",
     customer_phone: "",
@@ -851,7 +904,7 @@ export default function BookingDetailsModal({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h2 className="text-xl font-semibold tracking-tight text-[#3F3733]">
-                Booking details
+                {labels.title}
               </h2>
               <p className="mt-1 text-sm text-[#6F625C]">{timeRange}</p>
             </div>
@@ -861,38 +914,38 @@ export default function BookingDetailsModal({
               onClick={onClose}
               className="rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm font-semibold text-[#6F625C] transition hover:bg-[#FFF9F6]"
             >
-              Close
+              {labels.close}
             </button>
           </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
             {isGroupBooking && (
               <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">
-                Group booking
+                {labels.groupBooking}
               </span>
             )}
 
             {isWalkInBooking && (
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                Walk-in
+                {labels.walkIn}
               </span>
             )}
 
             {isRequestedStaffBooking && (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-                Requested staff booking
+                {labels.requestedStaffBooking}
               </span>
             )}
 
             {currentStaffMissing && (
               <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
-                Needs reassignment
+                {labels.needsReassignment}
               </span>
             )}
 
             {financialControlsEnabled && hasFullyRefunded && (
               <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">
-                Fully refunded
+                {labels.fullyRefunded}
               </span>
             )}
           </div>
@@ -909,10 +962,10 @@ export default function BookingDetailsModal({
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
-                  Booking information
+                  {labels.bookingInformation}
                 </h3>
                 <p className="mt-1 text-xs text-[#6F625C]">
-                  Customer, service, and time details
+                  {labels.bookingInfoHelper}
                 </p>
               </div>
 
@@ -924,7 +977,7 @@ export default function BookingDetailsModal({
                   : "border-[#E8DED6] bg-[#FFF9F6] text-[#5B4B45] hover:bg-[#FFF5F1]"
                   }`}
               >
-                {isEditingDetails ? "Done editing" : "Edit details"}
+                {isEditingDetails ? labels.doneEditing : labels.editDetails}
               </button>
             </div>
 
@@ -932,7 +985,7 @@ export default function BookingDetailsModal({
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                    Customer name
+                    {labels.customerName}
                   </label>
                   <input
                     type="text"
@@ -944,7 +997,7 @@ export default function BookingDetailsModal({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                    Phone number
+                    {labels.phoneNumber}
                   </label>
                   <input
                     type="text"
@@ -956,7 +1009,7 @@ export default function BookingDetailsModal({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                    Service name
+                    {labels.serviceName}
                   </label>
                   <input
                     type="text"
@@ -968,7 +1021,7 @@ export default function BookingDetailsModal({
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                    Duration (mins)
+                    {labels.durationMins}
                   </label>
                   <input
                     type="number"
@@ -983,7 +1036,7 @@ export default function BookingDetailsModal({
 
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-semibold text-[#6F625C]">
-                    Time
+                    {labels.time}
                   </label>
                   <input
                     type="time"
@@ -999,7 +1052,7 @@ export default function BookingDetailsModal({
                 <div className="grid gap-y-2 text-sm md:grid-cols-2 md:gap-x-6">
                   <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
-                      Customer
+                      {labels.customer}
                     </span>
 
                     <span className="text-right font-semibold text-[#3F3733]">
@@ -1009,7 +1062,7 @@ export default function BookingDetailsModal({
 
                   <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
-                      Phone
+                      {labels.phone}
                     </span>
 
                     <span className="text-right font-semibold text-[#3F3733]">
@@ -1019,7 +1072,7 @@ export default function BookingDetailsModal({
 
                   <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
-                      Service
+                      {labels.service}
                     </span>
 
                     <span className="text-right font-semibold text-[#3F3733]">
@@ -1029,7 +1082,7 @@ export default function BookingDetailsModal({
 
                   <div className="flex items-center justify-between gap-3 border-b border-[#F1E7E2] py-2 md:border-b-0">
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
-                      Duration
+                      {labels.duration}
                     </span>
 
                     <span className="text-right font-semibold text-[#3F3733]">
@@ -1039,7 +1092,7 @@ export default function BookingDetailsModal({
 
                   <div className="flex items-center justify-between gap-3 py-2">
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9A8A84]">
-                      Time
+                      {labels.time}
                     </span>
 
                     <span className="text-right font-semibold text-[#3F3733]">
@@ -1054,7 +1107,7 @@ export default function BookingDetailsModal({
             {customerBookingNote && (
               <div className="mt-3 rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9F3A2E]">
-                  Customer note
+                  {labels.notes}
                 </p>
                 <p className="mt-2 text-sm text-[#9F3A2E]">{customerBookingNote}</p>
               </div>
@@ -1063,14 +1116,14 @@ export default function BookingDetailsModal({
 
           <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
             <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
-              Assigned staff
+              {labels.assignedStaff}
             </h3>
 
             {isRequestedStaffBooking && (
               <div className="mb-3 space-y-2">
                 {isRequestedStaffBooking && (
                   <div className="rounded-2xl border border-[#F3B2A5] bg-[#FFF1EE] px-3 py-2 text-sm text-[#9F3A2E]">
-                    Customer requested this staff. Reassign only if necessary.
+                    {labels.staffRequestedWarning}
                   </div>
                 )}
               </div>
@@ -1081,7 +1134,7 @@ export default function BookingDetailsModal({
               onChange={(e) => updateField("staff_id", e.target.value)}
               className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
             >
-              <option value="">Unassigned</option>
+              <option value="">{labels.unassigned}</option>
               {assignableStaff.map((staff) => (
                 <option key={staff.id} value={staff.id}>
                   {staff.name}
@@ -1091,20 +1144,20 @@ export default function BookingDetailsModal({
             </select>
 
             <p className="mt-2 text-xs text-[#6F625C]">
-              Only staff on the selected date’s shift and free at this time are shown here.
+              {labels.staffOptionsHelper}
             </p>
           </section>
 
           <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
             <div className="mb-3">
               <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9A8A84]">
-                Status
+                {labels.status}
               </h3>
 
               <p className="mt-1 text-xs text-[#6F625C]">
                 {financialControlsEnabled
                   ? "Update booking progress and payment flow"
-                  : "Update booking progress"}
+                  : labels.updateProgress}
               </p>
             </div>
 
@@ -1122,7 +1175,7 @@ export default function BookingDetailsModal({
                         : "border-[#E8DED6] bg-[#FFFCFA] text-[#5B4B45] hover:bg-[#FFF5F1]"
                       }`}
                   >
-                    {STATUS_LABELS[status]}
+                    {statusLabels[status] || STATUS_LABELS[status]}
                   </button>
                 );
               })}
@@ -1668,7 +1721,7 @@ export default function BookingDetailsModal({
 
           <section className="rounded-2xl border border-[#E8DED6] bg-white p-4">
             <h3 className="mb-3 text-sm font-semibold text-[#3F3733]">
-              Internal booking note
+              {labels.internalBookingNote}
             </h3>
 
             <textarea
@@ -1676,14 +1729,14 @@ export default function BookingDetailsModal({
               value={formData.notes}
               onChange={(e) => updateField("notes", e.target.value)}
               className="w-full rounded-2xl border border-[#E8DED6] bg-white px-3 py-2 text-sm text-[#3F3733] outline-none transition focus:border-[#B86F52] focus:ring-1 focus:ring-[#F3D1C6]"
-              placeholder="Internal note for this booking"
+              placeholder={labels.internalNotePlaceholder}
             />
           </section>
         </div>
 
         <div className="flex flex-col gap-3 border-t border-[#E8DED6] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-[#6F625C]">
-            {isDirty ? "Unsaved changes" : "No changes yet"}
+            {isDirty ? labels.unsavedChanges : labels.noChangesYet}
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -1693,7 +1746,7 @@ export default function BookingDetailsModal({
               disabled={isSavingChanges}
               className="rounded-2xl border border-[#E8DED6] bg-white px-4 py-2 text-sm font-semibold text-[#6F625C] hover:bg-[#FFF9F6] disabled:opacity-50"
             >
-              Cancel
+              {labels.cancel}
             </button>
 
             <button
@@ -1702,7 +1755,7 @@ export default function BookingDetailsModal({
               disabled={isSavingChanges}
               className="rounded-2xl bg-[#B86F52] px-4 py-2 text-sm font-semibold text-white hover:bg-[#A86248] disabled:opacity-50"
             >
-              {isSavingChanges ? "Saving..." : "Save changes"}
+              {isSavingChanges ? labels.saving : labels.saveChanges}
             </button>
           </div>
         </div>

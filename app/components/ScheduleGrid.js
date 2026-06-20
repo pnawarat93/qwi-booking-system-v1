@@ -87,6 +87,7 @@ export default function ScheduleGrid({
   externalSelectedBooking = null,
   onExternalBookingHandled,
   storeSlug,
+  bookingDetailsCopy,
 }) {
   const store = useStore();
   const storeFeatures = getStoreFeatures(store);
@@ -674,6 +675,7 @@ export default function ScheduleGrid({
         allBookings={bookings}
         storeSlug={storeSlug}
         storeFeatures={storeFeatures}
+        copy={bookingDetailsCopy}
       />
     </div>
   );
